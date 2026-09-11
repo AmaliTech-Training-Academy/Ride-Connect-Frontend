@@ -9,17 +9,34 @@ function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [authError, setAuthError] = useState('')
 
   function handleSubmit(event) {
     event.preventDefault()
+
     const nextErrors = {}
-    if (!email.trim()) nextErrors.email = 'Please enter your work email'
-    if (!password) nextErrors.password = 'Please enter your password'
+
+    if (!email.trim()) {
+      nextErrors.email = 'Please enter your work email'
+    }
+
+    if (!password) {
+      nextErrors.password = 'Please enter your password'
+    }
+
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length) return
+    setAuthError('')
+
+    if (Object.keys(nextErrors).length > 0) {
+      return
+    }
 
     setIsLoading(true)
-    window.setTimeout(() => setIsLoading(false), 1200)
+
+    window.setTimeout(() => {
+      setIsLoading(false)
+      setAuthError('Invalid email or password')
+    }, 700)
   }
 
   return (
@@ -72,6 +89,8 @@ function LoginScreen() {
             </button>
           </div>
           {errors.password && <p className="field-error" role="alert">{errors.password}</p>}
+
+          {authError && <p className="login-error" role="alert">{authError}</p>}
 
           <button className="submit-button" type="submit" disabled={isLoading}>
             {isLoading ? <span className="spinner" aria-hidden="true" /> : 'Log in'}
