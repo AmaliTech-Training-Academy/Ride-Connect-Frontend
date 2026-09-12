@@ -1,8 +1,60 @@
 import { execSync } from 'node:child_process'
 import process from 'node:process'
 
-const PATTERN = /^(feat|fix|chore|test)\/.+/
-const EXEMPT = ['main', 'develop']
+// Enforces the team convention: <type>/RID-<ticket>-short-description
+// e.g. feat/RID-1-login-page
+export const ALLOWED_TYPES = [
+  'feat',
+  'fix',
+  'refactor',
+  'test',
+  'chore',
+  'docs',
+  'perf',
+  'style',
+]
+
+// Long-lived branches are named by the workflow, not by a ticket.
+export const PROTECTED_BRANCHES = ['develop', 'testing', 'production', 'main']
+
+export const BRANCH_PATTERN = new RegExp(
+  `^(${ALLOWED_TYPES.join('|')})\\/RID-\\d+-[a-z0-9]+(-[a-z0-9]+)*$`,
+)
+
+/**
+ * Returns null when the branch name is acceptable, or a reason why it is not.
+ * Exported so the rules can be tested without spawning git.
+ */
+export function checkBranchName(branch) {
+  // Detached HEAD (rebase, bisect, CI checkout of a commit) has no name to check.
+  if (!branch || branch === 'HEAD') {
+    return null
+  }
+
+  if (PROTECTED_BRANCHES.includes(branch)) {
+    return null
+  }
+
+  if (BRANCH_PATTERN.test(branch)) {
+    return null
+  }
+
+  const [type] = branch.split('/')
+
+  if (!branch.includes('/')) {
+    return `"${branch}" is missing a type prefix`
+  }
+
+  if (!ALLOWED_TYPES.includes(type)) {
+    return `"${type}" is not an allowed type`
+  }
+
+  if (!/\/RID-\d+-/.test(branch)) {
+    return `"${branch}" is missing its RID ticket`
+  }
+
+  return `"${branch}" must use lowercase words separated by hyphens`
+}
 
 function currentBranch() {
   try {
@@ -18,30 +70,33 @@ function currentBranch() {
   }
 }
 
-const branch = currentBranch()
+function main() {
+  const branch = currentBranch()
+  const problem = checkBranchName(branch)
 
-// Detached HEAD (rebase, bisect, CI checkout of a commit) has no branch name to check.
-if (branch === 'HEAD') {
-  process.exit(0)
-}
+  if (!problem) {
+    process.exit(0)
+  }
 
-if (EXEMPT.includes(branch)) {
-  process.exit(0)
-}
-
-if (!PATTERN.test(branch)) {
   console.error(`
-✖ Invalid branch name: "${branch}"
+✖ Invalid branch name: ${problem}
 
-  Branches must start with feat/, fix/, chore/ or test/ followed by a description.
+  Branches must be named  <type>/RID-<ticket>-short-description
 
-    feat/register-screen
-    fix/stale-auth-error
-    chore/add-prettier-config
+    feat/RID-1-login-page
+    fix/RID-24-login-validation
+    refactor/RID-31-auth-service
+    test/RID-45-login-tests
+
+  Allowed types: ${ALLOWED_TYPES.join(', ')}
+  Use lowercase words separated by hyphens, and keep the RID ticket.
 
   Rename this branch with:  git branch -m <new-name>
 `)
   process.exit(1)
 }
 
-process.exit(0)
+// Only run when invoked directly, so the rules above can be imported by tests.
+if (process.argv[1] && process.argv[1].endsWith('validate-branch-name.js')) {
+  main()
+}
