@@ -125,13 +125,15 @@ function RegisterScreen({
             {duplicateEmail && (
               <div className="register-banner" role="alert">
                 <p>An account with this email already exists.</p>
-                <button
-                  type="button"
-                  className="register-banner-link"
-                  onClick={onLoginClick}
-                >
-                  Log in instead
-                </button>
+                {onLoginClick && (
+                  <button
+                    type="button"
+                    className="register-banner-link"
+                    onClick={onLoginClick}
+                  >
+                    Log in instead
+                  </button>
+                )}
               </div>
             )}
 
@@ -276,16 +278,18 @@ function RegisterScreen({
               )}
             </button>
 
-            <p className="register-switch">
-              Already have an account?{' '}
-              <button
-                type="button"
-                className="register-link"
-                onClick={onLoginClick}
-              >
-                Log in
-              </button>
-            </p>
+            {onLoginClick && (
+              <p className="register-switch">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  className="register-link"
+                  onClick={onLoginClick}
+                >
+                  Log in
+                </button>
+              </p>
+            )}
           </form>
         )}
       </section>

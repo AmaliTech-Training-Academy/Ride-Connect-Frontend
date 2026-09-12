@@ -295,6 +295,29 @@ describe('RegisterScreen', () => {
       expect(onLoginClick).toHaveBeenCalledTimes(1)
     })
 
+    it('hides the log in link when there is nowhere to go', () => {
+      setup({ onLoginClick: undefined })
+
+      expect(
+        screen.queryByRole('button', { name: /^log in$/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('hides the log in instead link on a duplicate when there is nowhere to go', async () => {
+      const register = vi.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register, onLoginClick: undefined })
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(
+        await screen.findByText('An account with this email already exists.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /log in instead/i }),
+      ).not.toBeInTheDocument()
+    })
+
     it('marks invalid fields for assistive technology', async () => {
       const { user } = setup()
 
