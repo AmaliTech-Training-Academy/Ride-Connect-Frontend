@@ -234,6 +234,14 @@ describe('LoginScreen', () => {
       expect(onRegisterClick).toHaveBeenCalledTimes(1)
     })
 
+    it('hides the create account link when there is nowhere to go', () => {
+      setup({ onRegisterClick: undefined })
+
+      expect(
+        screen.queryByRole('button', { name: /create an account/i }),
+      ).not.toBeInTheDocument()
+    })
+
     it('links validation errors to their fields for assistive technology', async () => {
       const { user } = setup()
 

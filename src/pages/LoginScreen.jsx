@@ -144,16 +144,18 @@ function LoginScreen({ onRegisterClick, onLoggedIn, login = loginUser }) {
               'Log in'
             )}
           </button>
-          <p className="signup">
-            New to RideConnect?{' '}
-            <button
-              type="button"
-              className="signup-link"
-              onClick={onRegisterClick}
-            >
-              Create an account
-            </button>
-          </p>
+          {onRegisterClick && (
+            <p className="signup">
+              New to RideConnect?{' '}
+              <button
+                type="button"
+                className="signup-link"
+                onClick={onRegisterClick}
+              >
+                Create an account
+              </button>
+            </p>
+          )}
         </form>
       </section>
     </main>
