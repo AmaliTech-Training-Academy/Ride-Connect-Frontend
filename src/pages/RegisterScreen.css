@@ -1,9 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
 /*
  * Namespaced with auth-/register- so these rules cannot collide with the
- * globally scoped selectors in LoginScreen.css. The shared shell styles are
- * duplicated here deliberately; extracting them is a follow-up that would
- * otherwise drag a full reformat of LoginScreen.css into this change.
+ * globally scoped selectors in LoginScreen.css, which this screen does not
+ * load. The font import and the border-box reset are repeated here for the
+ * same reason: this stylesheet has to stand on its own.
  */
+
+* {
+  box-sizing: border-box;
+}
 
 .auth-shell {
   width: min(1440px, 100%);
