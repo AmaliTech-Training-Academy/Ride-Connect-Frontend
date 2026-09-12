@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import CarIcon from '../components/CarIcon'
 import EyeIcon from '../components/EyeIcon'
+import { InvalidCredentialsError, loginUser } from '../services/auth'
 import './LoginScreen.css'
 
-function LoginScreen() {
+function LoginScreen({ onRegisterClick, onLoggedIn, login = loginUser }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -11,7 +12,7 @@ function LoginScreen() {
   const [errors, setErrors] = useState({})
   const [authError, setAuthError] = useState('')
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
 
     const nextErrors = {}
@@ -25,18 +26,28 @@ function LoginScreen() {
     }
 
     setErrors(nextErrors)
+    setAuthError('')
 
     if (Object.keys(nextErrors).length > 0) {
-      setAuthError('')
       return
     }
 
     setIsLoading(true)
 
-    window.setTimeout(() => {
+    try {
+      const user = await login({ email: email.trim(), password })
+      onLoggedIn?.(user)
+    } catch (error) {
+      // The same message for an unknown email and a wrong password, so the
+      // form never reveals which of the two was wrong.
+      setAuthError(
+        error instanceof InvalidCredentialsError
+          ? 'Invalid email or password'
+          : 'Something went wrong. Please try again.',
+      )
+    } finally {
       setIsLoading(false)
-      setAuthError('Invalid email or password')
-    }, 1200)
+    }
   }
 
   return (
@@ -80,9 +91,11 @@ function LoginScreen() {
             placeholder="you@company.com"
             className={errors.email ? 'has-error' : ''}
             autoComplete="email"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? 'login-email-error' : undefined}
           />
           {errors.email && (
-            <p className="field-error" role="alert">
+            <p className="field-error" id="login-email-error" role="alert">
               {errors.email}
             </p>
           )}
@@ -98,6 +111,10 @@ function LoginScreen() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
               autoComplete="current-password"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={
+                errors.password ? 'login-password-error' : undefined
+              }
             />
             <button
               type="button"
@@ -109,7 +126,7 @@ function LoginScreen() {
             </button>
           </div>
           {errors.password && (
-            <p className="field-error" role="alert">
+            <p className="field-error" id="login-password-error" role="alert">
               {errors.password}
             </p>
           )}
@@ -128,7 +145,14 @@ function LoginScreen() {
             )}
           </button>
           <p className="signup">
-            New to RideConnect? <a href="#create-account">Create an account</a>
+            New to RideConnect?{' '}
+            <button
+              type="button"
+              className="signup-link"
+              onClick={onRegisterClick}
+            >
+              Create an account
+            </button>
           </p>
         </form>
       </section>
