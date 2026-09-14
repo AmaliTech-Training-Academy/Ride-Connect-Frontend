@@ -21,6 +21,10 @@ function App() {
   }
 
   return <LoginScreen onCreateAccount={() => setScreen('register')} />
+import PostRideForm from './components/PostRideForm/PostRideForm'
+
+function App() {
+  return <PostRideForm />
 }
 
 export default App
