@@ -156,7 +156,7 @@ function EmptyState({ hasFilters, onClear, onOfferRide }) {
   )
 }
 
-function FindARide({ onOfferRide }) {
+function FindARide({ onOfferRide, onMyRides }) {
   // TODO: replace the local mock load with GET /rides when the backend is ready.
   const [rides, setRides] = useState(() => createMockRides())
   const [search, setSearch] = useState('')
@@ -245,6 +245,7 @@ function FindARide({ onOfferRide }) {
         </a>
         <nav className="find-ride-nav" aria-label="Main navigation">
           <button type="button" className="find-ride-nav-link active">Find a Ride</button>
+          <button type="button" className="find-ride-nav-link" onClick={onMyRides}>My Rides</button>
         </nav>
         <div className="find-ride-header-actions">
           <button type="button" className="find-ride-offer-link" onClick={onOfferRide}>
@@ -321,7 +322,7 @@ function FindARide({ onOfferRide }) {
         {toast && (
           <div className="find-ride-toast" role="status">
             <i className="fa-solid fa-circle-check" aria-hidden="true" />
-            <span>Request sent to {toast}. The driver will be notified.</span>
+            <span>Request sent to {toast}. You&apos;ll see the status in My Rides.</span>
           </div>
         )}
 
