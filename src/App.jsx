@@ -1,17 +1,26 @@
 import { useState } from 'react'
+import LoginScreen from './pages/LoginScreen'
 import RegisterScreen from './pages/RegisterScreen'
 import RideListScreen from './pages/RideListScreen'
 
-// Screen switching is deliberately minimal. It moves to a router once the
-// login screen joins it and these screens need their own URLs.
 function App() {
+  const [screen, setScreen] = useState('register')
   const [user, setUser] = useState(null)
 
   if (user) {
     return <RideListScreen user={user} onLogout={() => setUser(null)} />
   }
 
-  return <RegisterScreen onRegistered={setUser} />
+  if (screen === 'register') {
+    return (
+      <RegisterScreen
+        onRegistered={setUser}
+        onLoginClick={() => setScreen('login')}
+      />
+    )
+  }
+
+  return <LoginScreen onCreateAccount={() => setScreen('register')} />
 }
 
 export default App

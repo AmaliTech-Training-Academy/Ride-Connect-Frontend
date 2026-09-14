@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, jest } from '@jest/globals'
 import RegisterScreen from './RegisterScreen'
 import { DuplicateEmailError } from '../services/auth'
 
@@ -12,7 +12,7 @@ const VALID = {
 
 function setup(props = {}) {
   const register =
-    props.register ?? vi.fn().mockResolvedValue({ email: VALID.email })
+    props.register ?? jest.fn().mockResolvedValue({ email: VALID.email })
   const utils = render(
     <RegisterScreen register={register} redirectDelay={0} {...props} />,
   )
@@ -134,7 +134,7 @@ describe('RegisterScreen', () => {
 
   describe('AC2 - registering with an already-used email returns a clear error', () => {
     it('shows the duplicate account message when the API reports a conflict', async () => {
-      const register = vi.fn().mockRejectedValue(new DuplicateEmailError())
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register })
 
       await fillForm(user)
@@ -146,8 +146,8 @@ describe('RegisterScreen', () => {
     })
 
     it('offers a route to log in instead', async () => {
-      const onLoginClick = vi.fn()
-      const register = vi.fn().mockRejectedValue(new DuplicateEmailError())
+      const onLoginClick = jest.fn()
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register, onLoginClick })
 
       await fillForm(user)
@@ -160,7 +160,7 @@ describe('RegisterScreen', () => {
     })
 
     it('announces the duplicate error to assistive technology', async () => {
-      const register = vi.fn().mockRejectedValue(new DuplicateEmailError())
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register })
 
       await fillForm(user)
@@ -173,7 +173,7 @@ describe('RegisterScreen', () => {
     })
 
     it('clears the duplicate error when the form is resubmitted', async () => {
-      const register = vi
+      const register = jest
         .fn()
         .mockRejectedValueOnce(new DuplicateEmailError())
         .mockResolvedValueOnce({ email: 'new@amalitech.com' })
@@ -196,7 +196,7 @@ describe('RegisterScreen', () => {
     })
 
     it('distinguishes an unexpected failure from a duplicate', async () => {
-      const register = vi.fn().mockRejectedValue(new Error('network down'))
+      const register = jest.fn().mockRejectedValue(new Error('network down'))
       const { user } = setup({ register })
 
       await fillForm(user)
@@ -223,7 +223,7 @@ describe('RegisterScreen', () => {
     })
 
     it('hands off to the caller so it can show the ride listing', async () => {
-      const onRegistered = vi.fn()
+      const onRegistered = jest.fn()
       const { user } = setup({ onRegistered })
 
       await fillForm(user)
@@ -233,9 +233,9 @@ describe('RegisterScreen', () => {
     })
 
     it('does not hand off while registration is still pending', async () => {
-      const onRegistered = vi.fn()
+      const onRegistered = jest.fn()
       let resolveRegister
-      const register = vi.fn(
+      const register = jest.fn(
         () =>
           new Promise((resolve) => {
             resolveRegister = resolve
@@ -255,7 +255,7 @@ describe('RegisterScreen', () => {
   describe('form behaviour', () => {
     it('disables the submit button while the request is in flight', async () => {
       let resolveRegister
-      const register = vi.fn(
+      const register = jest.fn(
         () =>
           new Promise((resolve) => {
             resolveRegister = resolve
@@ -288,7 +288,7 @@ describe('RegisterScreen', () => {
     })
 
     it('lets the user switch to the login screen', async () => {
-      const onLoginClick = vi.fn()
+      const onLoginClick = jest.fn()
       const { user } = setup({ onLoginClick })
 
       await user.click(screen.getByRole('button', { name: /^log in$/i }))
@@ -304,7 +304,7 @@ describe('RegisterScreen', () => {
     })
 
     it('hides the log in instead link on a duplicate when there is nowhere to go', async () => {
-      const register = vi.fn().mockRejectedValue(new DuplicateEmailError())
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register, onLoginClick: undefined })
 
       await fillForm(user)

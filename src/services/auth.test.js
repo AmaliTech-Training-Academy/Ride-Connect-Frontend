@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from '@jest/globals'
 import { DuplicateEmailError, registerUser } from './auth'
 
 const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }

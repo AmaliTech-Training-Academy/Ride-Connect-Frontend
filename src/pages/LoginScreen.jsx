@@ -3,7 +3,7 @@ import CarIcon from '../components/CarIcon'
 import EyeIcon from '../components/EyeIcon'
 import './LoginScreen.css'
 
-function LoginScreen() {
+function LoginScreen({ onCreateAccount }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -128,7 +128,14 @@ function LoginScreen() {
             )}
           </button>
           <p className="signup">
-            New to RideConnect? <a href="#create-account">Create an account</a>
+            New to RideConnect?{' '}
+            <button
+              type="button"
+              className="login-link"
+              onClick={onCreateAccount}
+            >
+              Create an account
+            </button>
           </p>
         </form>
       </section>
