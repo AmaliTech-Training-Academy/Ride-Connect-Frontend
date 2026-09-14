@@ -14,3 +14,9 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Testing
+
+This project uses Jest + React Testing Library for component tests, with an 80% coverage
+requirement enforced on every `npm test` run. See [TESTING.md](TESTING.md) for how to run
+tests, where test files go, and the patterns to follow when writing new ones.
