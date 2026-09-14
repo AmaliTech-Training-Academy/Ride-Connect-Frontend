@@ -110,7 +110,7 @@ function RegisterScreen({
               <CheckIcon />
             </div>
             <h2>Account created!</h2>
-            <p>Taking you to Find a Ride…</p>
+            <p>Taking you to Post a Ride…</p>
             <div className="register-progress" aria-hidden="true">
               <div className="register-progress-bar" />
             </div>

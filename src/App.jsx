@@ -1,14 +1,14 @@
 import { useState } from 'react'
+import PostRideForm from './components/PostRideForm/PostRideForm'
 import LoginScreen from './pages/LoginScreen'
 import RegisterScreen from './pages/RegisterScreen'
-import RideListScreen from './pages/RideListScreen'
 
 function App() {
   const [screen, setScreen] = useState('register')
   const [user, setUser] = useState(null)
 
   if (user) {
-    return <RideListScreen user={user} onLogout={() => setUser(null)} />
+    return <PostRideForm />
   }
 
   if (screen === 'register') {
@@ -20,11 +20,12 @@ function App() {
     )
   }
 
-  return <LoginScreen onCreateAccount={() => setScreen('register')} />
-import PostRideForm from './components/PostRideForm/PostRideForm'
-
-function App() {
-  return <PostRideForm />
+  return (
+    <LoginScreen
+      onCreateAccount={() => setScreen('register')}
+      onLoggedIn={setUser}
+    />
+  )
 }
 
 export default App

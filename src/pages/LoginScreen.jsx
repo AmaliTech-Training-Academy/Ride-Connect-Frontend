@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import CarIcon from '../components/CarIcon'
 import EyeIcon from '../components/EyeIcon'
+import { loginUser } from '../services/auth'
 import './LoginScreen.css'
 
-function LoginScreen({ onCreateAccount }) {
+function LoginScreen({ onCreateAccount, onLoggedIn, login = loginUser }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -33,10 +34,10 @@ function LoginScreen({ onCreateAccount }) {
 
     setIsLoading(true)
 
-    window.setTimeout(() => {
-      setIsLoading(false)
-      setAuthError('Invalid email or password')
-    }, 1200)
+    login({ email, password })
+      .then((user) => onLoggedIn?.(user))
+      .catch(() => setAuthError('Invalid email or password'))
+      .finally(() => setIsLoading(false))
   }
 
   return (

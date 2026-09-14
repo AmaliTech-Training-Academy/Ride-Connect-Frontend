@@ -219,7 +219,7 @@ describe('RegisterScreen', () => {
       await submit(user)
 
       expect(await screen.findByText('Account created!')).toBeInTheDocument()
-      expect(screen.getByText('Taking you to Find a Ride…')).toBeInTheDocument()
+      expect(screen.getByText('Taking you to Post a Ride…')).toBeInTheDocument()
     })
 
     it('hands off to the caller so it can show the ride listing', async () => {

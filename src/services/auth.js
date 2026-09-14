@@ -10,6 +10,13 @@ export class DuplicateEmailError extends Error {
   }
 }
 
+export class InvalidCredentialsError extends Error {
+  constructor(message = 'Invalid email or password') {
+    super(message)
+    this.name = 'InvalidCredentialsError'
+  }
+}
+
 /**
  * The backend endpoint does not exist yet, so this resolves against an
  * in-memory store to keep the screen demonstrable. Replace the body with the
@@ -43,5 +50,16 @@ export async function registerUser({ email, password }) {
   }
 
   accounts.set(key, password)
+  return { email: key }
+}
+
+export async function loginUser({ email, password }) {
+  await pause()
+
+  const key = normalise(email)
+  if (accounts.get(key) !== password) {
+    throw new InvalidCredentialsError()
+  }
+
   return { email: key }
 }

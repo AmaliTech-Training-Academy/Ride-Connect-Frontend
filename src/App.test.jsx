@@ -35,12 +35,12 @@ describe('App', () => {
     expect(
       await screen.findByRole(
         'heading',
-        { name: /find a ride/i },
+        { name: /offer a ride/i },
         { timeout: 5000 },
       ),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(`Signed in as ${email.toLowerCase()}`),
+      screen.getByRole('button', { name: 'Post Ride' }),
     ).toBeInTheDocument()
   })
 
@@ -64,7 +64,7 @@ describe('App', () => {
       ),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /find a ride/i }),
+      screen.queryByRole('heading', { name: /offer a ride/i }),
     ).not.toBeInTheDocument()
   })
 
@@ -82,7 +82,7 @@ describe('App', () => {
       await screen.findByText('Password must be at least 8 characters'),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /find a ride/i }),
+      screen.queryByRole('heading', { name: /offer a ride/i }),
     ).not.toBeInTheDocument()
   })
 })
