@@ -13,7 +13,6 @@ function App() {
     return rideScreen === 'find' ? (
       <FindARide
         onOfferRide={() => setRideScreen('post')}
-        onMyRides={() => setRideScreen('post')}
       />
     ) : (
       <PostRideForm onFindRide={() => setRideScreen('find')} />
