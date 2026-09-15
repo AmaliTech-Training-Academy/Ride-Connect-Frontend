@@ -79,7 +79,7 @@ function FieldError({ message }) {
   )
 }
 
-function PostRideForm() {
+function PostRideForm({ onFindRide }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -140,6 +140,16 @@ function PostRideForm() {
       <header className="app-header">
         <i className="fa-solid fa-car-side" aria-hidden="true" />
         <span>RideConnect</span>
+        {onFindRide && (
+          <nav className="post-ride-nav" aria-label="Main navigation">
+            <button type="button" className="post-ride-nav-link" onClick={onFindRide}>
+              Find a Ride
+            </button>
+            <button type="button" className="post-ride-nav-link active">
+              My Rides
+            </button>
+          </nav>
+        )}
       </header>
 
       {status === 'error' && (

@@ -29,6 +29,25 @@
   color: #2e7d32;
 }
 
+.post-ride-nav {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.post-ride-nav-link {
+  border: 0;
+  background: transparent;
+  color: #6d796f;
+  cursor: pointer;
+  font: 500 13px 'Poppins', sans-serif;
+}
+
+.post-ride-nav-link.active {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
 .error-banner {
   display: flex;
   align-items: center;
@@ -195,7 +214,7 @@ textarea {
 .swap-btn-wrap {
   display: flex;
   justify-content: center;
-  margin-top: 24px;
+  margin-top: 27px;
 }
 
 .swap-btn {

@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import PostRideForm from './components/PostRideForm/PostRideForm'
+import FindARide from './pages/FindARide'
 import LoginScreen from './pages/LoginScreen'
 import RegisterScreen from './pages/RegisterScreen'
 
 function App() {
   const [screen, setScreen] = useState('register')
   const [user, setUser] = useState(null)
+  const [rideScreen, setRideScreen] = useState('post')
 
   if (user) {
-    return <PostRideForm />
+    return rideScreen === 'find' ? (
+      <FindARide
+        onOfferRide={() => setRideScreen('post')}
+      />
+    ) : (
+      <PostRideForm onFindRide={() => setRideScreen('find')} />
+    )
   }
 
   if (screen === 'register') {
