@@ -1,3 +1,9 @@
+import { createAuthClient } from 'better-auth/react'
+
+const authClient = createAuthClient({
+  baseURL: import.meta.env.VITE_API_BASE_URL,
+})
+
 /**
  * Thrown when the backend rejects a registration because the email is taken.
  * Kept as its own type so the screen can show the "log in instead" prompt
@@ -17,49 +23,30 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
-/**
- * The backend endpoint does not exist yet, so this resolves against an
- * in-memory store to keep the screen demonstrable. Replace the body with the
- * real request once POST /auth/register is available; what the screen depends
- * on is the thrown error type, not the transport.
- *
- * Passwords are held in plain text here only because nothing leaves the
- * browser. Hashing is the backend's responsibility and is covered by its own
- * acceptance criterion.
- */
-export const accounts = new Map([
-  ['kwame.mensah@amalitech.com', 'Sup3rSecret!'],
-])
+export async function registerUser({ name, email, password }) {
+  const result = await authClient.signUp.email({ name, email, password })
 
-const LATENCY_MS = 600
-
-export function normalise(email) {
-  return email.trim().toLowerCase()
-}
-
-export function pause() {
-  return new Promise((resolve) => setTimeout(resolve, LATENCY_MS))
-}
-
-export async function registerUser({ email, password }) {
-  await pause()
-
-  const key = normalise(email)
-  if (accounts.has(key)) {
+  if (result.error?.status === 409) {
     throw new DuplicateEmailError()
   }
 
-  accounts.set(key, password)
-  return { email: key }
+  if (result.error) {
+    throw new Error('Registration failed')
+  }
+
+  return result.data
 }
 
 export async function loginUser({ email, password }) {
-  await pause()
+  const result = await authClient.signIn.email({ email, password })
 
-  const key = normalise(email)
-  if (accounts.get(key) !== password) {
+  if (result.error?.status === 401 || result.error?.status === 404) {
     throw new InvalidCredentialsError()
   }
 
-  return { email: key }
+  if (result.error) {
+    throw new Error('Login failed')
+  }
+
+  return result.data
 }
