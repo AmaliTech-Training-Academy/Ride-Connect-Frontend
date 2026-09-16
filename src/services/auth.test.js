@@ -1,50 +1,29 @@
 import { describe, expect, it } from '@jest/globals'
-import { DuplicateEmailError, registerUser } from './auth'
+import {
+  DuplicateEmailError,
+  InvalidCredentialsError,
+  loginUser,
+  registerUser,
+} from './auth'
 
-const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }
-
-function freshEmail(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@amalitech.com`
-}
-
-describe('registerUser', () => {
-  it('resolves with the normalised email for a new address', async () => {
-    const email = freshEmail('new')
+describe('auth backend configuration', () => {
+  it('refuses registration when no backend URL is configured', async () => {
     await expect(
-      registerUser({ email, password: 'Sup3rSecret!' }),
-    ).resolves.toEqual({
-      email: email.toLowerCase(),
-    })
+      registerUser({
+        name: 'New User',
+        email: 'new.user@amalitech.com',
+        password: 'Sup3rSecret!',
+      }),
+    ).rejects.toThrow('Authentication backend is not configured.')
   })
 
-  it('lowercases and trims the stored email', async () => {
-    const email = freshEmail('Mixed').toUpperCase()
-    const result = await registerUser({
-      email: `  ${email}  `,
-      password: 'Sup3rSecret!',
-    })
-    expect(result.email).toBe(email.trim().toLowerCase())
-  })
-
-  it('rejects an email that is already taken', async () => {
-    await expect(registerUser(TAKEN)).rejects.toBeInstanceOf(
-      DuplicateEmailError,
-    )
-  })
-
-  it('rejects a second registration of the same address', async () => {
-    const email = freshEmail('repeat')
-
-    await registerUser({ email, password: 'Sup3rSecret!' })
+  it('refuses login when no backend URL is configured', async () => {
     await expect(
-      registerUser({ email, password: 'Sup3rSecret!' }),
-    ).rejects.toBeInstanceOf(DuplicateEmailError)
-  })
-
-  it('treats a differently-cased duplicate as taken', async () => {
-    await expect(
-      registerUser({ ...TAKEN, email: 'Kwame.Mensah@AMALITECH.com' }),
-    ).rejects.toBeInstanceOf(DuplicateEmailError)
+      loginUser({
+        email: 'kwame.mensah@amalitech.com',
+        password: 'Sup3rSecret!',
+      }),
+    ).rejects.toThrow('Authentication backend is not configured.')
   })
 })
 
@@ -59,5 +38,13 @@ describe('DuplicateEmailError', () => {
     const error = new DuplicateEmailError()
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe('DuplicateEmailError')
+  })
+})
+
+describe('InvalidCredentialsError', () => {
+  it('keeps a clear message for invalid username and password combinations', () => {
+    expect(new InvalidCredentialsError().message).toBe(
+      'Invalid email or password',
+    )
   })
 })

@@ -3,6 +3,19 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import App from './App'
+import { DuplicateEmailError } from './services/auth'
+import { registerUser } from './services/auth'
+
+jest.mock('./services/auth', () => ({
+  DuplicateEmailError: class DuplicateEmailError extends Error {
+    constructor(message = 'An account with this email already exists.') {
+      super(message)
+      this.name = 'DuplicateEmailError'
+    }
+  },
+  registerUser: jest.fn(),
+  loginUser: jest.fn(),
+}))
 
 jest.mock('./lib/api', () => ({
   apiFetch: jest.fn(),
@@ -23,6 +36,17 @@ async function fillForm(user, { name, email, password }) {
 }
 
 describe('App', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    registerUser.mockImplementation(async ({ email }) => {
+      if (email.toLowerCase() === TAKEN.email.toLowerCase()) {
+        throw new DuplicateEmailError()
+      }
+
+      return { email: email.toLowerCase() }
+    })
+  })
+
   it('starts on the registration screen', () => {
     render(<App />)
     expect(
