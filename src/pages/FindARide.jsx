@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createMockRides } from './findARideMockData'
+import { useEffect, useState } from 'react'
+import { apiFetch } from '../lib/api'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -27,6 +27,29 @@ function formatTime(timeString) {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`
 }
 
+function normaliseRide(ride, currentUserId) {
+  const departure = new Date(ride.departureAt)
+  const date = `${departure.getFullYear()}-${String(departure.getMonth() + 1).padStart(2, '0')}-${String(departure.getDate()).padStart(2, '0')}`
+  const time = `${String(departure.getHours()).padStart(2, '0')}:${String(departure.getMinutes()).padStart(2, '0')}`
+  const driverInitials = ride.driverName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+  return {
+    ...ride,
+    description: ride.routeDescription || '',
+    date,
+    time,
+    seatsTotal: ride.totalSeats,
+    seatsAvailable: ride.availableSeats,
+    driverInitials,
+    isOwnRide: currentUserId != null && String(ride.driverId) === String(currentUserId),
+  }
+}
+
 function getActiveDateLabel(date) {
   if (date === getDateOffset(0)) return 'Today'
   if (date === getDateOffset(1)) return 'Tomorrow'
@@ -37,12 +60,15 @@ function Avatar({ initials }) {
   return <span className="find-ride-avatar">{initials}</span>
 }
 
-function RideCard({ ride, onRequest }) {
+function RideCard({ ride, onRequest, isHighlighted }) {
+  // TODO: add requestStatus-based variants (pending/joined) once the backend
+  // exposes per-ride request status for the current user.
   const isLowSeat = ride.seatsAvailable === 1
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
     ride.isOwnRide ? 'find-ride-card-own' : '',
+    isHighlighted ? 'find-ride-card-highlighted' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -93,10 +119,6 @@ function RideCard({ ride, onRequest }) {
           <button type="button" className="find-ride-button find-ride-button-outline">
             Manage
           </button>
-        ) : ride.requestStatus === 'pending' ? (
-          <span className="find-ride-action-pill find-ride-action-pending">Request pending</span>
-        ) : ride.requestStatus === 'accepted' ? (
-          <span className="find-ride-action-pill find-ride-action-accepted">✓ You&apos;re in</span>
         ) : (
           <button type="button" className="find-ride-button" onClick={() => onRequest(ride)}>
             Request to Join
@@ -130,13 +152,13 @@ function FilterChip({ children, onRemove }) {
   )
 }
 
-function EmptyState({ hasFilters, onClear, onOfferRide }) {
+function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
   return (
     <div className="find-ride-empty-state">
       <div className="find-ride-empty-icon">
         <i className={`fa-solid ${hasFilters ? 'fa-magnifying-glass' : 'fa-car-side'}`} aria-hidden="true" />
       </div>
-      <h2>{hasFilters ? 'No rides found for this date' : 'No rides posted yet'}</h2>
+      <h2>{emptyMessage || (hasFilters ? 'No rides found for this date' : 'No rides posted yet')}</h2>
       <p>
         {hasFilters
           ? 'Try a different date or route, or offer a ride yourself.'
@@ -156,18 +178,34 @@ function EmptyState({ hasFilters, onClear, onOfferRide }) {
   )
 }
 
-function FindARide({ onOfferRide }) {
-  // TODO: replace the local mock load with GET /rides when the backend is ready.
-  const [rides, setRides] = useState(() => createMockRides())
+function getEmptyMessage(message, hasFilters) {
+  if (message?.toLowerCase().includes('date')) return 'No rides found for this date'
+  if (message?.toLowerCase().includes('route')) return 'No rides found for this route'
+  if (message) return 'No rides found'
+  return hasFilters ? 'No rides found for this date' : undefined
+}
+
+async function readResponseBody(response) {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRideId }) {
+  const [rides, setRides] = useState([])
   const [search, setSearch] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
-  const [loadState, setLoadState] = useState('loaded')
+  const [loadState, setLoadState] = useState('loading')
+  const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
-  const [showDevControls, setShowDevControls] = useState(false)
+  const [reloadToken, setReloadToken] = useState(0)
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
   const hasFilters = Boolean(search.trim() || selectedDate)
+  const filteredRides = rides
 
   useEffect(() => {
     if (!toast) return undefined
@@ -175,32 +213,61 @@ function FindARide({ onOfferRide }) {
     return () => clearTimeout(timer)
   }, [toast])
 
-  const filteredRides = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase()
-    return rides.filter((ride) => {
-      const matchesSearch = !searchTerm || [ride.origin, ride.destination].some((place) => place.toLowerCase().includes(searchTerm))
-      const matchesDate = !selectedDate || ride.date === selectedDate
-      return matchesSearch && matchesDate && ride.status === 'open'
-    })
-  }, [rides, search, selectedDate])
+  useEffect(() => {
+    const controller = new AbortController()
+    const params = new URLSearchParams()
+    if (selectedDate) params.set('date', selectedDate)
+    if (search.trim()) params.set('search', search.trim())
+
+    apiFetch(`/rides?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        const body = await readResponseBody(response)
+        if (response.status === 401) {
+          onUnauthorized?.()
+          return
+        }
+        if (!response.ok) throw new Error('Unable to load rides')
+        setRides((body?.data || []).map((ride) => normaliseRide(ride, currentUserId)))
+        setEmptyMessage(body?.message || '')
+        setLoadState('loaded')
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setLoadState('error')
+      })
+
+    return () => controller.abort()
+  }, [search, selectedDate, currentUserId, onUnauthorized, reloadToken])
+
+  const startLoading = () => setLoadState('loading')
 
   const clearFilters = () => {
+    startLoading()
     setSearch('')
     setSelectedDate('')
   }
 
-  const handleRequest = (ride) => {
-    setToast(ride.driverName)
-    setRides((currentRides) =>
-      currentRides.map((currentRide) =>
-        currentRide.id === ride.id ? { ...currentRide, requestStatus: 'pending' } : currentRide,
-      ),
-    )
+  const retryLoad = () => {
+    startLoading()
+    setReloadToken((token) => token + 1)
   }
 
-  const retryLoad = () => {
-    setLoadState('loading')
-    setTimeout(() => setLoadState('loaded'), 500)
+  const handleSearchChange = (event) => {
+    startLoading()
+    setSearch(event.target.value)
+  }
+
+  const handleDateChange = (event) => {
+    startLoading()
+    setSelectedDate(event.target.value)
+  }
+
+  const handleQuickDateChange = (date) => {
+    startLoading()
+    setSelectedDate(selectedDate === date ? '' : date)
+  }
+
+  const handleRequest = (ride) => {
+    setToast(ride.driverName)
   }
 
   const renderResults = () => {
@@ -221,17 +288,17 @@ function FindARide({ onOfferRide }) {
       )
     }
 
-    if (rides.length === 0) {
-      return <EmptyState hasFilters={false} onOfferRide={onOfferRide} />
+    if (filteredRides.length === 0 && hasFilters) {
+      return <EmptyState hasFilters={hasFilters} emptyMessage={getEmptyMessage(emptyMessage, hasFilters)} onClear={clearFilters} onOfferRide={onOfferRide} />
     }
 
-    if (filteredRides.length === 0) {
-      return <EmptyState hasFilters={hasFilters} onClear={clearFilters} onOfferRide={onOfferRide} />
+    if (rides.length === 0) {
+      return <EmptyState hasFilters={false} emptyMessage={getEmptyMessage(emptyMessage, false)} onOfferRide={onOfferRide} />
     }
 
     return (
       <div className="find-ride-grid">
-        {filteredRides.map((ride) => <RideCard key={ride.id} ride={ride} onRequest={handleRequest} />)}
+        {rides.map((ride) => <RideCard key={ride.id} ride={ride} onRequest={handleRequest} isHighlighted={ride.id === highlightedRideId} />)}
       </div>
     )
   }
@@ -265,21 +332,7 @@ function FindARide({ onOfferRide }) {
             <h1>Find a ride</h1>
             <p className="find-ride-subtitle">Open rides from your colleagues · {filteredRides.length} rides available</p>
           </div>
-          <button type="button" className="find-ride-dev-toggle" onClick={() => setShowDevControls((visible) => !visible)}>
-            <i className="fa-solid fa-flask" aria-hidden="true" /> Dev states
-          </button>
         </div>
-
-        {showDevControls && (
-          <div className="find-ride-dev-controls" aria-label="Development state controls">
-            <span>Preview:</span>
-            <button type="button" onClick={() => setLoadState('loaded')}>Loaded</button>
-            <button type="button" onClick={() => setLoadState('loading')}>Loading</button>
-            <button type="button" onClick={() => setLoadState('error')}>Error</button>
-            <button type="button" onClick={() => setRides([])}>No rides</button>
-            <button type="button" onClick={() => setRides(createMockRides())}>Reset data</button>
-          </div>
-        )}
 
         <div className="find-ride-filters">
           <label className="find-ride-search">
@@ -289,13 +342,13 @@ function FindARide({ onOfferRide }) {
               type="search"
               placeholder="Search by origin or destination (e.g. Madina)"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={handleSearchChange}
             />
           </label>
           <label className="find-ride-date-select">
             <span className="sr-only">Filter by date</span>
             <i className="fa-regular fa-calendar" aria-hidden="true" />
-            <select value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)}>
+            <select value={selectedDate} onChange={handleDateChange}>
               <option value="">Any date</option>
               <option value={today}>{formatDate(today)}</option>
               <option value={tomorrow}>{formatDate(tomorrow)}</option>
@@ -304,8 +357,8 @@ function FindARide({ onOfferRide }) {
             </select>
           </label>
           <div className="find-ride-quick-filters" aria-label="Quick date filters">
-            <button type="button" className={selectedDate === today ? 'active' : ''} onClick={() => setSelectedDate(selectedDate === today ? '' : today)}>Today</button>
-            <button type="button" className={selectedDate === tomorrow ? 'active' : ''} onClick={() => setSelectedDate(selectedDate === tomorrow ? '' : tomorrow)}>Tomorrow</button>
+            <button type="button" className={selectedDate === today ? 'active' : ''} onClick={() => handleQuickDateChange(today)}>Today</button>
+            <button type="button" className={selectedDate === tomorrow ? 'active' : ''} onClick={() => handleQuickDateChange(tomorrow)}>Tomorrow</button>
           </div>
         </div>
 

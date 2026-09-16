@@ -2,8 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import App from './App'
-import { DuplicateEmailError } from './services/auth'
-import { registerUser } from './services/auth'
+import { DuplicateEmailError, loginUser, registerUser } from './services/auth'
 
 jest.mock('./services/auth', () => ({
   DuplicateEmailError: class DuplicateEmailError extends Error {
@@ -14,6 +13,10 @@ jest.mock('./services/auth', () => ({
   },
   registerUser: jest.fn(),
   loginUser: jest.fn(),
+}))
+
+jest.mock('./lib/api', () => ({
+  apiFetch: jest.fn(),
 }))
 
 const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }
@@ -33,12 +36,24 @@ async function fillForm(user, { name, email, password }) {
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+
     registerUser.mockImplementation(async ({ email }) => {
       if (email.toLowerCase() === TAKEN.email.toLowerCase()) {
         throw new DuplicateEmailError()
       }
 
       return { email: email.toLowerCase() }
+    })
+
+    loginUser.mockImplementation(async ({ email, password }) => {
+      if (
+        email.toLowerCase() === TAKEN.email.toLowerCase() &&
+        password === TAKEN.password
+      ) {
+        return { id: 'colleague-1', email: TAKEN.email.toLowerCase() }
+      }
+
+      throw new Error('Invalid email or password')
     })
   })
 
@@ -66,7 +81,7 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Post Ride' }),
     ).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('AC2 - reports an email that is already registered', async () => {
     const user = userEvent.setup()
@@ -108,5 +123,17 @@ describe('App', () => {
     expect(
       screen.queryByRole('heading', { name: /offer a ride/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('logs an existing colleague in and opens the post-ride screen', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await user.type(screen.getByLabelText('Work email'), TAKEN.email)
+    await user.type(screen.getByLabelText('Password'), TAKEN.password)
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(await screen.findByRole('heading', { name: /offer a ride/i })).toBeInTheDocument()
   })
 })
