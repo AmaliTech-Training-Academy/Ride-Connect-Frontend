@@ -61,3 +61,27 @@ describe('DuplicateEmailError', () => {
     expect(error.name).toBe('DuplicateEmailError')
   })
 })
+
+describe('loginUser', () => {
+  it('accepts a valid password from the in-memory fallback store', async () => {
+    await expect(
+      import('./auth').then(({ loginUser }) =>
+        loginUser({
+          email: 'kwame.mensah@amalitech.com',
+          password: 'Sup3rSecret!',
+        }),
+      ),
+    ).resolves.toEqual({ email: 'kwame.mensah@amalitech.com' })
+  })
+
+  it('rejects an invalid password from the in-memory fallback store', async () => {
+    await expect(
+      import('./auth').then(({ loginUser }) =>
+        loginUser({
+          email: 'kwame.mensah@amalitech.com',
+          password: 'WrongPassword!',
+        }),
+      ),
+    ).rejects.toMatchObject({ name: 'InvalidCredentialsError' })
+  })
+})
