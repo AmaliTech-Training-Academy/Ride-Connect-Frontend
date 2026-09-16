@@ -8,14 +8,29 @@ function App() {
   const [screen, setScreen] = useState('register')
   const [user, setUser] = useState(null)
   const [rideScreen, setRideScreen] = useState('post')
+  const [highlightedRideId, setHighlightedRideId] = useState(null)
+
+  const handleUnauthorized = () => {
+    setUser(null)
+    setScreen('login')
+  }
 
   if (user) {
     return rideScreen === 'find' ? (
       <FindARide
         onOfferRide={() => setRideScreen('post')}
+        currentUserId={user?.id}
+        highlightedRideId={highlightedRideId}
+        onUnauthorized={handleUnauthorized}
       />
     ) : (
-      <PostRideForm onFindRide={() => setRideScreen('find')} />
+      <PostRideForm
+        onFindRide={(rideId) => {
+          setHighlightedRideId(rideId)
+          setRideScreen('find')
+        }}
+        onUnauthorized={handleUnauthorized}
+      />
     )
   }
 

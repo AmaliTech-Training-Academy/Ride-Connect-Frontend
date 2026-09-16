@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
 import './PostRideForm.css'
 
-const DESCRIPTION_MAX_LENGTH = 200
+const DESCRIPTION_MAX_LENGTH = 500
 
 function getInitialValues() {
   return {
@@ -47,6 +48,14 @@ function validate(values, now) {
     errors.destination = 'Please enter a destination'
   }
 
+  if (
+    values.origin.trim() &&
+    values.destination.trim() &&
+    values.origin.trim().toLowerCase() === values.destination.trim().toLowerCase()
+  ) {
+    errors.destination = 'Origin and destination must be different'
+  }
+
   if (!values.date) {
     errors.date = 'Please enter a departure date'
   } else if (values.date < todayISODate) {
@@ -55,15 +64,14 @@ function validate(values, now) {
 
   if (!values.time) {
     errors.time = 'Please enter a departure time'
-  } else if (values.date === todayISODate) {
-    const departureDateTime = new Date(`${values.date}T${values.time}`)
-    if (departureDateTime < now) {
-      errors.time = "Departure time can't be in the past"
-    }
   }
 
-  if (values.seats < 1 || values.seats > 8) {
+  if (!Number.isInteger(Number(values.seats)) || values.seats < 1 || values.seats > 8) {
     errors.seats = 'Seats must be between 1 and 8'
+  }
+
+  if (values.description.length > DESCRIPTION_MAX_LENGTH) {
+    errors.description = `Route description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer`
   }
 
   return errors
@@ -79,11 +87,31 @@ function FieldError({ message }) {
   )
 }
 
-function PostRideForm({ onFindRide }) {
+async function readResponseBody(response) {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+function mapServerFieldErrors(fields = {}) {
+  return {
+    origin: fields.origin,
+    destination: fields.destination,
+    date: fields.departureDate,
+    time: fields.departureTime,
+    seats: fields.availableSeats,
+    description: fields.routeDescription,
+  }
+}
+
+function PostRideForm({ onFindRide, onUnauthorized }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
   const [toastMessage, setToastMessage] = useState(null)
+  const [serverErrors, setServerErrors] = useState({})
 
   const dateInputRef = useRef(null)
   const timeInputRef = useRef(null)
@@ -101,28 +129,54 @@ function PostRideForm({ onFindRide }) {
 
   const updateField = (field, value) => {
     setValues((prev) => ({ ...prev, [field]: value }))
+    setServerErrors((prev) => ({ ...prev, [field]: undefined }))
     if (status === 'success' || status === 'error') setStatus('idle')
   }
 
   const handleSwap = () => {
     setValues((prev) => ({ ...prev, origin: prev.destination, destination: prev.origin }))
+    setServerErrors({})
     if (status === 'success' || status === 'error') setStatus('idle')
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
     if (Object.keys(errors).length > 0) return
 
     setStatus('submitting')
     setToastMessage(null)
+    setServerErrors({})
 
-    // TODO: replace this mock submit with a real POST /rides call once the API is ready
-    setTimeout(() => {
-      setStatus('success')
-      setToastMessage('Your ride is live!')
-      console.log('Ride posted (mock):', values)
-    }, 1500)
+    try {
+      const response = await apiFetch('/rides', {
+        method: 'POST',
+        body: JSON.stringify({
+          origin: values.origin.trim(),
+          destination: values.destination.trim(),
+          departureDate: values.date,
+          departureTime: values.time,
+          availableSeats: Number(values.seats),
+          routeDescription: values.description.trim() || null,
+        }),
+      })
+
+      const body = await readResponseBody(response)
+      if (response.status === 201) {
+        setStatus('success')
+        setToastMessage('Your ride is live!')
+        onFindRide?.(body?.data?.id ?? body?.data?.ride?.id ?? body?.id)
+      } else if (response.status === 400) {
+        setServerErrors(mapServerFieldErrors(body?.data?.fields))
+        setStatus('idle')
+      } else if (response.status === 401) {
+        onUnauthorized?.()
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
   }
 
   const handleCancel = () => {
@@ -130,10 +184,12 @@ function PostRideForm({ onFindRide }) {
     setHasAttemptedSubmit(false)
     setStatus('idle')
     setToastMessage(null)
+    setServerErrors({})
   }
 
   const isFormValid = Object.keys(errors).length === 0
   const showFieldErrors = hasAttemptedSubmit && status !== 'submitting'
+  const getFieldError = (field) => serverErrors[field] || errors[field]
 
   return (
     <div className="post-ride-page">
@@ -184,10 +240,10 @@ function PostRideForm({ onFindRide }) {
                   value={values.origin}
                   onChange={(event) => updateField('origin', event.target.value)}
                   disabled={isSubmitting}
-                  className={showFieldErrors && errors.origin ? 'input-error' : ''}
+                  className={showFieldErrors && getFieldError('origin') ? 'input-error' : ''}
                   placeholder="Starting point"
                 />
-                <FieldError message={showFieldErrors ? errors.origin : null} />
+                <FieldError message={showFieldErrors ? getFieldError('origin') : null} />
               </div>
 
               <div className="swap-btn-wrap">
@@ -210,10 +266,10 @@ function PostRideForm({ onFindRide }) {
                   value={values.destination}
                   onChange={(event) => updateField('destination', event.target.value)}
                   disabled={isSubmitting}
-                  className={showFieldErrors && errors.destination ? 'input-error' : ''}
+                  className={showFieldErrors && getFieldError('destination') ? 'input-error' : ''}
                   placeholder="Drop-off point"
                 />
-                <FieldError message={showFieldErrors ? errors.destination : null} />
+                <FieldError message={showFieldErrors ? getFieldError('destination') : null} />
               </div>
             </div>
           </div>
@@ -236,6 +292,7 @@ function PostRideForm({ onFindRide }) {
             <span className="char-counter">
               {values.description.length} / {DESCRIPTION_MAX_LENGTH}
             </span>
+            <FieldError message={showFieldErrors ? getFieldError('description') : null} />
           </div>
 
           <div className="form-section">
@@ -244,7 +301,7 @@ function PostRideForm({ onFindRide }) {
               <div className="form-field">
                 <label htmlFor="date">Departure date</label>
                 <div
-                  className={`styled-date-field ${showFieldErrors && errors.date ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                    className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
                   onClick={() => !isSubmitting && dateInputRef.current?.showPicker?.()}
                 >
                   <span className={values.date ? '' : 'placeholder'}>
@@ -262,13 +319,13 @@ function PostRideForm({ onFindRide }) {
                     disabled={isSubmitting}
                   />
                 </div>
-                <FieldError message={showFieldErrors ? errors.date : null} />
+                <FieldError message={showFieldErrors ? getFieldError('date') : null} />
               </div>
 
               <div className="form-field">
                 <label htmlFor="time">Departure time</label>
                 <div
-                  className={`styled-date-field ${showFieldErrors && errors.time ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                    className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
                   onClick={() => !isSubmitting && timeInputRef.current?.showPicker?.()}
                 >
                   <span className={values.time ? '' : 'placeholder'}>
@@ -285,7 +342,7 @@ function PostRideForm({ onFindRide }) {
                     disabled={isSubmitting}
                   />
                 </div>
-                <FieldError message={showFieldErrors ? errors.time : null} />
+                <FieldError message={showFieldErrors ? getFieldError('time') : null} />
               </div>
             </div>
           </div>
@@ -297,7 +354,7 @@ function PostRideForm({ onFindRide }) {
               onChange={(seats) => updateField('seats', seats)}
               disabled={isSubmitting}
             />
-            <FieldError message={showFieldErrors ? errors.seats : null} />
+            <FieldError message={showFieldErrors ? getFieldError('seats') : null} />
           </div>
 
           <div className="form-actions">

@@ -1,13 +1,15 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { jest } from '@jest/globals'
+import { apiFetch } from '../../lib/api'
 import PostRideForm from './PostRideForm'
+
+jest.mock('../../lib/api', () => ({
+  apiFetch: jest.fn(),
+}))
 
 function toISODate(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-function todayISODate() {
-  return toISODate(new Date())
 }
 
 function futureISODate(daysAhead) {
@@ -17,6 +19,14 @@ function futureISODate(daysAhead) {
 }
 
 describe('PostRideForm', () => {
+  beforeEach(() => {
+    apiFetch.mockResolvedValue({
+      status: 201,
+      ok: true,
+      json: async () => ({ data: { id: 'ride-1' } }),
+    })
+  })
+
   it('renders the empty form correctly', () => {
     render(<PostRideForm />)
 
@@ -45,22 +55,18 @@ describe('PostRideForm', () => {
     ).toBeInTheDocument()
   })
 
-  it("shows the departure time can't be in the past error for today + a past time", async () => {
+  it('rejects an origin and destination that differ only by case', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
-    fireEvent.change(screen.getByLabelText('Departure date'), {
-      target: { value: todayISODate() },
-    })
-    fireEvent.change(screen.getByLabelText('Departure time'), {
-      target: { value: '00:01' },
-    })
+    await user.clear(screen.getByLabelText('Destination'))
+    await user.type(screen.getByLabelText('Origin'), 'AmaliTech office')
+    await user.type(screen.getByLabelText('Destination'), 'amalitech OFFICE')
 
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
-    expect(screen.getByText("Departure time can't be in the past")).toBeInTheDocument()
-    expect(screen.queryByText('Please enter a departure date')).not.toBeInTheDocument()
+    expect(screen.getByText('Origin and destination must be different')).toBeInTheDocument()
+    expect(apiFetch).not.toHaveBeenCalled()
   })
 
   it('allows submission with valid data and shows the success state', async () => {
@@ -77,10 +83,8 @@ describe('PostRideForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
-    expect(await screen.findByText('Posting…')).toBeInTheDocument()
-
     expect(
-      await screen.findByText('Your ride is live!', {}, { timeout: 2500 })
+      await screen.findByText('Your ride is live!')
     ).toBeInTheDocument()
     expect(screen.getByText('NEW')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Request to Join' })).toBeDisabled()
@@ -123,7 +127,7 @@ describe('PostRideForm', () => {
 
     await user.type(screen.getByLabelText(/Route description/), 'Via the market road')
 
-    expect(screen.getByText('19 / 200')).toBeInTheDocument()
+    expect(screen.getByText('19 / 500')).toBeInTheDocument()
   })
 
   it('resets the form when Cancel is clicked', async () => {
