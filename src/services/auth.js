@@ -7,7 +7,7 @@ const apiBaseURL =
 
 let authClient = null
 
-if (typeof Request !== 'undefined') {
+if (typeof Request !== 'undefined' && apiBaseURL) {
   authClient = createAuthClient({
     baseURL: apiBaseURL,
   })
@@ -32,31 +32,9 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
-export const accounts = new Map([
-  ['kwame.mensah@amalitech.com', 'Sup3rSecret!'],
-])
-
-const LATENCY_MS = 600
-
-export function normalise(email) {
-  return email.trim().toLowerCase()
-}
-
-export function pause() {
-  return new Promise((resolve) => setTimeout(resolve, LATENCY_MS))
-}
-
 export async function registerUser({ name, email, password }) {
   if (!authClient || !apiBaseURL) {
-    await pause()
-
-    const key = normalise(email)
-    if (accounts.has(key)) {
-      throw new DuplicateEmailError()
-    }
-
-    accounts.set(key, password)
-    return { email: key, name }
+    throw new Error('Authentication backend is not configured.')
   }
 
   try {
@@ -76,27 +54,13 @@ export async function registerUser({ name, email, password }) {
       throw error
     }
 
-    await pause()
-    const key = normalise(email)
-    if (accounts.has(key)) {
-      throw new DuplicateEmailError()
-    }
-
-    accounts.set(key, password)
-    return { email: key, name }
+    throw error
   }
 }
 
 export async function loginUser({ email, password }) {
   if (!authClient || !apiBaseURL) {
-    await pause()
-
-    const key = normalise(email)
-    if (accounts.get(key) !== password) {
-      throw new InvalidCredentialsError()
-    }
-
-    return { email: key }
+    throw new Error('Authentication backend is not configured.')
   }
 
   try {
@@ -116,12 +80,6 @@ export async function loginUser({ email, password }) {
       throw error
     }
 
-    await pause()
-    const key = normalise(email)
-    if (accounts.get(key) !== password) {
-      throw new InvalidCredentialsError()
-    }
-
-    return { email: key }
+    throw error
   }
 }
