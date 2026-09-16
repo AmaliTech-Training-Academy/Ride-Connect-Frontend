@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RideConnect Frontend Documentation</title>
+  <style>
+    :root {
+      --page-bg: #eef4f8;
+      --panel-bg: #ffffff;
+      --text: #102a43;
+      --muted: #52606d;
+      --heading: #102a43;
+      --line: #cbd5e1;
+      --accent: #2d6a4f;
+      --accent-soft: #eaf8f4;
+      --code-bg: #111827;
+      --code-text: #e5eefb;
+      --shadow: rgba(16, 42, 67, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--page-bg);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.6;
+    }
+
+    .document {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    header {
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 40px;
+      color: var(--heading);
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    article {
+      background: var(--panel-bg);
+      border: 1px solid var(--line);
+      box-shadow: 0 4px 16px var(--shadow);
+      padding: 30px 48px;
+      border-radius: 12px;
+    }
+
+    section {
+      margin: 0 0 28px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 20px;
+    }
+
+    section:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+      margin-bottom: 0;
+    }
+
+    h2 {
+      color: var(--heading);
+      font-size: 28px;
+      margin: 0 0 14px;
+      border-left: 4px solid var(--accent);
+      padding-left: 12px;
+    }
+
+    h3 {
+      color: var(--heading);
+      font-size: 22px;
+      margin: 0 0 12px;
+    }
+
+    p,
+    li {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    ul {
+      margin: 10px 0 18px 20px;
+      padding-left: 20px;
+    }
+
+    ol {
+      margin: 10px 0 18px 24px;
+      padding-left: 20px;
+    }
+
+    code,
+    pre {
+      font-family: "Courier New", Courier, monospace;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .badge {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 13px;
+      border: 1px solid var(--accent);
+      font-weight: 700;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+      article {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="document">
+    <header>
+      <div class="topbar">
+        <div>
+          <h1>RideConnect Frontend</h1>
+          <p class="subtitle">Vite + React Frontend Project Documentation</p>
+        </div>
+        <div class="meta">
+          <span class="badge">Frontend</span>
+          <span class="badge">Ride Sharing</span>
+        </div>
+      </div>
+    </header>
+
+    <article>
+      <section>
+        <h2>Project Overview</h2>
+        <p>RideConnect Frontend is the Vite + React client for a work-commuter ride-sharing application. The current codebase implements the registration and login screens, a mock authentication service, and a placeholder post-login ride-list destination.</p>
+        <p>RideConnect allows colleagues to coordinate work commutes by posting and finding rides. The current frontend milestone focuses on the user journey for:</p>
+        <ul>
+          <li>creating a work account with an <code>@amalitech.com</code> email</li>
+          <li>logging in with an email and password</li>
+          <li>receiving validation feedback for missing or invalid fields</li>
+          <li>seeing a placeholder screen after authentication succeeds</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Stack and Dependencies</h2>
+        <ul>
+          <li>React 19</li>
+          <li>Vite 8</li>
+          <li>JavaScript</li>
+          <li>Jest and React Testing Library</li>
+          <li>CSS styling per page/component</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Repository Structure</h2>
+        <pre>Ride-Connect-Frontend/
+├── package.json
+├── vite.config.js
+├── README.md
+├── TESTING.md
+├── src/
+│   ├── App.jsx
+│   ├── main.jsx
+│   ├── components/
+│   ├── lib/
+│   ├── pages/
+│   ├── services/
+│   └── test/
+└── public/</pre>
+      </section>
+
+      <section>
+        <h2>Application Flow</h2>
+        <p>The main route is managed in <code>src/App.jsx</code>:</p>
+        <ol>
+          <li>The default screen renders the registration screen.</li>
+          <li>If the user clicks the login action, the app switches to the login screen.</li>
+          <li>On successful registration or login, the app passes the user object to the screen update callback.</li>
+          <li>The post-login path currently redirects to a placeholder ride list screen.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Screen Responsibilities</h2>
+
+        <h3>Register Screen</h3>
+        <p>Source: <code>src/pages/RegisterScreen.jsx</code></p>
+        <p>The register screen collects:</p>
+        <ul>
+          <li><code>name</code></li>
+          <li><code>email</code></li>
+          <li><code>password</code></li>
+          <li><code>confirmPassword</code></li>
+        </ul>
+        <p>It performs validation for full name, valid work email, password length, matching confirmation password, and duplicate email handling.</p>
+
+        <h3>Login Screen</h3>
+        <p>Source: <code>src/pages/LoginScreen.jsx</code></p>
+        <p>The login screen collects the email and password fields, shows validation errors, and supports a password visibility toggle.</p>
+
+        <h3>Ride List Placeholder</h3>
+        <p>Source: <code>src/pages/RideListScreen.jsx</code></p>
+        <p>This route acts as a placeholder destination after a successful auth event.</p>
+      </section>
+
+      <section>
+        <h2>Authentication Service Contract</h2>
+        <p>Source: <code>src/services/auth.js</code></p>
+        <p>The authentication layer currently provides a mock implementation that simulates backend behavior locally.</p>
+        <p>The service exports:</p>
+        <ul>
+          <li><code>registerUser({ name, email, password })</code></li>
+          <li><code>loginUser({ email, password })</code></li>
+          <li><code>DuplicateEmailError</code></li>
+          <li><code>InvalidCredentialsError</code></li>
+        </ul>
+        <p>The mock service stores accounts in an in-memory <code>Map</code> and uses a short simulated delay. This implementation is a demonstration layer only.</p>
+        <p>Expected payload for registration:</p>
+        <pre>{
+  "name": "Full Name",
+  "email": "you@amalitech.com",
+  "password": "password123"
+}</pre>
+      </section>
+
+      <section>
+        <h2>Validation and Business Rules</h2>
+        <p>The validation helper in <code>src/lib/registration.js</code> implements business rules:</p>
+        <ul>
+          <li><code>WORK_EMAIL_DOMAIN = 'amalitech.com'</code></li>
+          <li>work email validation</li>
+          <li>minimum password length of eight characters</li>
+          <li>confirm password must match</li>
+          <li>password strength meter for UI feedback only</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Environment Configuration</h2>
+        <p>Vite environment variables should be stored in a root-level <code>.env</code> file:</p>
+        <pre>Ride-Connect-Frontend/.env</pre>
+        <p>Typical variable:</p>
+        <pre>VITE_API_BASE_URL=http://localhost:3000</pre>
+      </section>
+
+      <section>
+        <h2>Local Setup</h2>
+        <p>Clone the repository:</p>
+        <pre>git clone &lt;repo-url&gt;
+cd Ride-Connect-Frontend</pre>
+        <p>Install dependencies:</p>
+        <pre>npm install</pre>
+        <p>Start the server:</p>
+        <pre>npm run dev</pre>
+        <p>The app runs locally at:</p>
+        <pre>http://localhost:5173/</pre>
+      </section>
+
+      <section>
+        <h2>Available Scripts</h2>
+        <pre>{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  }
+}</pre>
+      </section>
+
+      <section>
+        <h2>Testing Strategy</h2>
+        <p>Testing is provided through Jest and React Testing Library. Tests are expected to live alongside the component or screen they verify. The repository also has <code>TESTING.md</code> as the detailed testing guide.</p>
+        <p>The project enforces a minimum global coverage threshold of 80% across branch, function, line, and statement coverage.</p>
+      </section>
+
+      <section>
+        <h2>Contribution and Branch Workflow</h2>
+        <p>The repository uses a branch-oriented development model. Before switching branches, the worktree should have a clean status.</p>
+        <pre>git status</pre>
+        <p>Local branch switching:</p>
+        <pre>git checkout &lt;branch-name&gt;</pre>
+        <p>or:</p>
+        <pre>git switch &lt;branch-name&gt;</pre>
+      </section>
+
+      <section>
+        <h2>Current Status and Roadmap</h2>
+        <ul>
+          <li>registration screen</li>
+          <li>login screen</li>
+          <li>validation utilities</li>
+          <li>mock auth service</li>
+          <li>placeholder ride-list page</li>
+        </ul>
+        <p>Future work still represented by placeholder behavior includes rides, posting, listing, backend integration, and session handling.</p>
+      </section>
+
+      <section>
+        <h2>Backend Integration Guidance</h2>
+        <p>When the backend team provides endpoints, the frontend should store them in the auth service layer rather than directly in UI screens. The service file to update is <code>src/services/auth.js</code>.</p>
+        <p>A consistent integration shape is:</p>
+        <ul>
+          <li><code>POST /api/auth/register</code></li>
+          <li><code>POST /api/auth/login</code></li>
+          <li><code>POST /api/auth/logout</code></li>
+          <li><code>GET /api/auth/session</code></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Troubleshooting</h2>
+        <ul>
+          <li>confirm <code>npm install</code> ran successfully</li>
+          <li>verify a clean <code>git status</code> before branch switching</li>
+          <li>check that the Vite server starts on port 5173</li>
+          <li>ensure <code>.env</code> variables use the <code>VITE_</code> prefix</li>
+        </ul>
+      </section>
+    </article>
+  </div>
+</body>
+</html>
