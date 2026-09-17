@@ -219,7 +219,7 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
     if (selectedDate) params.set('date', selectedDate)
     if (search.trim()) params.set('search', search.trim())
 
-    apiFetch(`/rides?${params.toString()}`, { signal: controller.signal })
+    apiFetch(`/api/rides?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await readResponseBody(response)
         if (response.status === 401) {
