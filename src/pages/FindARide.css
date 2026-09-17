@@ -124,6 +124,7 @@
 .find-ride-card { display: flex; min-height: 310px; flex-direction: column; padding: 20px; border: 1px solid #e0e8e0; border-radius: 13px; background: #fff; box-shadow: 0 5px 18px rgba(46, 91, 49, .05); }
 .find-ride-card-low-seat { border-color: #e6b45d; }
 .find-ride-card-own { border-color: #b6d9b8; background: #f0f9f0; }
+.find-ride-card-highlighted { outline: 3px solid #e6b45d; outline-offset: 3px; }
 .find-ride-card-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .find-ride-driver { display: flex; align-items: center; gap: 10px; }
 .find-ride-driver strong { display: block; color: #28342b; font-size: 13px; }

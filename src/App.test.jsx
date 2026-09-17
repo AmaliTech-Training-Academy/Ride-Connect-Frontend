@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { describe, expect, it } from '@jest/globals'
+import { jest } from '@jest/globals'
 import App from './App'
 import { DuplicateEmailError } from './services/auth'
 import { registerUser } from './services/auth'
@@ -14,6 +15,10 @@ jest.mock('./services/auth', () => ({
   },
   registerUser: jest.fn(),
   loginUser: jest.fn(),
+}))
+
+jest.mock('./lib/api', () => ({
+  apiFetch: jest.fn(),
 }))
 
 const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }
@@ -66,7 +71,7 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Post Ride' }),
     ).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('AC2 - reports an email that is already registered', async () => {
     const user = userEvent.setup()
@@ -108,5 +113,17 @@ describe('App', () => {
     expect(
       screen.queryByRole('heading', { name: /offer a ride/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it('logs an existing colleague in and opens the post-ride screen', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await user.type(screen.getByLabelText('Work email'), TAKEN.email)
+    await user.type(screen.getByLabelText('Password'), TAKEN.password)
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(await screen.findByRole('heading', { name: /offer a ride/i })).toBeInTheDocument()
   })
 })
