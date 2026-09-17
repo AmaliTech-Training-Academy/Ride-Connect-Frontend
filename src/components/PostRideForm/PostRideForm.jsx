@@ -166,7 +166,7 @@ function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
     setServerErrors({})
 
     try {
-      const response = await apiFetch('/rides', {
+      const response = await apiFetch('/api/rides', {
         method: 'POST',
         body: JSON.stringify({
           origin: values.origin.trim(),
