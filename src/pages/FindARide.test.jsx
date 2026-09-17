@@ -153,6 +153,26 @@ describe('FindARide', () => {
     )
   })
 
+  it('normalizes user and driver ID formatting when identifying own rides', async () => {
+    apiFetch.mockResolvedValue(
+      response([
+        ride({ id: 'own', driverId: ' user-1 ' }),
+        ride({
+          id: 'other',
+          driverId: 'driver-2',
+          driverName: 'Daniel Bernoulli',
+        }),
+      ]),
+    )
+    render(<FindARide currentUserId="user-1" onOfferRide={jest.fn()} />)
+
+    expect(await screen.findByText('Your ride')).toBeInTheDocument()
+    expect(
+      screen.getByText('Daniel Bernoulli').closest('article'),
+    ).not.toHaveClass('find-ride-card-own')
+    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
+  })
+
   it('shows the request success toast', async () => {
     const user = userEvent.setup()
     render(<FindARide onOfferRide={jest.fn()} />)

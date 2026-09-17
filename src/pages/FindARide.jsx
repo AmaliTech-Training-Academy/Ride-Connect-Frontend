@@ -38,6 +38,14 @@ function normaliseRide(ride, currentUserId) {
     .slice(0, 2)
     .toUpperCase()
 
+  const rideDriverId = ride.driverId
+  console.debug('[FindARide] own ride check', {
+    currentUserId,
+    currentUserIdType: typeof currentUserId,
+    rideDriverId,
+    rideDriverIdType: typeof rideDriverId,
+  })
+
   return {
     ...ride,
     description: ride.routeDescription || '',
@@ -47,7 +55,8 @@ function normaliseRide(ride, currentUserId) {
     seatsAvailable: ride.availableSeats,
     driverInitials,
     isOwnRide:
-      currentUserId != null && String(ride.driverId) === String(currentUserId),
+      currentUserId != null &&
+      String(rideDriverId).trim() === String(currentUserId).trim(),
   }
 }
 
@@ -228,6 +237,7 @@ async function readResponseBody(response) {
 function FindARide({
   onOfferRide,
   onMyRides,
+  onUnauthorized,
   currentUserId,
   highlightedRideId,
 }) {
@@ -263,6 +273,7 @@ function FindARide({
         if (!response.ok) {
           const message =
             body?.message || `Request failed with status ${response.status}`
+          if (response.status === 401) onUnauthorized?.()
           throw new Error(message)
         }
         setRides(

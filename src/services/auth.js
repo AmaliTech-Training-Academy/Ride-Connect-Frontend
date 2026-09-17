@@ -47,7 +47,7 @@ export async function registerUser({ name, email, password }) {
     throw new Error('Registration failed')
   }
 
-  return result.data
+  return result.data?.user ?? result.data
 }
 
 export async function loginUser({ email, password }) {
@@ -65,5 +65,5 @@ export async function loginUser({ email, password }) {
     throw new Error('Login failed')
   }
 
-  return result.data
+  return result.data?.user ?? result.data
 }
