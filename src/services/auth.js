@@ -9,7 +9,7 @@ let authClient = null
 
 if (typeof Request !== 'undefined' && apiBaseURL) {
   authClient = createAuthClient({
-    baseURL: apiBaseURL,
+    baseURL: `${apiBaseURL}/auth`,
   })
 }
 
@@ -37,25 +37,17 @@ export async function registerUser({ name, email, password }) {
     throw new Error('Authentication backend is not configured.')
   }
 
-  try {
-    const result = await authClient.signUp.email({ name, email, password })
+  const result = await authClient.signUp.email({ name, email, password })
 
-    if (result.error?.status === 409) {
-      throw new DuplicateEmailError()
-    }
-
-    if (result.error) {
-      throw new Error('Registration failed')
-    }
-
-    return result.data
-  } catch (error) {
-    if (error instanceof DuplicateEmailError) {
-      throw error
-    }
-
-    throw error
+  if (result.error?.status === 409) {
+    throw new DuplicateEmailError()
   }
+
+  if (result.error) {
+    throw new Error('Registration failed')
+  }
+
+  return result.data
 }
 
 export async function loginUser({ email, password }) {
@@ -63,23 +55,15 @@ export async function loginUser({ email, password }) {
     throw new Error('Authentication backend is not configured.')
   }
 
-  try {
-    const result = await authClient.signIn.email({ email, password })
+  const result = await authClient.signIn.email({ email, password })
 
-    if (result.error?.status === 401 || result.error?.status === 404) {
-      throw new InvalidCredentialsError()
-    }
-
-    if (result.error) {
-      throw new Error('Login failed')
-    }
-
-    return result.data
-  } catch (error) {
-    if (error instanceof InvalidCredentialsError) {
-      throw error
-    }
-
-    throw error
+  if (result.error?.status === 401 || result.error?.status === 404) {
+    throw new InvalidCredentialsError()
   }
+
+  if (result.error) {
+    throw new Error('Login failed')
+  }
+
+  return result.data
 }

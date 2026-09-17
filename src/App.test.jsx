@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import App from './App'
 import { DuplicateEmailError } from './services/auth'
-import { registerUser } from './services/auth'
+import { loginUser, registerUser } from './services/auth'
+import { apiFetch } from './lib/api'
 
 jest.mock('./services/auth', () => ({
   DuplicateEmailError: class DuplicateEmailError extends Error {
@@ -27,6 +28,12 @@ function freshEmail() {
   return `new-${Date.now()}-${Math.random().toString(36).slice(2)}@amalitech.com`
 }
 
+function futureISODate(daysAhead) {
+  const date = new Date()
+  date.setDate(date.getDate() + daysAhead)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 async function fillForm(user, { name, email, password }) {
   await user.type(screen.getByLabelText(/full name/i), name)
   await user.type(screen.getByLabelText(/work email/i), email)
@@ -45,6 +52,7 @@ describe('App', () => {
 
       return { email: email.toLowerCase() }
     })
+    loginUser.mockResolvedValue({ email: TAKEN.email })
   })
 
   it('starts on the registration screen', () => {
@@ -124,6 +132,45 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-    expect(await screen.findByRole('heading', { name: /offer a ride/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /offer a ride/i }),
+    ).toBeInTheDocument()
   })
+
+  it('opens the find-ride screen after posting a ride successfully', async () => {
+    const user = userEvent.setup()
+    const email = freshEmail()
+    apiFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ data: { id: 'ride-1' } }),
+      })
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      })
+    render(<App />)
+
+    await fillForm(user, { name: 'Ama Owusu', email, password: 'Sup3rSecret!' })
+    await screen.findByRole(
+      'heading',
+      { name: /offer a ride/i },
+      { timeout: 5000 },
+    )
+
+    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    fireEvent.change(screen.getByLabelText('Departure date'), {
+      target: { value: futureISODate(3) },
+    })
+    fireEvent.change(screen.getByLabelText('Departure time'), {
+      target: { value: '08:30' },
+    })
+    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /find a ride/i }),
+    ).toBeInTheDocument()
+  }, 10000)
 })

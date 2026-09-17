@@ -2,6 +2,7 @@ import { useState } from 'react'
 import PostRideForm from './components/PostRideForm/PostRideForm'
 import FindARide from './pages/FindARide'
 import LoginScreen from './pages/LoginScreen'
+import MyRidesDashboard from './pages/MyRidesDashboard'
 import RegisterScreen from './pages/RegisterScreen'
 
 function App() {
@@ -16,12 +17,21 @@ function App() {
   }
 
   if (user) {
+    if (rideScreen === 'my-rides') {
+      return (
+        <MyRidesDashboard
+          onFindRide={() => setRideScreen('find')}
+          onOfferRide={() => setRideScreen('post')}
+        />
+      )
+    }
+
     return rideScreen === 'find' ? (
       <FindARide
         onOfferRide={() => setRideScreen('post')}
+        onMyRides={() => setRideScreen('my-rides')}
         currentUserId={user?.id}
         highlightedRideId={highlightedRideId}
-        onUnauthorized={handleUnauthorized}
       />
     ) : (
       <PostRideForm
@@ -29,6 +39,7 @@ function App() {
           setHighlightedRideId(rideId)
           setRideScreen('find')
         }}
+        onMyRides={() => setRideScreen('my-rides')}
         onUnauthorized={handleUnauthorized}
       />
     )
