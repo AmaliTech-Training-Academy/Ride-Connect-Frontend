@@ -134,6 +134,8 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-    expect(await screen.findByRole('heading', { name: /offer a ride/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /offer a ride/i }),
+    ).toBeInTheDocument()
   })
 })
