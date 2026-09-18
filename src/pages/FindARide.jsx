@@ -46,7 +46,8 @@ function normaliseRide(ride, currentUserId) {
     seatsTotal: ride.totalSeats,
     seatsAvailable: ride.availableSeats,
     driverInitials,
-    isOwnRide: currentUserId != null && String(ride.driverId) === String(currentUserId),
+    isOwnRide:
+      currentUserId != null && String(ride.driverId) === String(currentUserId),
   }
 }
 
@@ -80,7 +81,9 @@ function RideCard({ ride, onRequest, isHighlighted }) {
           <Avatar initials={ride.driverInitials} />
           <div>
             <strong>{ride.driverName}</strong>
-            <span className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}>
+            <span
+              className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
+            >
               {ride.isOwnRide ? 'Your ride' : 'Open'}
             </span>
           </div>
@@ -94,7 +97,9 @@ function RideCard({ ride, onRequest, isHighlighted }) {
         <span>{ride.destination}</span>
       </div>
 
-      {ride.description && <p className="find-ride-description">{ride.description}</p>}
+      {ride.description && (
+        <p className="find-ride-description">{ride.description}</p>
+      )}
 
       <div className="find-ride-meta">
         <span>
@@ -107,8 +112,12 @@ function RideCard({ ride, onRequest, isHighlighted }) {
         </span>
       </div>
 
-      <div className={`find-ride-seats ${isLowSeat ? 'find-ride-seats-warning' : ''}`}>
-        {isLowSeat && <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />}
+      <div
+        className={`find-ride-seats ${isLowSeat ? 'find-ride-seats-warning' : ''}`}
+      >
+        {isLowSeat && (
+          <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+        )}
         {isLowSeat
           ? '1 seat left'
           : `${ride.seatsAvailable} of ${ride.seatsTotal} seats left`}
@@ -116,11 +125,18 @@ function RideCard({ ride, onRequest, isHighlighted }) {
 
       <div className="find-ride-card-action">
         {ride.isOwnRide ? (
-          <button type="button" className="find-ride-button find-ride-button-outline">
+          <button
+            type="button"
+            className="find-ride-button find-ride-button-outline"
+          >
             Manage
           </button>
         ) : (
-          <button type="button" className="find-ride-button" onClick={() => onRequest(ride)}>
+          <button
+            type="button"
+            className="find-ride-button"
+            onClick={() => onRequest(ride)}
+          >
             Request to Join
           </button>
         )}
@@ -156,9 +172,15 @@ function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
   return (
     <div className="find-ride-empty-state">
       <div className="find-ride-empty-icon">
-        <i className={`fa-solid ${hasFilters ? 'fa-magnifying-glass' : 'fa-car-side'}`} aria-hidden="true" />
+        <i
+          className={`fa-solid ${hasFilters ? 'fa-magnifying-glass' : 'fa-car-side'}`}
+          aria-hidden="true"
+        />
       </div>
-      <h2>{emptyMessage || (hasFilters ? 'No rides found for this date' : 'No rides posted yet')}</h2>
+      <h2>
+        {emptyMessage ||
+          (hasFilters ? 'No rides found for this date' : 'No rides posted yet')}
+      </h2>
       <p>
         {hasFilters
           ? 'Try a different date or route, or offer a ride yourself.'
@@ -166,11 +188,19 @@ function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
       </p>
       <div className="find-ride-empty-actions">
         {hasFilters && (
-          <button type="button" className="find-ride-button find-ride-button-outline" onClick={onClear}>
+          <button
+            type="button"
+            className="find-ride-button find-ride-button-outline"
+            onClick={onClear}
+          >
             Clear filters
           </button>
         )}
-        <button type="button" className="find-ride-button" onClick={onOfferRide}>
+        <button
+          type="button"
+          className="find-ride-button"
+          onClick={onOfferRide}
+        >
           <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
         </button>
       </div>
@@ -179,8 +209,10 @@ function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
 }
 
 function getEmptyMessage(message, hasFilters) {
-  if (message?.toLowerCase().includes('date')) return 'No rides found for this date'
-  if (message?.toLowerCase().includes('route')) return 'No rides found for this route'
+  if (message?.toLowerCase().includes('date'))
+    return 'No rides found for this date'
+  if (message?.toLowerCase().includes('route'))
+    return 'No rides found for this route'
   if (message) return 'No rides found'
   return hasFilters ? 'No rides found for this date' : undefined
 }
@@ -193,7 +225,13 @@ async function readResponseBody(response) {
   }
 }
 
-function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRideId }) {
+function FindARide({
+  onMyRides,
+  onOfferRide,
+  onUnauthorized,
+  currentUserId,
+  highlightedRideId,
+}) {
   const [rides, setRides] = useState([])
   const [search, setSearch] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
@@ -227,7 +265,9 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
           return
         }
         if (!response.ok) throw new Error('Unable to load rides')
-        setRides((body?.data || []).map((ride) => normaliseRide(ride, currentUserId)))
+        setRides(
+          (body?.data || []).map((ride) => normaliseRide(ride, currentUserId)),
+        )
         setEmptyMessage(body?.message || '')
         setLoadState('loaded')
       })
@@ -266,39 +306,99 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
     setSelectedDate(selectedDate === date ? '' : date)
   }
 
-  const handleRequest = (ride) => {
-    setToast(ride.driverName)
+  const handleRequest = async (ride) => {
+    try {
+      const response = await apiFetch(`/api/rides/${ride.id}/requests`, {
+        method: 'POST',
+      })
+      const body = await readResponseBody(response)
+      if (response.status === 401) {
+        onUnauthorized?.()
+        return
+      }
+      if (!response.ok) {
+        setToast({
+          type: 'error',
+          message: body?.message || 'Failed to submit request.',
+        })
+        return
+      }
+      setToast({
+        type: 'success',
+        message: `Request sent to ${ride.driverName}. The driver will be notified.`,
+      })
+    } catch {
+      setToast({
+        type: 'error',
+        message: 'Network error. Please try again.',
+      })
+    }
   }
 
   const renderResults = () => {
     if (loadState === 'loading') {
-      return <div className="find-ride-grid">{Array.from({ length: 6 }, (_, index) => <LoadingCard key={index} />)}</div>
+      return (
+        <div className="find-ride-grid">
+          {Array.from({ length: 6 }, (_, index) => (
+            <LoadingCard key={index} />
+          ))}
+        </div>
+      )
     }
 
     if (loadState === 'error') {
       return (
         <div className="find-ride-error-state">
           <div className="find-ride-empty-icon find-ride-error-icon">
-            <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+            <i
+              className="fa-solid fa-triangle-exclamation"
+              aria-hidden="true"
+            />
           </div>
           <h2>Couldn&apos;t load rides</h2>
           <p>Something went wrong on our end. Please try again.</p>
-          <button type="button" className="find-ride-button" onClick={retryLoad}>Try again</button>
+          <button
+            type="button"
+            className="find-ride-button"
+            onClick={retryLoad}
+          >
+            Try again
+          </button>
         </div>
       )
     }
 
     if (filteredRides.length === 0 && hasFilters) {
-      return <EmptyState hasFilters={hasFilters} emptyMessage={getEmptyMessage(emptyMessage, hasFilters)} onClear={clearFilters} onOfferRide={onOfferRide} />
+      return (
+        <EmptyState
+          hasFilters={hasFilters}
+          emptyMessage={getEmptyMessage(emptyMessage, hasFilters)}
+          onClear={clearFilters}
+          onOfferRide={onOfferRide}
+        />
+      )
     }
 
     if (rides.length === 0) {
-      return <EmptyState hasFilters={false} emptyMessage={getEmptyMessage(emptyMessage, false)} onOfferRide={onOfferRide} />
+      return (
+        <EmptyState
+          hasFilters={false}
+          emptyMessage={getEmptyMessage(emptyMessage, false)}
+          onOfferRide={onOfferRide}
+        />
+      )
     }
 
     return (
       <div className="find-ride-grid">
-        {rides.map((ride) => <RideCard key={ride.id} ride={ride} onRequest={handleRequest} isHighlighted={ride.id === highlightedRideId} />)}
+        {rides.map((ride) => (
+          <RideCard
+            key={ride.id}
+            ride={ride}
+            onRequest={handleRequest}
+            isHighlighted={ride.id === highlightedRideId}
+          />
+        ))}
       </div>
     )
   }
@@ -306,18 +406,41 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
   return (
     <main className="find-ride-page">
       <header className="find-ride-header">
-        <a className="find-ride-brand" href="#find-ride" onClick={(event) => event.preventDefault()}>
+        <a
+          className="find-ride-brand"
+          href="#find-ride"
+          onClick={(event) => event.preventDefault()}
+        >
           <i className="fa-solid fa-car-side" aria-hidden="true" />
           <span>RideConnect</span>
         </a>
         <nav className="find-ride-nav" aria-label="Main navigation">
-          <button type="button" className="find-ride-nav-link active">Find a Ride</button>
+          <button type="button" className="find-ride-nav-link active">
+            Find a Ride
+          </button>
+          {onMyRides && (
+            <button
+              type="button"
+              className="find-ride-nav-link"
+              onClick={onMyRides}
+            >
+              My rides
+            </button>
+          )}
         </nav>
         <div className="find-ride-header-actions">
-          <button type="button" className="find-ride-offer-link" onClick={onOfferRide}>
+          <button
+            type="button"
+            className="find-ride-offer-link"
+            onClick={onOfferRide}
+          >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
           </button>
-          <button type="button" className="find-ride-icon-button" aria-label="Notifications">
+          <button
+            type="button"
+            className="find-ride-icon-button"
+            aria-label="Notifications"
+          >
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="find-ride-unread-dot" />
           </button>
@@ -330,7 +453,10 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
           <div>
             <p className="find-ride-eyebrow">COLLEAGUE CARPOOL</p>
             <h1>Find a ride</h1>
-            <p className="find-ride-subtitle">Open rides from your colleagues · {filteredRides.length} rides available</p>
+            <p className="find-ride-subtitle">
+              Open rides from your colleagues · {filteredRides.length} rides
+              available
+            </p>
           </div>
         </div>
 
@@ -352,29 +478,72 @@ function FindARide({ onOfferRide, onUnauthorized, currentUserId, highlightedRide
               <option value="">Any date</option>
               <option value={today}>{formatDate(today)}</option>
               <option value={tomorrow}>{formatDate(tomorrow)}</option>
-              <option value={getDateOffset(2)}>{formatDate(getDateOffset(2))}</option>
-              <option value={getDateOffset(4)}>{formatDate(getDateOffset(4))}</option>
+              <option value={getDateOffset(2)}>
+                {formatDate(getDateOffset(2))}
+              </option>
+              <option value={getDateOffset(4)}>
+                {formatDate(getDateOffset(4))}
+              </option>
             </select>
           </label>
-          <div className="find-ride-quick-filters" aria-label="Quick date filters">
-            <button type="button" className={selectedDate === today ? 'active' : ''} onClick={() => handleQuickDateChange(today)}>Today</button>
-            <button type="button" className={selectedDate === tomorrow ? 'active' : ''} onClick={() => handleQuickDateChange(tomorrow)}>Tomorrow</button>
+          <div
+            className="find-ride-quick-filters"
+            aria-label="Quick date filters"
+          >
+            <button
+              type="button"
+              className={selectedDate === today ? 'active' : ''}
+              onClick={() => handleQuickDateChange(today)}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              className={selectedDate === tomorrow ? 'active' : ''}
+              onClick={() => handleQuickDateChange(tomorrow)}
+            >
+              Tomorrow
+            </button>
           </div>
         </div>
 
         {hasFilters && (
           <div className="find-ride-filter-chips">
             <span>Active filters:</span>
-            {search.trim() && <FilterChip onRemove={() => setSearch('')}>{search.trim()}</FilterChip>}
-            {selectedDate && <FilterChip onRemove={() => setSelectedDate('')}>{getActiveDateLabel(selectedDate)}</FilterChip>}
-            <button type="button" className="find-ride-clear-link" onClick={clearFilters}>Clear filters</button>
+            {search.trim() && (
+              <FilterChip onRemove={() => setSearch('')}>
+                {search.trim()}
+              </FilterChip>
+            )}
+            {selectedDate && (
+              <FilterChip onRemove={() => setSelectedDate('')}>
+                {getActiveDateLabel(selectedDate)}
+              </FilterChip>
+            )}
+            <button
+              type="button"
+              className="find-ride-clear-link"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
           </div>
         )}
 
         {toast && (
-          <div className="find-ride-toast" role="status">
-            <i className="fa-solid fa-circle-check" aria-hidden="true" />
-            <span>Request sent to {toast}. The driver will be notified.</span>
+          <div
+            className={`find-ride-toast ${toast.type === 'error' ? 'find-ride-toast-error' : ''}`}
+            role="status"
+          >
+            <i
+              className={`fa-solid ${toast.type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-check'}`}
+              aria-hidden="true"
+            />
+            <span>
+              {typeof toast === 'string'
+                ? `Request sent to ${toast}. The driver will be notified.`
+                : toast.message}
+            </span>
           </div>
         )}
 

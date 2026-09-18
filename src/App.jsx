@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import PostRideForm from './components/PostRideForm/PostRideForm'
-import FindARide from './pages/FindARide'
 import LoginScreen from './pages/LoginScreen'
 import RegisterScreen from './pages/RegisterScreen'
+import RideStatusManagement from './pages/RideStatusManagement'
+import FindARide from './pages/FindARide'
+import PostRideForm from './components/PostRideForm/PostRideForm'
 
 function App() {
   const [screen, setScreen] = useState('register')
   const [user, setUser] = useState(null)
-  const [rideScreen, setRideScreen] = useState('post')
-  const [highlightedRideId, setHighlightedRideId] = useState(null)
+  const [rideView, setRideView] = useState('my-rides')
 
   const handleUnauthorized = () => {
     setUser(null)
@@ -16,20 +16,34 @@ function App() {
   }
 
   if (user) {
-    return rideScreen === 'find' ? (
-      <FindARide
-        onOfferRide={() => setRideScreen('post')}
-        currentUserId={user?.id}
-        highlightedRideId={highlightedRideId}
-        onUnauthorized={handleUnauthorized}
-      />
-    ) : (
-      <PostRideForm
-        onFindRide={(rideId) => {
-          setHighlightedRideId(rideId)
-          setRideScreen('find')
-        }}
-        onUnauthorized={handleUnauthorized}
+    if (rideView === 'find') {
+      return (
+        <FindARide
+          onMyRides={() => setRideView('my-rides')}
+          onOfferRide={() => setRideView('post')}
+          currentUserId={user?.id}
+          onUnauthorized={handleUnauthorized}
+        />
+      )
+    }
+
+    if (rideView === 'post') {
+      return (
+        <PostRideForm
+          onMyRides={() => setRideView('my-rides')}
+          onFindRide={() => setRideView('find')}
+          onUnauthorized={handleUnauthorized}
+        />
+      )
+    }
+
+    return (
+      <RideStatusManagement
+        user={user}
+        currentUserId={user?.id ?? user?.email}
+        onLogout={handleUnauthorized}
+        onFindRide={() => setRideView('find')}
+        onOfferRide={() => setRideView('post')}
       />
     )
   }

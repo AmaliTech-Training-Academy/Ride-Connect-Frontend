@@ -18,14 +18,22 @@ function getInitialValues() {
 }
 
 function toISODate(date) {
-  const localMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const localMidnight = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  )
   return localMidnight.toISOString().slice(0, 10)
 }
 
 function formatDisplayDate(dateStr) {
   const [year, month, day] = dateStr.split('-').map(Number)
   const date = new Date(year, month - 1, day)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 function formatDisplayTime(timeStr) {
@@ -51,7 +59,8 @@ function validate(values, now) {
   if (
     values.origin.trim() &&
     values.destination.trim() &&
-    values.origin.trim().toLowerCase() === values.destination.trim().toLowerCase()
+    values.origin.trim().toLowerCase() ===
+      values.destination.trim().toLowerCase()
   ) {
     errors.destination = 'Origin and destination must be different'
   }
@@ -66,7 +75,11 @@ function validate(values, now) {
     errors.time = 'Please enter a departure time'
   }
 
-  if (!Number.isInteger(Number(values.seats)) || values.seats < 1 || values.seats > 8) {
+  if (
+    !Number.isInteger(Number(values.seats)) ||
+    values.seats < 1 ||
+    values.seats > 8
+  ) {
     errors.seats = 'Seats must be between 1 and 8'
   }
 
@@ -106,7 +119,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onUnauthorized }) {
+function PostRideForm({ onMyRides, onFindRide, onUnauthorized }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -134,7 +147,11 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
   }
 
   const handleSwap = () => {
-    setValues((prev) => ({ ...prev, origin: prev.destination, destination: prev.origin }))
+    setValues((prev) => ({
+      ...prev,
+      origin: prev.destination,
+      destination: prev.origin,
+    }))
     setServerErrors({})
     if (status === 'success' || status === 'error') setStatus('idle')
   }
@@ -198,12 +215,26 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
         <span>RideConnect</span>
         {onFindRide && (
           <nav className="post-ride-nav" aria-label="Main navigation">
-            <button type="button" className="post-ride-nav-link" onClick={onFindRide}>
+            <button
+              type="button"
+              className="post-ride-nav-link"
+              onClick={onFindRide}
+            >
               Find a Ride
             </button>
-            <button type="button" className="post-ride-nav-link active">
-              My Rides
-            </button>
+            {onMyRides ? (
+              <button
+                type="button"
+                className="post-ride-nav-link active"
+                onClick={onMyRides}
+              >
+                My Rides
+              </button>
+            ) : (
+              <button type="button" className="post-ride-nav-link active">
+                My Rides
+              </button>
+            )}
           </nav>
         )}
       </header>
@@ -211,7 +242,10 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
       {status === 'error' && (
         <div className="error-banner">
           <span>
-            <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+            <i
+              className="fa-solid fa-triangle-exclamation"
+              aria-hidden="true"
+            />
             Something went wrong posting your ride. Please try again.
           </span>
           <button
@@ -238,12 +272,20 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
                   id="origin"
                   type="text"
                   value={values.origin}
-                  onChange={(event) => updateField('origin', event.target.value)}
+                  onChange={(event) =>
+                    updateField('origin', event.target.value)
+                  }
                   disabled={isSubmitting}
-                  className={showFieldErrors && getFieldError('origin') ? 'input-error' : ''}
+                  className={
+                    showFieldErrors && getFieldError('origin')
+                      ? 'input-error'
+                      : ''
+                  }
                   placeholder="Starting point"
                 />
-                <FieldError message={showFieldErrors ? getFieldError('origin') : null} />
+                <FieldError
+                  message={showFieldErrors ? getFieldError('origin') : null}
+                />
               </div>
 
               <div className="swap-btn-wrap">
@@ -264,25 +306,39 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
                   id="destination"
                   type="text"
                   value={values.destination}
-                  onChange={(event) => updateField('destination', event.target.value)}
+                  onChange={(event) =>
+                    updateField('destination', event.target.value)
+                  }
                   disabled={isSubmitting}
-                  className={showFieldErrors && getFieldError('destination') ? 'input-error' : ''}
+                  className={
+                    showFieldErrors && getFieldError('destination')
+                      ? 'input-error'
+                      : ''
+                  }
                   placeholder="Drop-off point"
                 />
-                <FieldError message={showFieldErrors ? getFieldError('destination') : null} />
+                <FieldError
+                  message={
+                    showFieldErrors ? getFieldError('destination') : null
+                  }
+                />
               </div>
             </div>
           </div>
 
           <div className="form-field">
             <label htmlFor="description">
-              Route description <span className="optional-label">(optional)</span>
+              Route description{' '}
+              <span className="optional-label">(optional)</span>
             </label>
             <textarea
               id="description"
               value={values.description}
               onChange={(event) =>
-                updateField('description', event.target.value.slice(0, DESCRIPTION_MAX_LENGTH))
+                updateField(
+                  'description',
+                  event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
+                )
               }
               disabled={isSubmitting}
               maxLength={DESCRIPTION_MAX_LENGTH}
@@ -292,7 +348,9 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
             <span className="char-counter">
               {values.description.length} / {DESCRIPTION_MAX_LENGTH}
             </span>
-            <FieldError message={showFieldErrors ? getFieldError('description') : null} />
+            <FieldError
+              message={showFieldErrors ? getFieldError('description') : null}
+            />
           </div>
 
           <div className="form-section">
@@ -301,11 +359,15 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
               <div className="form-field">
                 <label htmlFor="date">Departure date</label>
                 <div
-                    className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() => !isSubmitting && dateInputRef.current?.showPicker?.()}
+                  className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                  onClick={() =>
+                    !isSubmitting && dateInputRef.current?.showPicker?.()
+                  }
                 >
                   <span className={values.date ? '' : 'placeholder'}>
-                    {values.date ? formatDisplayDate(values.date) : 'Select a date'}
+                    {values.date
+                      ? formatDisplayDate(values.date)
+                      : 'Select a date'}
                   </span>
                   <i className="fa-regular fa-calendar" aria-hidden="true" />
                   <input
@@ -315,21 +377,29 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
                     className="styled-date-field-native"
                     value={values.date}
                     min={todayISODate}
-                    onChange={(event) => updateField('date', event.target.value)}
+                    onChange={(event) =>
+                      updateField('date', event.target.value)
+                    }
                     disabled={isSubmitting}
                   />
                 </div>
-                <FieldError message={showFieldErrors ? getFieldError('date') : null} />
+                <FieldError
+                  message={showFieldErrors ? getFieldError('date') : null}
+                />
               </div>
 
               <div className="form-field">
                 <label htmlFor="time">Departure time</label>
                 <div
-                    className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() => !isSubmitting && timeInputRef.current?.showPicker?.()}
+                  className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                  onClick={() =>
+                    !isSubmitting && timeInputRef.current?.showPicker?.()
+                  }
                 >
                   <span className={values.time ? '' : 'placeholder'}>
-                    {values.time ? formatDisplayTime(values.time) : 'Select a time'}
+                    {values.time
+                      ? formatDisplayTime(values.time)
+                      : 'Select a time'}
                   </span>
                   <i className="fa-regular fa-clock" aria-hidden="true" />
                   <input
@@ -338,11 +408,15 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
                     type="time"
                     className="styled-date-field-native"
                     value={values.time}
-                    onChange={(event) => updateField('time', event.target.value)}
+                    onChange={(event) =>
+                      updateField('time', event.target.value)
+                    }
                     disabled={isSubmitting}
                   />
                 </div>
-                <FieldError message={showFieldErrors ? getFieldError('time') : null} />
+                <FieldError
+                  message={showFieldErrors ? getFieldError('time') : null}
+                />
               </div>
             </div>
           </div>
@@ -354,7 +428,9 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
               onChange={(seats) => updateField('seats', seats)}
               disabled={isSubmitting}
             />
-            <FieldError message={showFieldErrors ? getFieldError('seats') : null} />
+            <FieldError
+              message={showFieldErrors ? getFieldError('seats') : null}
+            />
           </div>
 
           <div className="form-actions">
@@ -366,10 +442,17 @@ function PostRideForm({ onFindRide, onUnauthorized }) {
             >
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={isSubmitting}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? (
                 <>
-                  <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
+                  <i
+                    className="fa-solid fa-spinner fa-spin"
+                    aria-hidden="true"
+                  />
                   Posting…
                 </>
               ) : (

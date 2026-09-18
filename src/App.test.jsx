@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import App from './App'
+import { apiFetch } from './lib/api'
 import { DuplicateEmailError } from './services/auth'
-import { registerUser } from './services/auth'
+import { loginUser, registerUser } from './services/auth'
 
 jest.mock('./services/auth', () => ({
   DuplicateEmailError: class DuplicateEmailError extends Error {
@@ -38,12 +39,27 @@ async function fillForm(user, { name, email, password }) {
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    })
     registerUser.mockImplementation(async ({ email }) => {
       if (email.toLowerCase() === TAKEN.email.toLowerCase()) {
         throw new DuplicateEmailError()
       }
 
       return { email: email.toLowerCase() }
+    })
+    loginUser.mockImplementation(async ({ email, password }) => {
+      if (
+        email.toLowerCase() === TAKEN.email.toLowerCase() &&
+        password === TAKEN.password
+      ) {
+        return { email: TAKEN.email.toLowerCase() }
+      }
+
+      throw new Error('Invalid email or password')
     })
   })
 
@@ -54,7 +70,7 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('AC1 and AC3 - registers a new colleague and takes them to the ride listing', async () => {
+  it('AC1 and AC3 - registers a new colleague and takes them to the ride status management screen', async () => {
     const user = userEvent.setup()
     const email = freshEmail()
     render(<App />)
@@ -64,13 +80,11 @@ describe('App', () => {
     expect(
       await screen.findByRole(
         'heading',
-        { name: /offer a ride/i },
+        { name: /my rides/i },
         { timeout: 5000 },
       ),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Post Ride' }),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/manage rides you're driving/i)).toBeInTheDocument()
   }, 10000)
 
   it('AC2 - reports an email that is already registered', async () => {
@@ -115,7 +129,7 @@ describe('App', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('logs an existing colleague in and opens the post-ride screen', async () => {
+  it('logs an existing colleague in and opens the ride status management screen', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -124,6 +138,42 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-    expect(await screen.findByRole('heading', { name: /offer a ride/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /my rides/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('returns to the ride status management screen from find a ride and offer a ride', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await user.type(screen.getByLabelText('Work email'), TAKEN.email)
+    await user.type(screen.getByLabelText('Password'), TAKEN.password)
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /my rides/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /find a ride/i }))
+    expect(
+      await screen.findByRole('heading', { name: /find a ride/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /my rides/i }))
+    expect(
+      await screen.findByRole('heading', { name: /my rides/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /offer a ride/i }))
+    expect(
+      await screen.findByRole('heading', { name: /offer a ride/i }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /my rides/i }))
+    expect(
+      await screen.findByRole('heading', { name: /my rides/i }),
+    ).toBeInTheDocument()
   })
 })
