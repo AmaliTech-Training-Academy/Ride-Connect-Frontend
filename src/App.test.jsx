@@ -166,7 +166,9 @@ describe('App', () => {
       await screen.findByRole('heading', { name: /my rides/i }),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /offer a ride/i }))
+    await user.click(
+      screen.getAllByRole('button', { name: /offer a ride/i })[0],
+    )
     expect(
       await screen.findByRole('heading', { name: /offer a ride/i }),
     ).toBeInTheDocument()

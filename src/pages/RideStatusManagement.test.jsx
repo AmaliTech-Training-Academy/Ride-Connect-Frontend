@@ -8,6 +8,109 @@ jest.mock('../lib/api', () => ({
   apiFetch: jest.fn(),
 }))
 
+const MOCK_RIDES = [
+  {
+    id: 1,
+    driverId: 'driver-1',
+    origin: 'East Legon',
+    destination: 'AmaliTech Office',
+    date: 'Mon, 14 Sep',
+    time: '7:15 AM',
+    totalSeats: 4,
+    seatsAvailable: 2,
+    status: 'Open',
+    expanded: true,
+    requests: [
+      {
+        id: 'req-1',
+        name: 'Abena Owusu',
+        initials: 'AO',
+        meta: 'Requested 12 min ago',
+      },
+      {
+        id: 'req-2',
+        name: 'Yaw Darko',
+        initials: 'YD',
+        meta: 'Requested 40 min ago',
+      },
+    ],
+    passengers: [
+      { id: 'pass-1', name: 'Kofi Asante', initials: 'KA' },
+      { id: 'pass-2', name: 'Efua Boateng', initials: 'EB' },
+    ],
+  },
+  {
+    id: 2,
+    driverId: 'driver-2',
+    origin: 'Spintex',
+    destination: 'AmaliTech Office',
+    date: 'Tue, 15 Sep',
+    time: '7:00 AM',
+    totalSeats: 3,
+    seatsAvailable: 1,
+    status: 'Open',
+    expanded: false,
+    requests: [],
+    passengers: [
+      { id: 'pass-3', name: 'Ama Konadu', initials: 'AK' },
+      { id: 'pass-4', name: 'Kwesi Appiah', initials: 'KA' },
+    ],
+  },
+  {
+    id: 3,
+    driverId: 'driver-1',
+    origin: 'Madina',
+    destination: 'AmaliTech Office',
+    date: 'Wed, 16 Sep',
+    time: '7:30 AM',
+    totalSeats: 5,
+    seatsAvailable: 4,
+    status: 'Open',
+    expanded: false,
+    requests: [],
+    passengers: [{ id: 'pass-5', name: 'Akua Sarpong', initials: 'AS' }],
+  },
+]
+
+const MOCK_PAST_RIDES = [
+  {
+    id: 'past-1',
+    origin: 'Achimota',
+    destination: 'AmaliTech Office',
+    date: 'Wed, 8 Sep',
+    time: '7:10 AM',
+    status: 'Cancelled',
+  },
+  {
+    id: 'past-2',
+    origin: 'Kasoa',
+    destination: 'AmaliTech Office',
+    date: 'Fri, 4 Sep',
+    time: '7:00 AM',
+    status: 'Departed',
+  },
+  {
+    id: 'past-3',
+    origin: 'Madina',
+    destination: 'AmaliTech Office',
+    date: 'Thu, 3 Sep',
+    time: '7:30 AM',
+    status: 'Departed',
+  },
+]
+
+function renderRSM(props = {}) {
+  return render(
+    <RideStatusManagement
+      user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
+      currentUserId="driver-1"
+      initialRides={MOCK_RIDES}
+      initialPastRides={MOCK_PAST_RIDES}
+      {...props}
+    />,
+  )
+}
+
 describe('RideStatusManagement', () => {
   // Before every test, make apiFetch return a successful 200 response by default.
   // Individual tests can override this with apiFetch.mockResolvedValueOnce(...).
@@ -21,9 +124,7 @@ describe('RideStatusManagement', () => {
   })
 
   it('renders the dashboard shell with heading, subtitle, and tabs', () => {
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     expect(
       screen.getByRole('heading', { level: 1, name: /my rides/i }),
@@ -44,13 +145,10 @@ describe('RideStatusManagement', () => {
     const onFindRide = jest.fn()
     const onOfferRide = jest.fn()
 
-    render(
-      <RideStatusManagement
-        user={{ email: 'kwame.mensah@amalitech.com' }}
-        onFindRide={onFindRide}
-        onOfferRide={onOfferRide}
-      />,
-    )
+    renderRSM({
+      onFindRide,
+      onOfferRide,
+    })
 
     await user.click(screen.getByRole('button', { name: /find a ride/i }))
     await user.click(screen.getByRole('button', { name: /offer a ride/i }))
@@ -62,9 +160,7 @@ describe('RideStatusManagement', () => {
   it('toggles expansion of ride cards', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     // Spintex card is collapsed initially
     expect(screen.queryByText(/Ama Konadu/i)).not.toBeInTheDocument()
@@ -81,9 +177,7 @@ describe('RideStatusManagement', () => {
   it('accepts a request: decrements seat count, moves to confirmed, and displays toast', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     expect(screen.getByText(/2 of 4 seats left/i)).toBeInTheDocument()
     expect(screen.getByText(/Abena Owusu/i)).toBeInTheDocument()
@@ -114,9 +208,7 @@ describe('RideStatusManagement', () => {
   it('declines a request and removes it from the list', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     expect(screen.getByText(/Yaw Darko/i)).toBeInTheDocument()
 
@@ -137,9 +229,7 @@ describe('RideStatusManagement', () => {
   it('transitions to Full state when all seats are accepted', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     // Accept first request (2 -> 1 seat left)
     const acceptButtons = screen.getAllByRole('button', { name: /accept/i })
@@ -218,12 +308,7 @@ describe('RideStatusManagement', () => {
   it('lets the driver mark a ride as full from the dashboard', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-      />,
-    )
+    renderRSM()
 
     const menuButtons = screen.getAllByRole('button', {
       name: /options for ride/i,
@@ -250,12 +335,7 @@ describe('RideStatusManagement', () => {
     apiFetch.mockResolvedValueOnce({ ok: false, status: 500 })
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-      />,
-    )
+    renderRSM()
 
     const menuButtons = screen.getAllByRole('button', {
       name: /options for ride/i,
@@ -301,15 +381,11 @@ describe('RideStatusManagement', () => {
     // The 401 response fires when the PATCH is made
     apiFetch.mockResolvedValueOnce({ ok: false, status: 401 })
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-        initialRides={rides}
-        initialPastRides={[]}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
+    renderRSM({
+      initialRides: rides,
+      initialPastRides: [],
+      onUnauthorized,
+    })
 
     await user.click(screen.getByRole('button', { name: /options for ride/i }))
     await user.click(screen.getByRole('menuitem', { name: /mark as full/i }))
@@ -320,12 +396,7 @@ describe('RideStatusManagement', () => {
   it('opens cancel modal, can dismiss or confirm cancellation', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-      />,
-    )
+    renderRSM()
 
     // Click three-dot menu for first ride
     const menuButtons = screen.getAllByRole('button', {
@@ -369,12 +440,7 @@ describe('RideStatusManagement', () => {
     apiFetch.mockResolvedValueOnce({ ok: false, status: 500 })
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-      />,
-    )
+    renderRSM()
 
     const menuButtons = screen.getAllByRole('button', {
       name: /options for ride/i,
@@ -415,15 +481,11 @@ describe('RideStatusManagement', () => {
     // The 401 response fires when the PATCH is made
     apiFetch.mockResolvedValueOnce({ ok: false, status: 401 })
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-        initialRides={rides}
-        initialPastRides={[]}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
+    renderRSM({
+      initialRides: rides,
+      initialPastRides: [],
+      onUnauthorized,
+    })
 
     await user.click(screen.getByRole('button', { name: /options for ride/i }))
     await user.click(screen.getByRole('menuitem', { name: /cancel ride/i }))
@@ -435,9 +497,7 @@ describe('RideStatusManagement', () => {
   it('toggles past & cancelled section', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     expect(screen.queryByText(/Achimota/i)).not.toBeInTheDocument()
 
@@ -453,9 +513,7 @@ describe('RideStatusManagement', () => {
   it('displays empty state when switching to Rides I have joined tab', async () => {
     const user = userEvent.setup()
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     await user.click(screen.getByRole('tab', { name: /rides i've joined/i }))
 
@@ -464,6 +522,19 @@ describe('RideStatusManagement', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /find a ride/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders empty state when no rides are offered yet', () => {
+    renderRSM({ initialRides: [], initialPastRides: [] })
+
+    expect(
+      screen.getByRole('heading', {
+        name: /you haven't offered any rides yet/i,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /offer a ride/i }),
     ).toBeInTheDocument()
   })
 
@@ -487,28 +558,24 @@ describe('RideStatusManagement', () => {
       }),
     })
 
-    render(
-      <RideStatusManagement
-        user={{ id: 'driver-1', email: 'kwame.mensah@amalitech.com' }}
-        currentUserId="driver-1"
-        initialRides={[
-          {
-            id: 'ride-test-1',
-            driverId: 'driver-1',
-            origin: 'Madina',
-            destination: 'AmaliTech Office',
-            date: 'Mon, 14 Sep',
-            time: '7:00 AM',
-            totalSeats: 4,
-            seatsAvailable: 3,
-            status: 'Open',
-            expanded: false,
-            requests: [],
-            passengers: [],
-          },
-        ]}
-      />,
-    )
+    renderRSM({
+      initialRides: [
+        {
+          id: 'ride-test-1',
+          driverId: 'driver-1',
+          origin: 'Madina',
+          destination: 'AmaliTech Office',
+          date: 'Mon, 14 Sep',
+          time: '7:00 AM',
+          totalSeats: 4,
+          seatsAvailable: 3,
+          status: 'Open',
+          expanded: false,
+          requests: [],
+          passengers: [],
+        },
+      ],
+    })
 
     // Expand the ride
     await user.click(screen.getByText(/Madina/i))
@@ -527,12 +594,9 @@ describe('RideStatusManagement', () => {
       json: async () => ({}),
     })
 
-    render(
-      <RideStatusManagement
-        user={{ email: 'kwame.mensah@amalitech.com' }}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
+    renderRSM({
+      onUnauthorized,
+    })
 
     const acceptButtons = screen.getAllByRole('button', { name: /accept/i })
     await user.click(acceptButtons[0])
@@ -548,9 +612,7 @@ describe('RideStatusManagement', () => {
       json: async () => ({}),
     })
 
-    render(
-      <RideStatusManagement user={{ email: 'kwame.mensah@amalitech.com' }} />,
-    )
+    renderRSM()
 
     const declineButtons = screen.getAllByRole('button', { name: /decline/i })
     await user.click(declineButtons[0])

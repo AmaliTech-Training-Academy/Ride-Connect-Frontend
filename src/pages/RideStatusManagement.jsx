@@ -2,97 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { apiFetch } from '../lib/api'
 import './RideStatusManagement.css'
 
-const INITIAL_UPCOMING_RIDES = [
-  {
-    id: 1,
-    driverId: 'driver-1',
-    origin: 'East Legon',
-    destination: 'AmaliTech Office',
-    date: 'Mon, 14 Sep',
-    time: '7:15 AM',
-    totalSeats: 4,
-    seatsAvailable: 2,
-    status: 'Open',
-    expanded: true,
-    requests: [
-      {
-        id: 'req-1',
-        name: 'Abena Owusu',
-        initials: 'AO',
-        meta: 'Requested 12 min ago',
-      },
-      {
-        id: 'req-2',
-        name: 'Yaw Darko',
-        initials: 'YD',
-        meta: 'Requested 40 min ago',
-      },
-    ],
-    passengers: [
-      { id: 'pass-1', name: 'Kofi Asante', initials: 'KA' },
-      { id: 'pass-2', name: 'Efua Boateng', initials: 'EB' },
-    ],
-  },
-  {
-    id: 2,
-    driverId: 'driver-2',
-    origin: 'Spintex',
-    destination: 'AmaliTech Office',
-    date: 'Tue, 15 Sep',
-    time: '7:00 AM',
-    totalSeats: 3,
-    seatsAvailable: 1,
-    status: 'Open',
-    expanded: false,
-    requests: [],
-    passengers: [
-      { id: 'pass-3', name: 'Ama Konadu', initials: 'AK' },
-      { id: 'pass-4', name: 'Kwesi Appiah', initials: 'KA' },
-    ],
-  },
-  {
-    id: 3,
-    driverId: 'driver-1',
-    origin: 'Madina',
-    destination: 'AmaliTech Office',
-    date: 'Wed, 16 Sep',
-    time: '7:30 AM',
-    totalSeats: 5,
-    seatsAvailable: 4,
-    status: 'Open',
-    expanded: false,
-    requests: [],
-    passengers: [{ id: 'pass-5', name: 'Akua Sarpong', initials: 'AS' }],
-  },
-]
-
-const INITIAL_PAST_RIDES = [
-  {
-    id: 'past-1',
-    origin: 'Achimota',
-    destination: 'AmaliTech Office',
-    date: 'Wed, 8 Sep',
-    time: '7:10 AM',
-    status: 'Cancelled',
-  },
-  {
-    id: 'past-2',
-    origin: 'Kasoa',
-    destination: 'AmaliTech Office',
-    date: 'Fri, 4 Sep',
-    time: '7:00 AM',
-    status: 'Departed',
-  },
-  {
-    id: 'past-3',
-    origin: 'Madina',
-    destination: 'AmaliTech Office',
-    date: 'Thu, 3 Sep',
-    time: '7:30 AM',
-    status: 'Departed',
-  },
-]
-
 function getInitials(name) {
   if (!name) return '??'
   return name
@@ -139,8 +48,8 @@ function RideStatusManagement({
   onFindRide,
   onOfferRide,
   onUnauthorized,
-  initialRides = INITIAL_UPCOMING_RIDES,
-  initialPastRides = INITIAL_PAST_RIDES,
+  initialRides = [],
+  initialPastRides = [],
 }) {
   const activeDriverId = currentUserId ?? user?.id ?? 'driver-1'
   const [activeTab, setActiveTab] = useState('driving')
