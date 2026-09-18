@@ -39,12 +39,6 @@ function normaliseRide(ride, currentUserId) {
     .toUpperCase()
 
   const rideDriverId = ride.driverId
-  console.debug('[FindARide] own ride check', {
-    currentUserId,
-    currentUserIdType: typeof currentUserId,
-    rideDriverId,
-    rideDriverIdType: typeof rideDriverId,
-  })
 
   return {
     ...ride,
@@ -292,7 +286,7 @@ function FindARide({
       })
 
     return () => controller.abort()
-  }, [search, selectedDate, currentUserId, reloadToken])
+  }, [search, selectedDate, currentUserId, onUnauthorized, reloadToken])
 
   const startLoading = () => setLoadState('loading')
 

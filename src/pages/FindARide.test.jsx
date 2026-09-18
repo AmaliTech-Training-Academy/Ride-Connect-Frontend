@@ -113,7 +113,7 @@ describe('FindARide', () => {
     await user.type(screen.getByRole('searchbox'), 'Madina')
     await waitFor(() =>
       expect(apiFetch).toHaveBeenCalledWith(
-        '/rides?search=Madina',
+        '/api/rides?search=Madina',
         expect.anything(),
       ),
     )
@@ -125,7 +125,7 @@ describe('FindARide', () => {
     const tomorrowISO = tomorrow.toISOString().slice(0, 10)
     await waitFor(() =>
       expect(apiFetch).toHaveBeenCalledWith(
-        `/rides?date=${tomorrowISO}&search=Madina`,
+        `/api/rides?date=${tomorrowISO}&search=Madina`,
         expect.anything(),
       ),
     )

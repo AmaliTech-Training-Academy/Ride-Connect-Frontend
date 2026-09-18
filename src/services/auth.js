@@ -9,7 +9,7 @@ let authClient = null
 
 if (typeof Request !== 'undefined' && apiBaseURL) {
   authClient = createAuthClient({
-    baseURL: `${apiBaseURL}/auth`,
+    baseURL: `${apiBaseURL}/api/auth`,
   })
 }
 
