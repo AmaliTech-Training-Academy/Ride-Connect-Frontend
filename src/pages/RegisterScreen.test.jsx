@@ -287,19 +287,55 @@ describe('RegisterScreen', () => {
       expect(password).toHaveAttribute('type', 'password')
     })
 
+    it('toggles confirmation visibility', async () => {
+      const { user } = setup()
+
+      const confirmation = screen.getByLabelText(/confirm password/i)
+      expect(confirmation).toHaveAttribute('type', 'password')
+
+      await user.click(
+        screen.getByRole('button', { name: /show confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'text')
+
+      await user.click(
+        screen.getByRole('button', { name: /hide confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'password')
+    })
+
+    it('toggles each password field independently', async () => {
+      const { user } = setup()
+
+      const password = screen.getByLabelText('Password')
+      const confirmation = screen.getByLabelText(/confirm password/i)
+
+      await user.click(screen.getByRole('button', { name: /show password/i }))
+
+      expect(password).toHaveAttribute('type', 'text')
+      // Revealing one field must not reveal the other.
+      expect(confirmation).toHaveAttribute('type', 'password')
+
+      await user.click(
+        screen.getByRole('button', { name: /show confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'text')
+      expect(password).toHaveAttribute('type', 'text')
+    })
+
     it('lets the user switch to the login screen', async () => {
       const onLoginClick = jest.fn()
       const { user } = setup({ onLoginClick })
 
-      await user.click(screen.getByRole('button', { name: /^log in$/i }))
+      await user.click(screen.getByRole('button', { name: /sign in/i }))
       expect(onLoginClick).toHaveBeenCalledTimes(1)
     })
 
-    it('hides the log in link when there is nowhere to go', () => {
+    it('hides the sign in tab when there is nowhere to go', () => {
       setup({ onLoginClick: undefined })
 
       expect(
-        screen.queryByRole('button', { name: /^log in$/i }),
+        screen.queryByRole('button', { name: /sign in/i }),
       ).not.toBeInTheDocument()
     })
 
