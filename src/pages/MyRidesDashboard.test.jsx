@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import MyRidesDashboard from './MyRidesDashboard'
@@ -460,21 +460,19 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(updateRideStatus).toHaveBeenCalledTimes(2)
     })
 
-    it('closes the modal and signs out on a 401', async () => {
+    it('reports a 401 inline and leaves the redirect to the API layer', async () => {
       const user = userEvent.setup()
-      const onUnauthorized = jest.fn()
       const error = new Error('Session expired')
       error.status = 401
       updateRideStatus.mockRejectedValueOnce(error)
-      await renderDashboard({ onUnauthorized })
+      await renderDashboard()
 
       await openCancelModal(user)
       await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
 
-      expect(onUnauthorized).toHaveBeenCalled()
-      expect(
-        screen.queryByRole('heading', { name: 'Cancel this ride?' }),
-      ).not.toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Session expired',
+      )
     })
   })
 
@@ -640,21 +638,19 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('signs the user out when the load returns a 401', async () => {
-      const onUnauthorized = jest.fn()
+    it('shows the error state when the load returns a 401', async () => {
       const error = new Error('Session expired')
       error.status = 401
       fetchMyRides.mockRejectedValue(error)
 
       render(
-        <MyRidesDashboard
-          onFindRide={jest.fn()}
-          onOfferRide={jest.fn()}
-          onUnauthorized={onUnauthorized}
-        />,
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
       )
 
-      await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
+      // Redirecting is the API layer's job; the screen only reports.
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Session expired',
+      )
     })
 
     it('shows the failure reason and retries on request', async () => {
@@ -753,6 +749,109 @@ describe('MyRidesDashboard - Ride Status Management', () => {
 
       // driving-1 is expanded by default and has both requests and passengers.
       expect(screen.queryByText(/No join requests yet/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('serialising mutations per ride', () => {
+    it('blocks a second request on the same ride while one is in flight', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      const accepts = screen.getAllByRole('button', { name: 'Accept' })
+      expect(accepts).toHaveLength(3)
+
+      await user.click(accepts[0])
+
+      // Every action on that ride is locked, not just the one clicked.
+      screen
+        .getAllByRole('button', { name: 'Accept' })
+        .forEach((button) => expect(button).toBeDisabled())
+      screen
+        .getAllByRole('button', { name: 'Decline' })
+        .forEach((button) => expect(button).toBeDisabled())
+
+      await user.click(accepts[1])
+      expect(acceptPassengerRequest).toHaveBeenCalledTimes(1)
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+      expect(screen.getAllByRole('button', { name: 'Accept' })[0]).toBeEnabled()
+    })
+
+    it('blocks a status change while a request is being accepted', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      )
+      expect(
+        screen.getByRole('button', { name: 'Mark as Full' }),
+      ).toBeDisabled()
+      expect(updateRideStatus).not.toHaveBeenCalled()
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+    })
+
+    it('leaves other rides usable while one is locked', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      // driving-2 is a different ride and should not be affected.
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      expect(screen.getByRole('button', { name: 'Mark as Full' })).toBeEnabled()
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+    })
+
+    it('serialises a decline against an accept on the same ride', async () => {
+      const user = userEvent.setup()
+      let release
+      declinePassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      expect(acceptPassengerRequest).not.toHaveBeenCalled()
+      expect(declinePassengerRequest).toHaveBeenCalledTimes(1)
+
+      release({})
+      await screen.findByText('Declined request from Nana Yeboah.')
     })
   })
 })

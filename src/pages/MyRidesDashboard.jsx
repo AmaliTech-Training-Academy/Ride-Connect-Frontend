@@ -110,7 +110,7 @@ function ConfirmedPassengerRow({ passenger }) {
   )
 }
 
-function RideMenu({ ride, onStatusChange, onRequestCancel }) {
+function RideMenu({ ride, isBusy, onStatusChange, onRequestCancel }) {
   const isRideFull = getRideStatus(ride) === 'full'
 
   return (
@@ -119,12 +119,20 @@ function RideMenu({ ride, onStatusChange, onRequestCancel }) {
       onClick={(event) => event.stopPropagation()}
     >
       {isRideFull && ride.seatsAvailable > 0 && (
-        <button type="button" onClick={() => onStatusChange('OPEN')}>
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onStatusChange('OPEN')}
+        >
           Reopen ride
         </button>
       )}
       {!isRideFull && ride.status !== 'cancelled' && (
-        <button type="button" onClick={() => onStatusChange('FULL')}>
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onStatusChange('FULL')}
+        >
           Mark as Full
         </button>
       )}
@@ -145,7 +153,7 @@ function RideRow({
   onDecline,
   onStatusChange,
   onRequestCancel,
-  isRequestPending,
+  isBusy,
 }) {
   const menuButtonRef = useRef(null)
   const status = getRideStatus(ride)
@@ -203,6 +211,7 @@ function RideRow({
         {isMenuOpen && (
           <RideMenu
             ride={ride}
+            isBusy={isBusy}
             onStatusChange={onStatusChange}
             onRequestCancel={() => onRequestCancel(menuButtonRef.current)}
           />
@@ -218,7 +227,7 @@ function RideRow({
                   key={request.id}
                   request={request}
                   isFull={status === 'full'}
-                  isPending={isRequestPending(ride.id, request.id)}
+                  isPending={isBusy}
                   onAccept={() => onAccept(ride.id, request.id)}
                   onDecline={() => onDecline(ride.id, request.id)}
                 />
@@ -357,7 +366,7 @@ function CancelRideModal({ ride, ...props }) {
   return <CancelRideDialog key={ride.id} {...props} />
 }
 
-function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
+function MyRidesDashboard({ onFindRide, onOfferRide }) {
   const [rides, setRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
@@ -375,8 +384,14 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
   const [pendingKeys, setPendingKeys] = useState([])
 
   const showToast = (message, tone = 'success') => setToast({ message, tone })
-  const isRequestPending = (rideId, requestId) =>
-    pendingKeys.includes(`request:${rideId}:${requestId}`)
+
+  /**
+   * Accepting a request, declining one and changing a ride's status all write
+   * to the same seat count, so they are serialised per ride rather than per
+   * request. Two accepts on one ride could otherwise resolve out of order and
+   * leave the seat count stale.
+   */
+  const isRideBusy = (rideId) => pendingKeys.includes(`ride:${rideId}`)
 
   const runExclusive = async (key, action) => {
     if (pendingRef.current.has(key)) return
@@ -389,13 +404,6 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
       setPendingKeys([...pendingRef.current])
     }
   }
-
-  // Held in a ref so a new callback identity from the parent doesn't retrigger
-  // the fetch on every re-render.
-  const onUnauthorizedRef = useRef(onUnauthorized)
-  useEffect(() => {
-    onUnauthorizedRef.current = onUnauthorized
-  }, [onUnauthorized])
 
   useEffect(() => {
     let ignore = false
@@ -410,10 +418,6 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
       })
       .catch((error) => {
         if (ignore) return
-        if (error?.status === 401) {
-          onUnauthorizedRef.current?.()
-          return
-        }
         setLoadError(error?.message || 'Unable to load your rides')
         setLoadState('error')
       })
@@ -483,16 +487,12 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
           showToast('Ride reopened for bookings.')
         }
       } catch (error) {
-        if (error?.status === 401) {
-          onUnauthorized?.()
-        } else {
-          showToast(error?.message || 'Failed to update ride status.', 'error')
-        }
+        showToast(error?.message || 'Failed to update ride status.', 'error')
       }
     })
 
   const acceptRequest = (rideId, requestId) =>
-    runExclusive(`request:${rideId}:${requestId}`, async () => {
+    runExclusive(`ride:${rideId}`, async () => {
       const ride = rides.find((item) => item.id === rideId)
       const request = ride?.pendingRequests.find(
         (item) => item.id === requestId,
@@ -527,19 +527,15 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
         )
         showToast(`${request.name} has been added to your ride.`)
       } catch (error) {
-        if (error?.status === 401) {
-          onUnauthorized?.()
-        } else {
-          showToast(
-            error?.message || 'Failed to accept passenger request.',
-            'error',
-          )
-        }
+        showToast(
+          error?.message || 'Failed to accept passenger request.',
+          'error',
+        )
       }
     })
 
   const declineRequest = (rideId, requestId) =>
-    runExclusive(`request:${rideId}:${requestId}`, async () => {
+    runExclusive(`ride:${rideId}`, async () => {
       const ride = rides.find((item) => item.id === rideId)
       const request = ride?.pendingRequests.find(
         (item) => item.id === requestId,
@@ -563,14 +559,10 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
           showToast(`Declined request from ${request.name}.`)
         }
       } catch (error) {
-        if (error?.status === 401) {
-          onUnauthorized?.()
-        } else {
-          showToast(
-            error?.message || 'Failed to decline passenger request.',
-            'error',
-          )
-        }
+        showToast(
+          error?.message || 'Failed to decline passenger request.',
+          'error',
+        )
       }
     })
 
@@ -585,13 +577,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
         setMenuRideId(null)
         showToast('Ride has been cancelled.')
       } catch (error) {
-        if (error?.status === 401) {
-          // The app is navigating to login, so there is no modal to return to.
-          setRideToCancel(null)
-          onUnauthorized?.()
-        } else {
-          setCancelError(error?.message || 'Failed to cancel this ride.')
-        }
+        setCancelError(error?.message || 'Failed to cancel this ride.')
       }
     })
   }
@@ -743,7 +729,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
                   }
                   onAccept={acceptRequest}
                   onDecline={declineRequest}
-                  isRequestPending={isRequestPending}
+                  isBusy={isRideBusy(ride.id)}
                   onStatusChange={(status) => {
                     setMenuRideId(null)
                     handleStatusChange(ride.id, status)

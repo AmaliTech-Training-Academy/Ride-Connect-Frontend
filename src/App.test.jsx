@@ -1,11 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from '@jest/globals'
+import { afterEach, describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import App from './App'
 import { DuplicateEmailError } from './services/auth'
 import { loginUser, registerUser } from './services/auth'
 import { apiFetch } from './lib/api'
+import { notifySessionExpired, resetSessionListeners } from './lib/session'
 
 jest.mock('./services/auth', () => ({
   DuplicateEmailError: class DuplicateEmailError extends Error {
@@ -20,6 +21,12 @@ jest.mock('./services/auth', () => ({
 
 jest.mock('./lib/api', () => ({
   apiFetch: jest.fn(),
+}))
+
+// FindARide reads the viewer's own rides to mark ones already requested.
+jest.mock('./services/rides', () => ({
+  fetchMyRides: jest.fn(() => Promise.resolve({ data: { joined: [] } })),
+  requestToJoinRide: jest.fn(),
 }))
 
 const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }
@@ -43,6 +50,8 @@ async function fillForm(user, { name, email, password }) {
 }
 
 describe('App', () => {
+  afterEach(() => resetSessionListeners())
+
   beforeEach(() => {
     jest.clearAllMocks()
     registerUser.mockImplementation(async ({ email }) => {
@@ -135,6 +144,40 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: /offer a ride/i }),
     ).toBeInTheDocument()
+  })
+
+  it('returns to login when the API layer reports an expired session', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await user.type(screen.getByLabelText('Work email'), TAKEN.email)
+    await user.type(screen.getByLabelText('Password'), TAKEN.password)
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await screen.findByRole('heading', { name: /offer a ride/i })
+
+    // No screen handles this itself - the API layer announces it once and App
+    // is the only subscriber.
+    act(() => notifySessionExpired())
+
+    expect(
+      await screen.findByRole('heading', { name: 'Welcome back' }),
+    ).toBeInTheDocument()
+  })
+
+  it('stops listening for expiry once unmounted', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await user.type(screen.getByLabelText('Work email'), TAKEN.email)
+    await user.type(screen.getByLabelText('Password'), TAKEN.password)
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await screen.findByRole('heading', { name: /offer a ride/i })
+
+    unmount()
+
+    expect(() => notifySessionExpired()).not.toThrow()
   })
 
   it('opens the find-ride screen after posting a ride successfully', async () => {

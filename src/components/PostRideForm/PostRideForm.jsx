@@ -119,7 +119,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
+function PostRideForm({ onFindRide, onMyRides }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -194,8 +194,6 @@ function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
       } else if (response.status === 400) {
         setServerErrors(mapServerFieldErrors(body?.data?.fields))
         setStatus('idle')
-      } else if (response.status === 401) {
-        onUnauthorized?.()
       } else {
         setStatus('error')
       }

@@ -296,23 +296,35 @@ describe('FindARide', () => {
     ).toBeEnabled()
   })
 
-  it('signs the user out when the join request returns a 401', async () => {
-    const onUnauthorized = jest.fn()
+  it('stays usable when the already-requested lookup fails', async () => {
+    const error = new Error('Service unavailable')
+    error.status = 503
+    fetchMyRides.mockRejectedValueOnce(error)
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(await screen.findByText('Ama Owusu')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Request to Join' }),
+    ).toBeEnabled()
+  })
+
+  it('leaves a 401 on the join request to the central handler', async () => {
     const error = new Error('Authentication required.')
     error.status = 401
     requestToJoinRide.mockRejectedValueOnce(error)
 
     const user = userEvent.setup()
-    render(
-      <FindARide onOfferRide={jest.fn()} onUnauthorized={onUnauthorized} />,
-    )
+    render(<FindARide onOfferRide={jest.fn()} />)
     await screen.findByText('Ama Owusu')
 
     await user.click(screen.getByRole('button', { name: 'Request to Join' }))
 
-    await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
+    // The screen just reports it; the API layer announces the expiry.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Authentication required.',
+    )
   })
-
   it('shows the backend error when rides require authentication', async () => {
     apiFetch.mockResolvedValue({
       status: 401,

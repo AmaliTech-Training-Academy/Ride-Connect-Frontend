@@ -240,7 +240,6 @@ async function readResponseBody(response) {
 function FindARide({
   onOfferRide,
   onMyRides,
-  onUnauthorized,
   currentUserId,
   highlightedRideId,
 }) {
@@ -278,7 +277,6 @@ function FindARide({
         if (!response.ok) {
           const message =
             body?.message || `Request failed with status ${response.status}`
-          if (response.status === 401) onUnauthorized?.()
           throw new Error(message)
         }
         setRides(
@@ -297,7 +295,7 @@ function FindARide({
       })
 
     return () => controller.abort()
-  }, [search, selectedDate, currentUserId, onUnauthorized, reloadToken])
+  }, [search, selectedDate, currentUserId, reloadToken])
 
   useEffect(() => {
     let ignore = false
@@ -321,8 +319,9 @@ function FindARide({
         })
       })
       .catch(() => {
-        // A failure here only costs the pre-marked state; the request itself
-        // still reports a duplicate, so the screen stays usable.
+        // A failure only costs the pre-marked state; the request itself still
+        // reports a duplicate, so the screen stays usable. A 401 is handled
+        // centrally by the API layer.
       })
 
     return () => {
@@ -371,10 +370,6 @@ function FindARide({
         message: `Request sent to ${ride.driverName}. The driver will be notified.`,
       })
     } catch (error) {
-      if (error?.status === 401) {
-        onUnauthorized?.()
-        return
-      }
       if (error?.status === 409) {
         // Already requested - reflect that rather than inviting a retry.
         setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
