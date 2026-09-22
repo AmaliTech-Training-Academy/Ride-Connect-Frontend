@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react'
-import { apiFetch } from '../lib/api'
+import { useEffect, useRef, useState } from 'react'
+import {
+  acceptPassengerRequest,
+  declinePassengerRequest,
+  fetchMyRides,
+  updateRideStatus,
+} from '../services/rides'
+import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
 import UserMenu from '../components/UserMenu/UserMenu'
 import './MyRidesDashboard.css'
 
@@ -18,48 +24,43 @@ function formatTime(timeString) {
 function hasDeparted(ride) {
   return new Date(`${ride.date}T${ride.time}`) < new Date()
 }
+/**
+ * The server already splits rides into `driving` and `pastAndCancelled`, which
+ * `isPast` records. Departure time is still checked so a ride that departs
+ * while the page is open moves across on its own.
+ */
+function isPastRide(ride) {
+  return (
+    ride.isPast ||
+    ride.status === 'cancelled' ||
+    ride.status === 'completed' ||
+    hasDeparted(ride)
+  )
+}
 function getRideStatus(ride) {
-  if (ride.status === 'cancelled') return 'cancelled'
+  const normalized = String(ride.status || '').toLowerCase()
+  if (normalized === 'cancelled') return 'cancelled'
+  if (normalized === 'completed') return 'completed'
+  if (normalized === 'in-progress' || normalized === 'in_progress')
+    return 'in-progress'
   if (hasDeparted(ride)) return 'departed'
-  if (ride.seatsAvailable === 0) return 'full'
+  if (normalized === 'full' || ride.seatsAvailable === 0) return 'full'
   return 'open'
-}
-
-function normaliseRide(ride) {
-  const departure = new Date(ride.departureAt)
-  return {
-    ...ride,
-    date: `${departure.getFullYear()}-${String(departure.getMonth() + 1).padStart(2, '0')}-${String(departure.getDate()).padStart(2, '0')}`,
-    time: `${String(departure.getHours()).padStart(2, '0')}:${String(departure.getMinutes()).padStart(2, '0')}`,
-    status: ride.status?.toLowerCase() || 'open',
-    seatsTotal: ride.totalSeats,
-    seatsAvailable: ride.availableSeats,
-    pendingRequests: [],
-    confirmedPassengers: [],
-  }
-}
-
-function normaliseJoinedRide(ride) {
-  const departure = new Date(ride.departureAt)
-  return {
-    ...ride,
-    date: `${departure.getFullYear()}-${String(departure.getMonth() + 1).padStart(2, '0')}-${String(departure.getDate()).padStart(2, '0')}`,
-    time: `${String(departure.getHours()).padStart(2, '0')}:${String(departure.getMinutes()).padStart(2, '0')}`,
-  }
 }
 
 function Avatar({ initials }) {
   return <span className="my-rides-avatar">{initials}</span>
 }
 function StatusBadge({ status }) {
+  const normalizedStatus = String(status || '').replace('_', '-')
   return (
-    <span className={`my-rides-status my-rides-status-${status}`}>
-      {status}
+    <span className={`my-rides-status my-rides-status-${normalizedStatus}`}>
+      {normalizedStatus}
     </span>
   )
 }
 
-function JoinRequestRow({ request, isFull, onAccept, onDecline }) {
+function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
   return (
     <div
       className={`my-rides-person-row ${isFull ? 'my-rides-person-row-warning' : ''}`}
@@ -67,7 +68,7 @@ function JoinRequestRow({ request, isFull, onAccept, onDecline }) {
       <Avatar initials={request.initials} />
       <div className="my-rides-person-info">
         <strong>{request.name}</strong>
-        <span>Requested {request.requestedMinutesAgo} min ago</span>
+        <span>Requested {request.requestedLabel} ago</span>
       </div>
       <StatusBadge status="pending" />
       {isFull && (
@@ -80,12 +81,17 @@ function JoinRequestRow({ request, isFull, onAccept, onDecline }) {
         <button
           type="button"
           className="my-rides-accept"
-          disabled={isFull}
+          disabled={isFull || isPending}
           onClick={onAccept}
         >
           Accept
         </button>
-        <button type="button" className="my-rides-decline" onClick={onDecline}>
+        <button
+          type="button"
+          className="my-rides-decline"
+          disabled={isPending}
+          onClick={onDecline}
+        >
           Decline
         </button>
       </div>
@@ -105,7 +111,52 @@ function ConfirmedPassengerRow({ passenger }) {
   )
 }
 
-function RideRow({ ride, isExpanded, onToggle, onMenu, onAccept, onDecline }) {
+function RideMenu({ ride, isBusy, onStatusChange, onRequestCancel }) {
+  const isRideFull = getRideStatus(ride) === 'full'
+
+  return (
+    <div
+      className="my-rides-context-menu"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {isRideFull && ride.seatsAvailable > 0 && (
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onStatusChange('OPEN')}
+        >
+          Reopen ride
+        </button>
+      )}
+      {!isRideFull && ride.status !== 'cancelled' && (
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onStatusChange('FULL')}
+        >
+          Mark as Full
+        </button>
+      )}
+      <button type="button" onClick={onRequestCancel}>
+        Cancel ride
+      </button>
+    </div>
+  )
+}
+
+function RideRow({
+  ride,
+  isExpanded,
+  isMenuOpen,
+  onToggle,
+  onMenu,
+  onAccept,
+  onDecline,
+  onStatusChange,
+  onRequestCancel,
+  isBusy,
+}) {
+  const menuButtonRef = useRef(null)
   const status = getRideStatus(ride)
   return (
     <article
@@ -146,13 +197,26 @@ function RideRow({ ride, isExpanded, onToggle, onMenu, onAccept, onDecline }) {
           )}
         </button>
         <button
+          ref={menuButtonRef}
           type="button"
           className="my-rides-menu-button"
           aria-label={`Options for ${ride.origin} to ${ride.destination}`}
-          onClick={onMenu}
+          aria-expanded={isMenuOpen}
+          onClick={(event) => {
+            event.stopPropagation()
+            onMenu()
+          }}
         >
           <i className="fa-solid fa-ellipsis-vertical" aria-hidden="true" />
         </button>
+        {isMenuOpen && (
+          <RideMenu
+            ride={ride}
+            isBusy={isBusy}
+            onStatusChange={onStatusChange}
+            onRequestCancel={() => onRequestCancel(menuButtonRef.current)}
+          />
+        )}
       </div>
       {isExpanded && (
         <div className="my-rides-card-details">
@@ -164,12 +228,20 @@ function RideRow({ ride, isExpanded, onToggle, onMenu, onAccept, onDecline }) {
                   key={request.id}
                   request={request}
                   isFull={status === 'full'}
+                  isPending={isBusy}
                   onAccept={() => onAccept(ride.id, request.id)}
                   onDecline={() => onDecline(ride.id, request.id)}
                 />
               ))}
             </section>
           )}
+          {ride.pendingRequests.length === 0 &&
+            ride.confirmedPassengers.length === 0 && (
+              <p className="my-rides-detail-empty">
+                No join requests yet. Colleagues who ask for a seat will show up
+                here.
+              </p>
+            )}
           {ride.confirmedPassengers.length > 0 && (
             <section className="my-rides-detail-section">
               <h3>Confirmed passengers</h3>
@@ -218,11 +290,65 @@ function JoinedRideRow({ ride, onWithdraw }) {
   )
 }
 
-function CancelRideModal({ ride, onKeep, onConfirm }) {
-  if (!ride) return null
+/**
+ * Rendered only while a ride is pending cancellation, so the focus-trap effect
+ * runs on open and tears down on close. aria-modal is only honest if focus
+ * actually stays inside, hence the Tab wrap and the focus restore.
+ */
+function CancelRideDialog({
+  error,
+  isPending,
+  returnFocusTo,
+  onKeep,
+  onConfirm,
+}) {
+  const dialogRef = useRef(null)
+  const keepRef = useRef(null)
+  const onKeepRef = useRef(onKeep)
+
+  useEffect(() => {
+    onKeepRef.current = onKeep
+  }, [onKeep])
+
+  useEffect(() => {
+    const previouslyFocused = returnFocusTo?.current ?? document.activeElement
+    keepRef.current?.focus()
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onKeepRef.current?.()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = dialogRef.current?.querySelectorAll(
+        'button:not([disabled])',
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div className="my-rides-modal-backdrop">
       <div
+        ref={dialogRef}
         className="my-rides-modal"
         role="dialog"
         aria-modal="true"
@@ -236,8 +362,15 @@ function CancelRideModal({ ride, onKeep, onConfirm }) {
           Passengers who requested or joined will see it as cancelled. This
           can&apos;t be undone.
         </p>
+        {error && (
+          <p className="my-rides-modal-error" role="alert">
+            <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />{' '}
+            {error}
+          </p>
+        )}
         <div className="my-rides-modal-actions">
           <button
+            ref={keepRef}
             type="button"
             className="my-rides-ghost-button"
             onClick={onKeep}
@@ -247,9 +380,10 @@ function CancelRideModal({ ride, onKeep, onConfirm }) {
           <button
             type="button"
             className="my-rides-danger-button"
+            disabled={isPending}
             onClick={onConfirm}
           >
-            Cancel ride
+            {error ? 'Try again' : 'Cancel ride'}
           </button>
         </div>
       </div>
@@ -257,36 +391,100 @@ function CancelRideModal({ ride, onKeep, onConfirm }) {
   )
 }
 
+function CancelRideModal({ ride, ...props }) {
+  if (!ride) return null
+  // `key` remounts the dialog if a different ride is targeted, so the
+  // focus trap and error state reset with it.
+  return <CancelRideDialog key={ride.id} {...props} />
+}
+
 function MyRidesDashboard({
   onFindRide,
   onOfferRide,
-  currentUserId,
   managedRideId,
-  onUnauthorized,
   onLogout,
 }) {
   const [rides, setRides] = useState([])
+  const [joinedRides, setJoinedRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
-  const [joinedRides, setJoinedRides] = useState([])
-  const [joinedLoadState, setJoinedLoadState] = useState('loading')
-  const [joinedLoadError, setJoinedLoadError] = useState('')
-  const [managedRequests, setManagedRequests] = useState(null)
-  const [managedRequestsError, setManagedRequestsError] = useState('')
+  const [reloadToken, setReloadToken] = useState(0)
   const [activeTab, setActiveTab] = useState('driving')
   const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
+  const [cancelError, setCancelError] = useState('')
+  const cancelTriggerRef = useRef(null)
   const [toast, setToast] = useState(null)
-  const upcomingRides = rides.filter(
-    (ride) => ride.status !== 'cancelled' && !hasDeparted(ride),
+  // Ref is the source of truth for the in-flight guard so two clicks in the
+  // same tick can't both get past it; the state mirror only drives `disabled`.
+  const pendingRef = useRef(new Set())
+  const [pendingKeys, setPendingKeys] = useState([])
+
+  const showToast = (message, tone = 'success') => setToast({ message, tone })
+
+  /**
+   * Accepting a request, declining one and changing a ride's status all write
+   * to the same seat count, so they are serialised per ride rather than per
+   * request. Two accepts on one ride could otherwise resolve out of order and
+   * leave the seat count stale.
+   */
+  const isRideBusy = (rideId) => pendingKeys.includes(`ride:${rideId}`)
+
+  const runExclusive = async (key, action) => {
+    if (pendingRef.current.has(key)) return
+    pendingRef.current.add(key)
+    setPendingKeys([...pendingRef.current])
+    try {
+      await action()
+    } finally {
+      pendingRef.current.delete(key)
+      setPendingKeys([...pendingRef.current])
+    }
+  }
+
+  useEffect(() => {
+    let ignore = false
+
+    fetchMyRides()
+      .then((payload) => {
+        if (ignore) return
+        const loaded = normaliseMyRides(payload)
+        setRides(loaded)
+        // A "Manage" click from Find a Ride asks for one ride's requests
+        // directly; otherwise fall back to the first upcoming ride.
+        const preferredId =
+          managedRideId && loaded.some((ride) => ride.id === managedRideId)
+            ? managedRideId
+            : (loaded.find((ride) => !isPastRide(ride))?.id ?? null)
+        setExpandedRideId(preferredId)
+        setJoinedRides(normaliseMyJoinedRides(payload))
+        setLoadState('loaded')
+      })
+      .catch((error) => {
+        if (ignore) return
+        setLoadError(error?.message || 'Unable to load your rides')
+        setLoadState('error')
+      })
+
+    return () => {
+      ignore = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadToken])
+
+  const retryLoad = () => {
+    setLoadState('loading')
+    setLoadError('')
+    setReloadToken((token) => token + 1)
+  }
+
+  const upcomingRides = rides.filter((ride) => !isPastRide(ride))
+  const pastRides = rides.filter(isPastRide)
+  const pendingRequestCount = upcomingRides.reduce(
+    (total, ride) => total + ride.pendingRequests.length,
+    0,
   )
-  const pastRides = rides.filter(
-    (ride) => ride.status === 'cancelled' || hasDeparted(ride),
-  )
-  const pendingRequestCount = upcomingRides.filter(
-    (ride) => ride.pendingRequests.length > 0,
-  ).length
   const pendingJoinedRides = joinedRides.filter(
     (ride) => ride.requestStatus === 'PENDING',
   )
@@ -301,143 +499,74 @@ function MyRidesDashboard({
   }, [toast])
 
   useEffect(() => {
-    const controller = new AbortController()
+    if (!menuRideId) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuRideId(null)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [menuRideId])
 
-    apiFetch('/api/rides', { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json().catch(() => null)
-        if (response.status === 401) {
-          onUnauthorized?.()
-          return
-        }
-        if (!response.ok) {
-          throw new Error(body?.message || 'Unable to load your rides.')
-        }
-
-        const ownedRides = (body?.data || [])
-          .filter(
-            (ride) =>
-              currentUserId != null &&
-              String(ride.driverId).trim() === String(currentUserId).trim(),
-          )
-          .map(normaliseRide)
-
-        const ridesWithRequests = await Promise.all(
-          ownedRides.map(async (ride) => {
-            const requestsResponse = await apiFetch(
-              `/api/rides/${ride.id}/requests`,
-              { signal: controller.signal },
-            )
-            const requestsBody = await requestsResponse.json().catch(() => null)
-            if (requestsResponse.status === 401) {
-              onUnauthorized?.()
-              return ride
-            }
-            if (!requestsResponse.ok) return ride
-            return {
-              ...ride,
-              pendingRequests: (requestsBody?.data || []).map((request) => ({
-                ...request,
-                name: request.passengerName,
-                initials: request.passengerName
-                  .split(/\s+/)
-                  .map((part) => part[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase(),
-                requestedMinutesAgo: Math.max(
-                  0,
-                  Math.floor(
-                    (Date.now() - new Date(request.createdAt).getTime()) /
-                      60000,
-                  ),
-                ),
-              })),
-            }
-          }),
-        )
-
-        setRides(ridesWithRequests)
-        setExpandedRideId((currentId) => currentId || ridesWithRequests[0]?.id)
-        setLoadError('')
-        setLoadState('loaded')
-      })
-      .catch((error) => {
-        if (error.name !== 'AbortError') {
-          setLoadError(error.message || 'Unable to load your rides.')
-          setLoadState('error')
-        }
-      })
-
-    return () => controller.abort()
-  }, [currentUserId, onUnauthorized])
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    apiFetch('/api/rides/mine', { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json().catch(() => null)
-        if (response.status === 401) {
-          onUnauthorized?.()
-          return
-        }
-        if (!response.ok) {
-          throw new Error(body?.message || 'Unable to load your joined rides.')
-        }
-        setJoinedRides((body?.data?.joined || []).map(normaliseJoinedRide))
-        setJoinedLoadError('')
-        setJoinedLoadState('loaded')
-      })
-      .catch((error) => {
-        if (error.name !== 'AbortError') {
-          setJoinedLoadError(error.message || 'Unable to load your joined rides.')
-          setJoinedLoadState('error')
-        }
-      })
-
-    return () => controller.abort()
-  }, [onUnauthorized])
-
-  useEffect(() => {
-    if (!managedRideId) return undefined
-
-    const controller = new AbortController()
-
-    apiFetch(`/api/rides/${managedRideId}/requests`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const body = await response.json().catch(() => null)
-        if (response.status === 401) {
-          onUnauthorized?.()
-          return
-        }
-        if (!response.ok) {
-          throw new Error(body?.message || 'Unable to load ride requests.')
-        }
-        setManagedRequests(body?.data || [])
-      })
-      .catch((error) => {
-        if (error.name !== 'AbortError') setManagedRequestsError(error.message)
-      })
-
-    return () => controller.abort()
-  }, [managedRideId, onUnauthorized])
-
-  const acceptRequest = (rideId, requestId) => {
-    // TODO: replace mock mutation with RID-4 accept endpoint.
-    const ride = rides.find((item) => item.id === rideId)
-    const request = ride?.pendingRequests.find((item) => item.id === requestId)
-    if (!request || ride.seatsAvailable === 0) return
+  // Throws on failure; callers decide how to surface it (toast vs. inline).
+  const applyStatusChange = async (rideId, targetStatus) => {
+    const updatedData = await updateRideStatus(rideId, targetStatus)
     setRides((currentRides) =>
-      currentRides.map((item) =>
-        item.id !== rideId
-          ? item
-          : {
+      currentRides.map((ride) =>
+        ride.id === rideId
+          ? {
+              ...ride,
+              status: (updatedData?.status || targetStatus).toLowerCase(),
+              seatsAvailable:
+                typeof updatedData?.availableSeats === 'number'
+                  ? updatedData.availableSeats
+                  : ride.seatsAvailable,
+            }
+          : ride,
+      ),
+    )
+  }
+
+  const handleStatusChange = (rideId, newStatus) =>
+    runExclusive(`ride:${rideId}`, async () => {
+      const targetStatus = newStatus.toUpperCase()
+      try {
+        await applyStatusChange(rideId, targetStatus)
+        if (targetStatus === 'CANCELLED') {
+          showToast('Ride has been cancelled.')
+        } else if (targetStatus === 'FULL') {
+          showToast('Ride marked as full.')
+        } else if (targetStatus === 'OPEN') {
+          showToast('Ride reopened for bookings.')
+        }
+      } catch (error) {
+        showToast(error?.message || 'Failed to update ride status.', 'error')
+      }
+    })
+
+  const acceptRequest = (rideId, requestId) =>
+    runExclusive(`ride:${rideId}`, async () => {
+      const ride = rides.find((item) => item.id === rideId)
+      const request = ride?.pendingRequests.find(
+        (item) => item.id === requestId,
+      )
+      if (!request || ride.seatsAvailable === 0) return
+
+      try {
+        const accepted = await acceptPassengerRequest(rideId, requestId)
+        // Prefer the server's seat count; fall back to a local decrement for
+        // backends that return only the request object.
+        const serverSeats =
+          typeof accepted?.availableSeats === 'number'
+            ? accepted.availableSeats
+            : null
+        setRides((currentRides) =>
+          currentRides.map((item) => {
+            if (item.id !== rideId) return item
+            const seatsAvailable = serverSeats ?? item.seatsAvailable - 1
+            return {
               ...item,
-              seatsAvailable: item.seatsAvailable - 1,
-              status: item.seatsAvailable - 1 === 0 ? 'full' : item.status,
+              seatsAvailable,
+              status: seatsAvailable === 0 ? 'full' : item.status,
               pendingRequests: item.pendingRequests.filter(
                 (pending) => pending.id !== requestId,
               ),
@@ -445,49 +574,73 @@ function MyRidesDashboard({
                 ...item.confirmedPassengers,
                 { ...request, id: `passenger-${request.id}` },
               ],
-            },
-      ),
-    )
-    setToast(`${request.name} has been added to your ride.`)
-  }
-
-  const declineRequest = (rideId, requestId) => {
-    // TODO: replace mock mutation with RID-4 decline endpoint.
-    setRides((currentRides) =>
-      currentRides.map((ride) =>
-        ride.id === rideId
-          ? {
-              ...ride,
-              pendingRequests: ride.pendingRequests.filter(
-                (request) => request.id !== requestId,
-              ),
             }
-          : ride,
-      ),
-    )
+          }),
+        )
+        showToast(`${request.name} has been added to your ride.`)
+      } catch (error) {
+        showToast(
+          error?.message || 'Failed to accept passenger request.',
+          'error',
+        )
+      }
+    })
+
+  const declineRequest = (rideId, requestId) =>
+    runExclusive(`ride:${rideId}`, async () => {
+      const ride = rides.find((item) => item.id === rideId)
+      const request = ride?.pendingRequests.find(
+        (item) => item.id === requestId,
+      )
+
+      try {
+        await declinePassengerRequest(rideId, requestId)
+        setRides((currentRides) =>
+          currentRides.map((r) =>
+            r.id === rideId
+              ? {
+                  ...r,
+                  pendingRequests: r.pendingRequests.filter(
+                    (req) => req.id !== requestId,
+                  ),
+                }
+              : r,
+          ),
+        )
+        if (request) {
+          showToast(`Declined request from ${request.name}.`)
+        }
+      } catch (error) {
+        showToast(
+          error?.message || 'Failed to decline passenger request.',
+          'error',
+        )
+      }
+    })
+
+  const confirmCancel = () => {
+    if (!rideToCancel) return undefined
+    const ride = rideToCancel
+    return runExclusive(`ride:${ride.id}`, async () => {
+      setCancelError('')
+      try {
+        await applyStatusChange(ride.id, 'CANCELLED')
+        setRideToCancel(null)
+        setMenuRideId(null)
+        showToast('Ride has been cancelled.')
+      } catch (error) {
+        setCancelError(error?.message || 'Failed to cancel this ride.')
+      }
+    })
   }
 
   const handleWithdraw = () => {
     // TODO: wire up once the backend exposes a withdraw-request endpoint.
-    setToast("Withdrawing a request isn't available yet.")
-  }
-
-  const confirmCancel = () => {
-    // TODO: replace mock mutation with RID-4 cancel endpoint.
-    setRides((currentRides) =>
-      currentRides.map((ride) =>
-        ride.id === rideToCancel?.id ? { ...ride, status: 'cancelled' } : ride,
-      ),
-    )
-    setRideToCancel(null)
-    setMenuRideId(null)
+    showToast("Withdrawing a request isn't available yet.", 'error')
   }
 
   return (
-    <main
-      className="my-rides-page"
-      onClick={() => menuRideId && setMenuRideId(null)}
-    >
+    <main className="my-rides-page" onClick={() => setMenuRideId(null)}>
       <header className="my-rides-header">
         <a
           className="my-rides-brand"
@@ -538,35 +691,6 @@ function MyRidesDashboard({
             </p>
           </div>
         </div>
-        {managedRideId && (
-          <section className="my-rides-detail-section" aria-live="polite">
-            <h2>Join requests</h2>
-            {managedRequestsError && <p>{managedRequestsError}</p>}
-            {!managedRequestsError && managedRequests === null && (
-              <p>Loading requests...</p>
-            )}
-            {!managedRequestsError && managedRequests?.length === 0 && (
-              <p>No pending requests for this ride.</p>
-            )}
-            {managedRequests?.map((request) => (
-              <div className="my-rides-person-row" key={request.id}>
-                <Avatar
-                  initials={request.passengerName
-                    .split(/\s+/)
-                    .map((part) => part[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                />
-                <div className="my-rides-person-info">
-                  <strong>{request.passengerName}</strong>
-                  <span>{request.status}</span>
-                </div>
-                <StatusBadge status={request.status.toLowerCase()} />
-              </div>
-            ))}
-          </section>
-        )}
         <div
           className="my-rides-tabs"
           role="tablist"
@@ -580,7 +704,11 @@ function MyRidesDashboard({
             onClick={() => setActiveTab('driving')}
           >
             Rides I&apos;m driving{' '}
-            <span className="my-rides-count-badge">{pendingRequestCount}</span>
+            {pendingRequestCount > 0 && (
+              <span className="my-rides-count-badge">
+                {pendingRequestCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -592,24 +720,29 @@ function MyRidesDashboard({
             Rides I&apos;ve joined
           </button>
         </div>
-        {loadState === 'loading' ? (
-          <div className="my-rides-empty-state">
-            <h2>Loading your rides...</h2>
-          </div>
-        ) : loadState === 'error' ? (
-          <div className="my-rides-empty-state">
-            <h2>Couldn&apos;t load your rides</h2>
-            <p>{loadError}</p>
-          </div>
-        ) : activeTab === 'joined' ? (
-          joinedLoadState === 'loading' ? (
-            <div className="my-rides-empty-state">
-              <h2>Loading your joined rides...</h2>
+        {activeTab === 'joined' ? (
+          loadState === 'loading' ? (
+            <div className="my-rides-loading" role="status">
+              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
+              <p>Loading your joined rides...</p>
             </div>
-          ) : joinedLoadState === 'error' ? (
-            <div className="my-rides-empty-state">
+          ) : loadState === 'error' ? (
+            <div className="my-rides-empty-state" role="alert">
+              <div className="my-rides-empty-icon">
+                <i
+                  className="fa-solid fa-triangle-exclamation"
+                  aria-hidden="true"
+                />
+              </div>
               <h2>Couldn&apos;t load your joined rides</h2>
-              <p>{joinedLoadError}</p>
+              <p>{loadError}</p>
+              <button
+                type="button"
+                className="my-rides-primary-button"
+                onClick={retryLoad}
+              >
+                Try again
+              </button>
             </div>
           ) : joinedRides.length === 0 ? (
             <div className="my-rides-empty-state">
@@ -659,6 +792,29 @@ function MyRidesDashboard({
               )}
             </>
           )
+        ) : loadState === 'loading' ? (
+          <div className="my-rides-loading" role="status">
+            <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
+            <p>Loading your rides...</p>
+          </div>
+        ) : loadState === 'error' ? (
+          <div className="my-rides-empty-state" role="alert">
+            <div className="my-rides-empty-icon">
+              <i
+                className="fa-solid fa-triangle-exclamation"
+                aria-hidden="true"
+              />
+            </div>
+            <h2>We couldn&apos;t load your rides.</h2>
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="my-rides-primary-button"
+              onClick={retryLoad}
+            >
+              Try again
+            </button>
+          </div>
         ) : upcomingRides.length === 0 ? (
           <div className="my-rides-empty-state">
             <div className="my-rides-empty-icon">
@@ -690,91 +846,107 @@ function MyRidesDashboard({
                       expandedRideId === ride.id ? null : ride.id,
                     )
                   }
+                  isMenuOpen={menuRideId === ride.id}
                   onMenu={() =>
                     setMenuRideId(menuRideId === ride.id ? null : ride.id)
                   }
                   onAccept={acceptRequest}
                   onDecline={declineRequest}
+                  isBusy={isRideBusy(ride.id)}
+                  onStatusChange={(status) => {
+                    setMenuRideId(null)
+                    handleStatusChange(ride.id, status)
+                  }}
+                  onRequestCancel={(trigger) => {
+                    cancelTriggerRef.current = trigger
+                    setMenuRideId(null)
+                    setCancelError('')
+                    setRideToCancel(ride)
+                  }}
                 />
               ))}
             </div>
-            {menuRideId && (
-              <div
-                className="my-rides-context-menu"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRideToCancel(
-                      rides.find((ride) => ride.id === menuRideId),
-                    )
-                    setMenuRideId(null)
-                  }}
-                >
-                  Cancel ride
-                </button>
-              </div>
-            )}
           </>
         )}
-        {activeTab === 'driving' && pastRides.length > 0 && (
-          <section className="my-rides-past-section">
-            <button
-              type="button"
-              className="my-rides-past-toggle"
-              onClick={() =>
-                setExpandedRideId(expandedRideId === 'past' ? null : 'past')
-              }
-            >
-              <i
-                className={`fa-solid fa-chevron-${expandedRideId === 'past' ? 'down' : 'right'}`}
-                aria-hidden="true"
-              />{' '}
-              Past &amp; cancelled ({pastRides.length})
-            </button>
-            {expandedRideId === 'past' && (
-              <div className="my-rides-past-list">
-                {pastRides.map((ride) => (
-                  <div className="my-rides-past-row" key={ride.id}>
-                    <div>
-                      <strong>
-                        {ride.origin}{' '}
-                        <i
-                          className="fa-solid fa-arrow-right-long"
-                          aria-hidden="true"
-                        />{' '}
-                        {ride.destination}
-                      </strong>
-                      <span>
-                        <i
-                          className="fa-regular fa-calendar"
-                          aria-hidden="true"
-                        />{' '}
-                        {formatDate(ride.date)} · {formatTime(ride.time)}
-                      </span>
+        {activeTab === 'driving' &&
+          loadState === 'loaded' &&
+          pastRides.length > 0 && (
+            <section className="my-rides-past-section">
+              <button
+                type="button"
+                className="my-rides-past-toggle"
+                onClick={() =>
+                  setExpandedRideId(expandedRideId === 'past' ? null : 'past')
+                }
+              >
+                <i
+                  className={`fa-solid fa-chevron-${expandedRideId === 'past' ? 'down' : 'right'}`}
+                  aria-hidden="true"
+                />{' '}
+                Past &amp; cancelled ({pastRides.length})
+              </button>
+              {expandedRideId === 'past' && (
+                <div className="my-rides-past-list">
+                  {pastRides.map((ride) => (
+                    <div className="my-rides-past-row" key={ride.id}>
+                      <div>
+                        <strong>
+                          {ride.origin}{' '}
+                          <i
+                            className="fa-solid fa-arrow-right-long"
+                            aria-hidden="true"
+                          />{' '}
+                          {ride.destination}
+                        </strong>
+                        <span>
+                          <i
+                            className="fa-regular fa-calendar"
+                            aria-hidden="true"
+                          />{' '}
+                          {formatDate(ride.date)} · {formatTime(ride.time)}
+                        </span>
+                      </div>
+                      <StatusBadge status={getRideStatus(ride)} />
                     </div>
-                    <StatusBadge status={getRideStatus(ride)} />
-                  </div>
-                ))}
-                <p className="my-rides-past-note">
-                  No actions available on past or cancelled rides.
-                </p>
-              </div>
-            )}
-          </section>
-        )}
+                  ))}
+                  <p className="my-rides-past-note">
+                    No actions available on past or cancelled rides.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
       </section>
       <>
         {toast && (
-          <div className="my-rides-toast" role="status">
-            <i className="fa-solid fa-circle-check" aria-hidden="true" />{' '}
-            {toast}
+          <div
+            className={`my-rides-toast my-rides-toast-${toast.tone}`}
+            role={toast.tone === 'error' ? 'alert' : 'status'}
+          >
+            <i
+              className={
+                toast.tone === 'error'
+                  ? 'fa-solid fa-circle-exclamation'
+                  : 'fa-solid fa-circle-check'
+              }
+              aria-hidden="true"
+            />{' '}
+            {toast.message}
           </div>
         )}
         <CancelRideModal
           ride={rideToCancel}
-          onKeep={() => setRideToCancel(null)}
+          error={cancelError}
+          returnFocusTo={cancelTriggerRef}
+          isPending={
+            rideToCancel
+              ? pendingKeys.includes(`ride:${rideToCancel.id}`)
+              : false
+          }
+          onKeep={() => {
+            setCancelError('')
+            setRideToCancel(null)
+          }}
           onConfirm={confirmCancel}
         />
       </>

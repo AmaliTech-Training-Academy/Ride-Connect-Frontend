@@ -14,6 +14,7 @@ import RegisterScreen from './pages/RegisterScreen'
 import RequireAuth from './routes/RequireAuth'
 import RedirectIfAuthed from './routes/RedirectIfAuthed'
 import { getCurrentUser, logoutUser } from './services/auth'
+import { onSessionExpired } from './lib/session'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -46,10 +47,16 @@ function App() {
     setAuthStatus('authenticated')
   }
 
-  const handleUnauthorized = () => {
-    setUser(null)
-    setAuthStatus('unauthenticated')
-  }
+  // Session expiry is announced by the API layer, so no screen has to
+  // remember to handle a 401 of its own.
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        setUser(null)
+        setAuthStatus('unauthenticated')
+      }),
+    [],
+  )
 
   const handleLogout = async () => {
     await logoutUser()
@@ -97,7 +104,6 @@ function App() {
                 )
               }
               onMyRides={() => navigate('/my-rides')}
-              onUnauthorized={handleUnauthorized}
               onLogout={handleLogout}
             />
           </RequireAuth>
@@ -111,7 +117,6 @@ function App() {
               onOfferRide={() => navigate('/offer-a-ride')}
               onMyRides={() => navigate('/my-rides')}
               onManageRide={(ride) => navigate(`/my-rides?manage=${ride.id}`)}
-              onUnauthorized={handleUnauthorized}
               onLogout={handleLogout}
               currentUserId={user?.id}
               highlightedRideId={searchParams.get('ride')}
@@ -126,9 +131,7 @@ function App() {
             <MyRidesDashboard
               onFindRide={() => navigate('/find-a-ride')}
               onOfferRide={() => navigate('/offer-a-ride')}
-              currentUserId={user?.id}
               managedRideId={searchParams.get('manage')}
-              onUnauthorized={handleUnauthorized}
               onLogout={handleLogout}
             />
           </RequireAuth>

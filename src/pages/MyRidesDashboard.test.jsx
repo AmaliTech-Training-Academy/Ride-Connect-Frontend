@@ -1,460 +1,971 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, jest } from '@jest/globals'
-import { apiFetch } from '../lib/api'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import MyRidesDashboard from './MyRidesDashboard'
+import {
+  acceptPassengerRequest,
+  declinePassengerRequest,
+  fetchMyRides,
+  updateRideStatus,
+} from '../services/rides'
+import { buildMyRidesResponse } from './myRidesMockData'
 
-jest.mock('../lib/api', () => ({
-  apiFetch: jest.fn(),
+jest.mock('../services/rides', () => ({
+  fetchMyRides: jest.fn(),
+  updateRideStatus: jest.fn(),
+  acceptPassengerRequest: jest.fn(),
+  declinePassengerRequest: jest.fn(),
+  RideStatusError: class RideStatusError extends Error {
+    constructor(message, status) {
+      super(message)
+      this.name = 'RideStatusError'
+      this.status = status
+    }
+  },
 }))
 
-describe('MyRidesDashboard', () => {
-  const ridesResponse = {
-    ok: true,
-    status: 200,
-    json: async () => ({
-      data: [
-        {
-          id: 'ride-1',
-          driverId: 'user-1',
-          origin: 'East Legon',
-          destination: 'AmaliTech Office',
-          departureAt: '2099-09-19T08:15:00.000Z',
-          totalSeats: 4,
-          availableSeats: 2,
-          status: 'OPEN',
-        },
-        {
-          id: 'other-ride',
-          driverId: 'other-user',
-          origin: 'Osu',
-          destination: 'AmaliTech Office',
-          departureAt: '2099-09-20T08:15:00.000Z',
-          totalSeats: 4,
-          availableSeats: 4,
-          status: 'OPEN',
-        },
-        {
-          id: 'ride-2',
-          driverId: 'user-1',
-          origin: 'Adenta',
-          destination: 'AmaliTech Office',
-          departureAt: '2099-09-20T07:45:00.000Z',
-          totalSeats: 3,
-          availableSeats: 3,
-          status: 'OPEN',
-        },
-        {
-          id: 'ride-past',
-          driverId: 'user-1',
-          origin: 'Osu',
-          destination: 'AmaliTech Office',
-          departureAt: '2020-09-20T08:00:00.000Z',
-          totalSeats: 3,
-          availableSeats: 1,
-          status: 'CANCELLED',
-        },
-      ],
-    }),
-  }
+/**
+ * Renders the screen and waits for the initial fetch to settle, so tests can
+ * act on the list straight away.
+ */
+async function renderDashboard(props = {}) {
+  const result = render(
+    <MyRidesDashboard
+      onFindRide={jest.fn()}
+      onOfferRide={jest.fn()}
+      {...props}
+    />,
+  )
+  await screen.findByText('Upcoming')
+  return result
+}
 
+describe('MyRidesDashboard - Ride Status Management', () => {
   beforeEach(() => {
-    apiFetch.mockReset()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides'
-        ? Promise.resolve(ridesResponse)
-        : path === '/api/rides/ride-1/requests'
-          ? Promise.resolve({
-              ok: true,
-              status: 200,
-              json: async () => ({
-                data: [
-                  {
-                    id: 'request-1',
-                    passengerName: 'Nana Yeboah',
-                    status: 'PENDING',
-                    createdAt: '2099-09-19T08:07:00.000Z',
-                  },
-                  {
-                    id: 'request-2',
-                    passengerName: 'Kojo Mensah',
-                    status: 'PENDING',
-                    createdAt: '2099-09-19T07:51:00.000Z',
-                  },
-                  {
-                    id: 'request-3',
-                    passengerName: 'Adwoa Frimpong',
-                    status: 'PENDING',
-                    createdAt: '2099-09-19T07:44:00.000Z',
-                  },
-                ],
-              }),
-            })
-        : Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({ data: [] }),
-          }),
-    )
+    jest.clearAllMocks()
+    fetchMyRides.mockResolvedValue(buildMyRidesResponse())
+    acceptPassengerRequest.mockResolvedValue({ success: true })
+    declinePassengerRequest.mockResolvedValue({ success: true })
   })
 
-  it('loads pending requests for the managed ride', async () => {
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/ride-1/requests'
-        ? Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              message: 'Requests fetched successfully',
-              data: [
-                {
-                  id: 'request-1',
-                  passengerId: 'passenger-1',
-                  passengerName: 'Ada Lovelace',
-                  status: 'PENDING',
-                  createdAt: '2026-09-18T09:30:00.000Z',
-                },
-              ],
-            }),
-          })
-        : Promise.resolve(ridesResponse),
-    )
-
-    render(
-      <MyRidesDashboard
-        managedRideId="ride-1"
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
-    expect(apiFetch).toHaveBeenCalledWith('/api/rides/ride-1/requests', {
-      signal: expect.anything(),
-    })
-  })
-
-  it('shows when the managed ride has no pending requests', async () => {
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/ride-2/requests'
-        ? Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              message: 'No pending requests for this ride.',
-              data: [],
-            }),
-          })
-        : Promise.resolve({ ...ridesResponse, json: async () => ({ data: [] }) }),
-    )
-
-    render(
-      <MyRidesDashboard
-        managedRideId="ride-2"
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    expect(
-      await screen.findByText('No pending requests for this ride.'),
-    ).toBeInTheDocument()
-  })
-
-  it('renders only the signed-in user\'s rides from the API', async () => {
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    expect(
-      (await screen.findAllByRole('button', {
-        name: /East Legon.*AmaliTech Office/,
-      })).length,
-    ).toBeGreaterThan(0)
-    expect(
-      screen.queryByRole('button', { name: /Osu.*AmaliTech Office/ }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows an API error when rides cannot be loaded', async () => {
-    apiFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: async () => ({ message: 'Rides service unavailable.' }),
-    })
-
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    expect(
-      await screen.findByRole('heading', { name: "Couldn't load your rides" }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Rides service unavailable.')).toBeInTheDocument()
-  })
-
-  it('redirects to login when the rides request is unauthorized', async () => {
-    const onUnauthorized = jest.fn()
-    apiFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      json: async () => ({ message: 'Authentication required.' }),
-    })
-
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
-
-    await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
-  })
-
-  it('redirects to login when a per-ride requests fetch is unauthorized', async () => {
-    const onUnauthorized = jest.fn()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides'
-        ? Promise.resolve(ridesResponse)
-        : Promise.resolve({
-            ok: false,
-            status: 401,
-            json: async () => ({ message: 'Authentication required.' }),
-          }),
-    )
-
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        managedRideId="ride-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
-
-    await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
-  })
-
-  it('accepts requests until the ride is full', async () => {
+  it('accepts requests until a ride is full and blocks remaining requests', async () => {
     const user = userEvent.setup()
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
+    await renderDashboard()
 
-    expect(await screen.findByText('3 new requests')).toBeInTheDocument()
+    expect(screen.getByText('3 new requests')).toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
-    expect(await screen.findByText(/Nana Yeboah has been added/)).toBeInTheDocument()
+
+    expect(acceptPassengerRequest).toHaveBeenCalledWith(
+      'driving-1',
+      'request-1',
+    )
+    expect(
+      await screen.findByText('Nana Yeboah has been added to your ride.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 4 seats left')).toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+    expect(acceptPassengerRequest).toHaveBeenCalledWith(
+      'driving-1',
+      'request-2',
+    )
     expect(screen.getByText('0 of 4 seats left')).toBeInTheDocument()
+    expect(screen.getByText('full')).toBeInTheDocument()
+    expect(screen.getByText(/This ride is now full/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled()
   })
 
-  it('declines a request, cancels a ride, and shows the joined placeholder', async () => {
+  it('declines a request, displays a toast, and updates the pending list', async () => {
     const user = userEvent.setup()
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
+    await renderDashboard()
+
+    await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+    expect(declinePassengerRequest).toHaveBeenCalledWith(
+      'driving-1',
+      'request-1',
+    )
+    expect(
+      await screen.findByText('Declined request from Nana Yeboah.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Requested 8 min ago')).not.toBeInTheDocument()
+  })
+
+  it('handles error when accepting request fails', async () => {
+    acceptPassengerRequest.mockRejectedValueOnce(
+      new Error('Failed to accept passenger request.'),
     )
 
-    await screen.findByText('3 new requests')
-    await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
-    expect(screen.queryByText('Nana Yeboah')).not.toBeInTheDocument()
+    const user = userEvent.setup()
+    await renderDashboard()
+
+    await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+    expect(
+      await screen.findByText('Failed to accept passenger request.'),
+    ).toBeInTheDocument()
+  })
+
+  it('cancels a ride via API, closes modal, and renders in Past & cancelled', async () => {
+    updateRideStatus.mockResolvedValueOnce({
+      id: 'driving-2',
+      status: 'CANCELLED',
+      availableSeats: 0,
+    })
+
+    const user = userEvent.setup()
+    await renderDashboard()
+
     await user.click(screen.getByRole('button', { name: /Options for Adenta/ }))
     await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
-    expect(screen.getByRole('heading', { name: 'Cancel this ride?' })).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: 'Cancel ride' }).at(-1))
-    await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
     expect(
-      await screen.findByRole('heading', {
-        name: "You haven't requested any rides yet.",
-      }),
+      screen.getByRole('heading', { name: 'Cancel this ride?' }),
     ).toBeInTheDocument()
-  })
 
-  it('splits joined rides into pending and approved sections', async () => {
-    const user = userEvent.setup()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/mine'
-        ? Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: {
-                driving: [],
-                joined: [
-                  {
-                    id: 'ride-10',
-                    requestId: 'request-10',
-                    requestStatus: 'PENDING',
-                    driverId: 'driver-1',
-                    driverName: 'Ama Owusu',
-                    origin: 'Madina',
-                    destination: 'AmaliTech Office',
-                    departureAt: '2099-09-19T08:15:00.000Z',
-                    totalSeats: 4,
-                    availableSeats: 2,
-                    status: 'OPEN',
-                  },
-                  {
-                    id: 'ride-11',
-                    requestId: 'request-11',
-                    requestStatus: 'ACCEPTED',
-                    driverId: 'driver-2',
-                    driverName: 'Kojo Mensah',
-                    origin: 'Osu',
-                    destination: 'AmaliTech Office',
-                    departureAt: '2099-09-20T08:15:00.000Z',
-                    totalSeats: 4,
-                    availableSeats: 3,
-                    status: 'OPEN',
-                  },
-                ],
-                pastAndCancelled: [],
-                joinedPastAndCancelled: [],
-              },
-            }),
-          })
-        : Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) }),
-    )
-
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
-
-    expect(await screen.findByText('Pending')).toBeInTheDocument()
-    expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
-    expect(screen.getByText('Approved')).toBeInTheDocument()
-    expect(screen.getByText('Driver: Kojo Mensah')).toBeInTheDocument()
-  })
-
-  it('shows a not-yet-available message when withdrawing a joined request', async () => {
-    const user = userEvent.setup()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/mine'
-        ? Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: {
-                driving: [],
-                joined: [
-                  {
-                    id: 'ride-10',
-                    requestId: 'request-10',
-                    requestStatus: 'PENDING',
-                    driverId: 'driver-1',
-                    driverName: 'Ama Owusu',
-                    origin: 'Madina',
-                    destination: 'AmaliTech Office',
-                    departureAt: '2099-09-19T08:15:00.000Z',
-                    totalSeats: 4,
-                    availableSeats: 2,
-                    status: 'OPEN',
-                  },
-                ],
-                pastAndCancelled: [],
-                joinedPastAndCancelled: [],
-              },
-            }),
-          })
-        : Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) }),
-    )
-
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
-
-    await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+    // Confirm cancel
     await user.click(
-      await screen.findByRole('button', { name: 'Withdraw request' }),
+      screen.getAllByRole('button', { name: 'Cancel ride' }).at(-1),
     )
 
+    expect(updateRideStatus).toHaveBeenCalledWith('driving-2', 'CANCELLED')
     expect(
-      await screen.findByText("Withdrawing a request isn't available yet."),
+      await screen.findByText('Ride has been cancelled.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Past & cancelled (3)')).toBeInTheDocument()
+
+    // Toggle Past & cancelled section
+    await user.click(screen.getByText(/Past & cancelled/))
+    expect(
+      screen.getByText('No actions available on past or cancelled rides.'),
     ).toBeInTheDocument()
   })
 
-  it('shows an error when the joined rides request fails', async () => {
+  it('manually marks a ride as Full and then reopens it', async () => {
+    updateRideStatus.mockResolvedValueOnce({
+      id: 'driving-2',
+      status: 'FULL',
+      availableSeats: 3,
+    })
+
     const user = userEvent.setup()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/mine'
-        ? Promise.resolve({
-            ok: false,
-            status: 500,
-            json: async () => ({ message: 'Joined rides unavailable.' }),
-          })
-        : Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) }),
-    )
+    await renderDashboard()
 
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-      />,
-    )
+    // Mark as Full
+    await user.click(screen.getByRole('button', { name: /Options for Adenta/ }))
+    await user.click(screen.getByRole('button', { name: 'Mark as Full' }))
 
-    await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+    expect(updateRideStatus).toHaveBeenCalledWith('driving-2', 'FULL')
+    expect(await screen.findByText('Ride marked as full.')).toBeInTheDocument()
 
+    // Reopen ride
+    updateRideStatus.mockResolvedValueOnce({
+      id: 'driving-2',
+      status: 'OPEN',
+      availableSeats: 3,
+    })
+
+    await user.click(screen.getByRole('button', { name: /Options for Adenta/ }))
+    await user.click(screen.getByRole('button', { name: 'Reopen ride' }))
+
+    expect(updateRideStatus).toHaveBeenCalledWith('driving-2', 'OPEN')
     expect(
-      await screen.findByRole('heading', {
-        name: "Couldn't load your joined rides",
-      }),
+      await screen.findByText('Ride reopened for bookings.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Joined rides unavailable.')).toBeInTheDocument()
   })
 
-  it('redirects to login when the joined rides request is unauthorized', async () => {
-    const onUnauthorized = jest.fn()
-    apiFetch.mockImplementation((path) =>
-      path === '/api/rides/mine'
-        ? Promise.resolve({
-            ok: false,
-            status: 401,
-            json: async () => ({ message: 'Authentication required.' }),
-          })
-        : Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) }),
-    )
+  it('handles API error when updating ride status', async () => {
+    const error = new Error('This ride is already FULL.')
+    error.status = 409
+    updateRideStatus.mockRejectedValueOnce(error)
 
-    render(
-      <MyRidesDashboard
-        currentUserId="user-1"
-        onFindRide={jest.fn()}
-        onOfferRide={jest.fn()}
-        onUnauthorized={onUnauthorized}
-      />,
-    )
+    const user = userEvent.setup()
+    await renderDashboard()
 
-    await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
+    await user.click(screen.getByRole('button', { name: /Options for Adenta/ }))
+    await user.click(screen.getByRole('button', { name: 'Mark as Full' }))
+
+    expect(
+      await screen.findByText('This ride is already FULL.'),
+    ).toBeInTheDocument()
+  })
+
+  it('allows user to dismiss cancel modal without cancelling ride', async () => {
+    const user = userEvent.setup()
+    await renderDashboard()
+
+    await user.click(screen.getByRole('button', { name: /Options for Adenta/ }))
+    await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+    expect(
+      screen.getByRole('heading', { name: 'Cancel this ride?' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Keep ride' }))
+    expect(
+      screen.queryByRole('heading', { name: 'Cancel this ride?' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Past & cancelled (2)')).toBeInTheDocument()
+    expect(updateRideStatus).not.toHaveBeenCalled()
+  })
+
+  describe('rides I have joined', () => {
+    function joinedRide(overrides = {}) {
+      return {
+        id: 'ride-10',
+        driverId: 'driver-1',
+        driverName: 'Ama Owusu',
+        origin: 'Madina',
+        destination: 'AmaliTech Office',
+        routeDescription: null,
+        departureAt: '2099-09-19T08:15:00.000Z',
+        totalSeats: 4,
+        availableSeats: 2,
+        status: 'OPEN',
+        requestId: 'request-10',
+        requestStatus: 'PENDING',
+        requestedAt: '2099-09-18T08:00:00.000Z',
+        ...overrides,
+      }
+    }
+
+    it('splits joined rides into pending and approved sections', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [
+        joinedRide({ requestStatus: 'PENDING' }),
+        joinedRide({
+          id: 'ride-11',
+          requestId: 'request-11',
+          driverName: 'Kojo Mensah',
+          requestStatus: 'ACCEPTED',
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(screen.getByText('Pending')).toBeInTheDocument()
+      expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
+      expect(screen.getByText('Approved')).toBeInTheDocument()
+      expect(screen.getByText('Driver: Kojo Mensah')).toBeInTheDocument()
+    })
+
+    it('shows the empty state when nothing has been requested', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(
+        await screen.findByRole('heading', {
+          name: "You haven't requested any rides yet.",
+        }),
+      ).toBeInTheDocument()
+    })
+
+    it("shows a not-yet-available message when withdrawing a request", async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [joinedRide()]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+      await user.click(
+        screen.getByRole('button', { name: 'Withdraw request' }),
+      )
+
+      expect(
+        await screen.findByText("Withdrawing a request isn't available yet."),
+      ).toBeInTheDocument()
+    })
+
+    it('shows the error state when the load fails', async () => {
+      const error = new Error('Session expired')
+      error.status = 401
+      fetchMyRides.mockRejectedValue(error)
+      const user = userEvent.setup()
+
+      render(<MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />)
+
+      await user.click(
+        await screen.findByRole('tab', { name: /Rides I.ve joined/ }),
+      )
+
+      expect(
+        await screen.findByRole('heading', {
+          name: "Couldn't load your joined rides",
+        }),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('managed ride deep link', () => {
+    it('expands the ride passed in managedRideId instead of the first upcoming one', async () => {
+      await renderDashboard({ managedRideId: 'driving-2' })
+
+      // driving-2 has no requests, so its empty-panel note proves it (not
+      // driving-1, the default) is the one expanded.
+      expect(screen.getByText(/No join requests yet/)).toBeInTheDocument()
+    })
+
+    it('falls back to the first upcoming ride when the id does not match', async () => {
+      await renderDashboard({ managedRideId: 'does-not-exist' })
+
+      expect(
+        screen.getByRole('heading', { name: 'Join requests' }),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('account menu', () => {
+    it('logs out from the account menu popover', async () => {
+      const user = userEvent.setup()
+      const onLogout = jest.fn()
+      await renderDashboard({ onLogout })
+
+      await user.click(screen.getByRole('button', { name: 'Account menu' }))
+      await user.click(screen.getByRole('menuitem', { name: /logout/i }))
+
+      expect(onLogout).toHaveBeenCalled()
+    })
+  })
+
+  describe('regressions', () => {
+    it('switches the menu to another ride instead of closing it', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      )
+      expect(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      ).toHaveAttribute('aria-expanded', 'true')
+
+      // Clicking a second ride's kebab used to bubble to the page-level
+      // dismiss handler and close the menu outright.
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+
+      expect(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      ).toHaveAttribute('aria-expanded', 'true')
+      expect(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      ).toHaveAttribute('aria-expanded', 'false')
+      expect(
+        screen.getByRole('button', { name: 'Cancel ride' }),
+      ).toBeInTheDocument()
+    })
+
+    it('renders the menu inside the card it belongs to', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const kebab = screen.getByRole('button', { name: /Options for Adenta/ })
+      await user.click(kebab)
+
+      const menu = screen
+        .getByRole('button', { name: 'Cancel ride' })
+        .closest('.my-rides-context-menu')
+      expect(kebab.closest('.my-rides-card')).toContainElement(menu)
+    })
+
+    it('closes the menu when clicking elsewhere on the page', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      expect(
+        screen.getByRole('button', { name: 'Cancel ride' }),
+      ).toBeInTheDocument()
+
+      await user.click(screen.getByRole('heading', { name: 'My rides' }))
+      expect(
+        screen.queryByRole('button', { name: 'Cancel ride' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('sends only one accept call when the button is double-clicked', async () => {
+      const user = userEvent.setup()
+      let releaseAccept
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseAccept = resolve
+          }),
+      )
+      await renderDashboard()
+
+      const accept = screen.getAllByRole('button', { name: 'Accept' })[0]
+      await user.click(accept)
+      expect(accept).toBeDisabled()
+      await user.click(accept)
+
+      expect(acceptPassengerRequest).toHaveBeenCalledTimes(1)
+
+      releaseAccept({})
+      expect(
+        await screen.findByText('Nana Yeboah has been added to your ride.'),
+      ).toBeInTheDocument()
+      expect(screen.getByText('1 of 4 seats left')).toBeInTheDocument()
+    })
+
+    it('sends only one decline call when the button is double-clicked', async () => {
+      const user = userEvent.setup()
+      let releaseDecline
+      declinePassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseDecline = resolve
+          }),
+      )
+      await renderDashboard()
+
+      const decline = screen.getAllByRole('button', { name: 'Decline' })[0]
+      await user.click(decline)
+      await user.click(decline)
+
+      expect(declinePassengerRequest).toHaveBeenCalledTimes(1)
+      releaseDecline({})
+      expect(
+        await screen.findByText('Declined request from Nana Yeboah.'),
+      ).toBeInTheDocument()
+    })
+
+    it('sends only one status call when a menu item is double-clicked', async () => {
+      const user = userEvent.setup()
+      let releaseStatus
+      updateRideStatus.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseStatus = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Mark as Full' }))
+      // The menu closes on click, so reopen and fire the same action again.
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Mark as Full' }))
+
+      expect(updateRideStatus).toHaveBeenCalledTimes(1)
+      releaseStatus({ id: 'driving-2', status: 'FULL', availableSeats: 3 })
+      expect(
+        await screen.findByText('Ride marked as full.'),
+      ).toBeInTheDocument()
+    })
+
+    it('marks a failed action with an error toast, not the success check', async () => {
+      const user = userEvent.setup()
+      const error = new Error('Request not found')
+      error.status = 404
+      declinePassengerRequest.mockRejectedValueOnce(error)
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+
+      const toast = await screen.findByRole('alert')
+      expect(toast).toHaveTextContent('Request not found')
+      expect(toast).toHaveClass('my-rides-toast-error')
+      expect(toast.querySelector('.fa-circle-check')).toBeNull()
+    })
+
+    it('keeps the success check on a successful action', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+
+      const toast = await screen.findByRole('status')
+      expect(toast).toHaveClass('my-rides-toast-success')
+      expect(toast.querySelector('.fa-circle-check')).not.toBeNull()
+    })
+  })
+
+  describe('accept seat reconciliation', () => {
+    it("uses the server's availableSeats when the response carries it", async () => {
+      const user = userEvent.setup()
+      // Server says 0 left even though a local decrement would say 1.
+      acceptPassengerRequest.mockResolvedValueOnce({ availableSeats: 0 })
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      expect(await screen.findByText('0 of 4 seats left')).toBeInTheDocument()
+      expect(screen.getByText('full')).toBeInTheDocument()
+    })
+
+    it('falls back to a local decrement when the response omits seats', async () => {
+      const user = userEvent.setup()
+      acceptPassengerRequest.mockResolvedValueOnce({
+        id: 'request-1',
+        status: 'ACCEPTED',
+      })
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      expect(await screen.findByText('1 of 4 seats left')).toBeInTheDocument()
+    })
+  })
+
+  describe('cancel modal failure handling', () => {
+    const openCancelModal = async (user) => {
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+    }
+
+    it('keeps the modal open and shows the reason when cancelling fails', async () => {
+      const user = userEvent.setup()
+      const error = new Error(
+        'Only the driver who owns this ride can change its status.',
+      )
+      error.status = 403
+      updateRideStatus.mockRejectedValueOnce(error)
+      await renderDashboard()
+
+      await openCancelModal(user)
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+
+      expect(
+        screen.getByRole('heading', { name: 'Cancel this ride?' }),
+      ).toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Only the driver who owns this ride can change its status.',
+      )
+      // The ride is untouched, so it stays in Upcoming.
+      expect(screen.getByText('Past & cancelled (2)')).toBeInTheDocument()
+    })
+
+    it('lets the user retry after a failure and closes on success', async () => {
+      const user = userEvent.setup()
+      const error = new Error('Something went wrong')
+      error.status = 500
+      updateRideStatus.mockRejectedValueOnce(error).mockResolvedValueOnce({
+        id: 'driving-2',
+        status: 'CANCELLED',
+        availableSeats: 0,
+      })
+      await renderDashboard()
+
+      await openCancelModal(user)
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(
+        screen.queryByRole('heading', { name: 'Cancel this ride?' }),
+      ).not.toBeInTheDocument()
+      expect(
+        await screen.findByText('Ride has been cancelled.'),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Past & cancelled (3)')).toBeInTheDocument()
+      expect(updateRideStatus).toHaveBeenCalledTimes(2)
+    })
+
+    it('reports a 401 inline and leaves the redirect to the API layer', async () => {
+      const user = userEvent.setup()
+      const error = new Error('Session expired')
+      error.status = 401
+      updateRideStatus.mockRejectedValueOnce(error)
+      await renderDashboard()
+
+      await openCancelModal(user)
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Session expired',
+      )
+    })
+  })
+
+  describe('keyboard and focus', () => {
+    it('moves focus into the dialog and back to the trigger on close', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const kebab = screen.getByRole('button', { name: /Options for Adenta/ })
+      await user.click(kebab)
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+
+      expect(screen.getByRole('button', { name: 'Keep ride' })).toHaveFocus()
+
+      await user.click(screen.getByRole('button', { name: 'Keep ride' }))
+      expect(kebab).toHaveFocus()
+    })
+
+    it('keeps Tab inside the dialog', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+
+      const keep = screen.getByRole('button', { name: 'Keep ride' })
+      const confirm = screen.getByRole('button', { name: 'Cancel ride' })
+
+      expect(keep).toHaveFocus()
+      await user.tab()
+      expect(confirm).toHaveFocus()
+      // Wraps rather than escaping to the ride list behind the dialog.
+      await user.tab()
+      expect(keep).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(confirm).toHaveFocus()
+    })
+
+    it('closes the dialog on Escape without cancelling the ride', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel ride' }))
+
+      await user.keyboard('{Escape}')
+
+      expect(
+        screen.queryByRole('heading', { name: 'Cancel this ride?' }),
+      ).not.toBeInTheDocument()
+      expect(updateRideStatus).not.toHaveBeenCalled()
+    })
+
+    it('closes the ride menu on Escape', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const kebab = screen.getByRole('button', { name: /Options for Adenta/ })
+      await user.click(kebab)
+      expect(kebab).toHaveAttribute('aria-expanded', 'true')
+
+      await user.keyboard('{Escape}')
+
+      expect(kebab).toHaveAttribute('aria-expanded', 'false')
+      expect(
+        screen.queryByRole('button', { name: 'Mark as Full' }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('loading my rides', () => {
+    it('fetches once on mount and renders the driving rides', async () => {
+      await renderDashboard()
+
+      expect(fetchMyRides).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      ).toBeInTheDocument()
+      expect(screen.getByText('2 of 4 seats left')).toBeInTheDocument()
+      expect(screen.getByText('Past & cancelled (2)')).toBeInTheDocument()
+    })
+
+    it('shows a loading state until the fetch settles', async () => {
+      let release
+      fetchMyRides.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      render(
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
+      )
+
+      expect(screen.getByText('Loading your rides...')).toBeInTheDocument()
+      expect(screen.queryByText('Upcoming')).not.toBeInTheDocument()
+
+      release(buildMyRidesResponse())
+      expect(await screen.findByText('Upcoming')).toBeInTheDocument()
+      expect(
+        screen.queryByText('Loading your rides...'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('derives initials and request age from the payload', async () => {
+      await renderDashboard()
+
+      // "Nana Yeboah" requested 8 minutes ago in the fixture.
+      expect(screen.getByText('Requested 8 min ago')).toBeInTheDocument()
+      expect(screen.getByText('NY')).toBeInTheDocument()
+      expect(screen.getByText('Abena Owusu')).toBeInTheDocument()
+      expect(screen.getByText('AO')).toBeInTheDocument()
+    })
+
+    it('expands the first upcoming ride so its requests are visible', async () => {
+      await renderDashboard()
+
+      expect(
+        screen.getByRole('heading', { name: 'Join requests' }),
+      ).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Accept' })).toHaveLength(3)
+    })
+
+    it('shows the empty state when the driver has no upcoming rides', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.driving = []
+      fetchMyRides.mockResolvedValue(payload)
+
+      render(
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
+      )
+
+      expect(
+        await screen.findByRole('heading', {
+          name: "You haven't offered any rides yet.",
+        }),
+      ).toBeInTheDocument()
+      // The past bucket still loaded, so it stays available.
+      expect(screen.getByText('Past & cancelled (2)')).toBeInTheDocument()
+    })
+
+    it('honours the server bucket for a past ride that does not look past', async () => {
+      const payload = buildMyRidesResponse()
+      // Departs tomorrow and is OPEN, but the server filed it under past.
+      payload.data.pastAndCancelled.push({
+        ...payload.data.driving[0],
+        id: 'server-says-past',
+        origin: 'Weija',
+        pendingRequests: [],
+        confirmedPassengers: [],
+      })
+      fetchMyRides.mockResolvedValue(payload)
+
+      await renderDashboard()
+
+      expect(screen.getByText('Past & cancelled (3)')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Options for Weija/ }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the error state when the load returns a 401', async () => {
+      const error = new Error('Session expired')
+      error.status = 401
+      fetchMyRides.mockRejectedValue(error)
+
+      render(
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
+      )
+
+      // Redirecting is the API layer's job; the screen only reports.
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Session expired',
+      )
+    })
+
+    it('shows the failure reason and retries on request', async () => {
+      const error = new Error('Failed to load your rides (503)')
+      error.status = 503
+      fetchMyRides.mockRejectedValueOnce(error)
+
+      const user = userEvent.setup()
+      render(
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Failed to load your rides (503)')
+
+      fetchMyRides.mockResolvedValueOnce(buildMyRidesResponse())
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(await screen.findByText('Upcoming')).toBeInTheDocument()
+      expect(fetchMyRides).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('driving tab badge', () => {
+    it('counts every pending request, not the rides holding them', async () => {
+      await renderDashboard()
+
+      // Fixture: driving-1 has 3 requests, driving-3 has 1, driving-2 has none.
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+    })
+
+    it('hides the badge when nothing is waiting', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.driving = payload.data.driving.map((ride) => ({
+        ...ride,
+        pendingRequests: [],
+      }))
+      fetchMyRides.mockResolvedValue(payload)
+
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab.querySelector('.my-rides-count-badge')).toBeNull()
+    })
+
+    it('drops the count as requests are accepted', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+
+      expect(drivingTab).toHaveTextContent('3')
+    })
+
+    it('ignores requests on past rides', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.pastAndCancelled[0].pendingRequests = [
+        {
+          id: 'stale-request',
+          passengerId: 'p-stale',
+          passengerName: 'Stale Request',
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+    })
+  })
+
+  describe('expanded ride with nothing in it', () => {
+    it('explains the empty panel instead of rendering a blank area', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      // driving-2 has no requests and no passengers. The route text is split
+      // across nodes by the arrow icon, so reach the card via its kebab.
+      const card = screen
+        .getByRole('button', { name: /Options for Adenta/ })
+        .closest('.my-rides-card')
+      await user.click(card.querySelector('.my-rides-summary-button'))
+
+      expect(screen.getByText(/No join requests yet/)).toBeInTheDocument()
+    })
+
+    it('does not show the note when the ride has passengers', async () => {
+      await renderDashboard()
+
+      // driving-1 is expanded by default and has both requests and passengers.
+      expect(screen.queryByText(/No join requests yet/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('serialising mutations per ride', () => {
+    it('blocks a second request on the same ride while one is in flight', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      const accepts = screen.getAllByRole('button', { name: 'Accept' })
+      expect(accepts).toHaveLength(3)
+
+      await user.click(accepts[0])
+
+      // Every action on that ride is locked, not just the one clicked.
+      screen
+        .getAllByRole('button', { name: 'Accept' })
+        .forEach((button) => expect(button).toBeDisabled())
+      screen
+        .getAllByRole('button', { name: 'Decline' })
+        .forEach((button) => expect(button).toBeDisabled())
+
+      await user.click(accepts[1])
+      expect(acceptPassengerRequest).toHaveBeenCalledTimes(1)
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+      expect(screen.getAllByRole('button', { name: 'Accept' })[0]).toBeEnabled()
+    })
+
+    it('blocks a status change while a request is being accepted', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      await user.click(
+        screen.getByRole('button', { name: /Options for East Legon/ }),
+      )
+      expect(
+        screen.getByRole('button', { name: 'Mark as Full' }),
+      ).toBeDisabled()
+      expect(updateRideStatus).not.toHaveBeenCalled()
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+    })
+
+    it('leaves other rides usable while one is locked', async () => {
+      const user = userEvent.setup()
+      let release
+      acceptPassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      // driving-2 is a different ride and should not be affected.
+      await user.click(
+        screen.getByRole('button', { name: /Options for Adenta/ }),
+      )
+      expect(screen.getByRole('button', { name: 'Mark as Full' })).toBeEnabled()
+
+      release({})
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+    })
+
+    it('serialises a decline against an accept on the same ride', async () => {
+      const user = userEvent.setup()
+      let release
+      declinePassengerRequest.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+
+      expect(acceptPassengerRequest).not.toHaveBeenCalled()
+      expect(declinePassengerRequest).toHaveBeenCalledTimes(1)
+
+      release({})
+      await screen.findByText('Declined request from Nana Yeboah.')
+    })
   })
 })

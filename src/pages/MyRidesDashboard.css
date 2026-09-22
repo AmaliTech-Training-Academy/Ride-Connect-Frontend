@@ -214,6 +214,7 @@
   border-color: #b8d8ba;
 }
 .my-rides-card-summary {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-height: 82px;
@@ -286,6 +287,19 @@
 .my-rides-status-accepted {
   color: #327239;
   background: #def1df;
+}
+.my-rides-status-in-progress,
+.my-rides-status-in_progress {
+  color: #1e5ba8;
+  background: #e6f0fa;
+}
+.my-rides-status-completed {
+  color: #4a5568;
+  background: #edf2f7;
+}
+.my-rides-status-declined {
+  color: #b43d38;
+  background: #fde9e7;
 }
 .my-rides-request-pill {
   padding: 5px 9px;
@@ -393,9 +407,11 @@
 }
 .my-rides-context-menu {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   right: 8px;
-  top: 66px;
+  top: calc(100% - 12px);
+  display: grid;
+  min-width: 140px;
   padding: 5px;
   border: 1px solid #e0e8e0;
   border-radius: 8px;
@@ -561,6 +577,14 @@
   color: #3f9648;
   font-size: 18px;
 }
+.my-rides-toast-error {
+  border-color: #eab8b4;
+  color: #a33b35;
+  background: #fdf4f3;
+}
+.my-rides-toast-error i {
+  color: #c4453e;
+}
 .my-rides-modal-backdrop {
   position: fixed;
   z-index: 4;
@@ -597,6 +621,37 @@
   color: #758078;
   font-size: 13px;
   line-height: 1.6;
+}
+.my-rides-detail-empty {
+  margin: 0;
+  padding: 18px 4px;
+  color: #6b7a6f;
+  font-size: 12.5px;
+}
+.my-rides-loading {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 56px 20px;
+  color: #536257;
+  font-size: 13px;
+}
+.my-rides-loading i {
+  color: #759078;
+  font-size: 22px;
+}
+.my-rides-modal-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #eab8b4;
+  border-radius: 8px;
+  color: #a33b35;
+  background: #fdf4f3;
+  font-size: 12px;
+  text-align: left;
 }
 .my-rides-modal-actions {
   display: flex;

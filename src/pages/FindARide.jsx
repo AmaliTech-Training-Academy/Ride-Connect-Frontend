@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import { fetchMyRides, requestToJoinRide } from '../services/rides'
 import UserMenu from '../components/UserMenu/UserMenu'
 import './FindARide.css'
 
@@ -65,10 +66,10 @@ function Avatar({ initials }) {
   return <span className="find-ride-avatar">{initials}</span>
 }
 
-function RideCard({ ride, onRequest, onManage, isRequestPending, isHighlighted }) {
-  // TODO: add requestStatus-based variants (pending/joined) once the backend
-  // exposes per-ride request status for the current user.
+function RideCard({ ride, onRequest, onManage, isHighlighted, requestState }) {
   const isLowSeat = ride.seatsAvailable === 1
+  const isRequested = requestState === 'requested'
+  const isSending = requestState === 'sending'
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
@@ -92,7 +93,6 @@ function RideCard({ ride, onRequest, onManage, isRequestPending, isHighlighted }
             </span>
           </div>
         </div>
-        <i className="fa-solid fa-ellipsis" aria-hidden="true" />
       </div>
 
       <div className="find-ride-route">
@@ -139,11 +139,19 @@ function RideCard({ ride, onRequest, onManage, isRequestPending, isHighlighted }
         ) : (
           <button
             type="button"
-            className={`find-ride-button ${isRequestPending ? 'find-ride-action-pending' : ''}`}
+            className={`find-ride-button ${isRequested ? 'find-ride-button-requested' : ''}`}
+            disabled={isRequested || isSending}
             onClick={() => onRequest(ride)}
-            disabled={isRequestPending}
           >
-            {isRequestPending ? 'Requested' : 'Request to Join'}
+            {isRequested ? (
+              <>
+                <i className="fa-solid fa-check" aria-hidden="true" /> Requested
+              </>
+            ) : isSending ? (
+              'Sending...'
+            ) : (
+              'Request to Join'
+            )}
           </button>
         )}
       </div>
@@ -235,7 +243,6 @@ function FindARide({
   onOfferRide,
   onMyRides,
   onManageRide,
-  onUnauthorized,
   onLogout,
   currentUserId,
   highlightedRideId,
@@ -248,9 +255,8 @@ function FindARide({
   const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
-  const [pendingRequestRideIds, setPendingRequestRideIds] = useState(
-    () => new Set(),
-  )
+  // rideId -> 'sending' | 'requested'
+  const [requestStates, setRequestStates] = useState({})
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
@@ -275,7 +281,6 @@ function FindARide({
         if (!response.ok) {
           const message =
             body?.message || `Request failed with status ${response.status}`
-          if (response.status === 401) onUnauthorized?.()
           throw new Error(message)
         }
         setRides(
@@ -294,7 +299,39 @@ function FindARide({
       })
 
     return () => controller.abort()
-  }, [search, selectedDate, currentUserId, onUnauthorized, reloadToken])
+  }, [search, selectedDate, currentUserId, reloadToken])
+
+  useEffect(() => {
+    let ignore = false
+
+    // `GET /api/rides` carries no per-user request status, so the rides this
+    // user has already asked to join are read from their own joined buckets.
+    fetchMyRides()
+      .then((payload) => {
+        if (ignore) return
+        const joined = [
+          ...(payload?.data?.joined ?? []),
+          ...(payload?.data?.joinedPastAndCancelled ?? []),
+        ]
+        if (joined.length === 0) return
+        setRequestStates((current) => {
+          const next = { ...current }
+          joined.forEach((ride) => {
+            if (ride?.id && !next[ride.id]) next[ride.id] = 'requested'
+          })
+          return next
+        })
+      })
+      .catch(() => {
+        // A failure only costs the pre-marked state; the request itself still
+        // reports a duplicate, so the screen stays usable. A 401 is handled
+        // centrally by the API layer.
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [reloadToken])
 
   const startLoading = () => setLoadState('loading')
 
@@ -325,38 +362,35 @@ function FindARide({
   }
 
   const handleRequest = async (ride) => {
+    if (requestStates[ride.id]) return
+
+    setRequestStates((current) => ({ ...current, [ride.id]: 'sending' }))
+
     try {
-      const response = await apiFetch(`/api/rides/${ride.id}/requests`, {
-        method: 'POST',
+      await requestToJoinRide(ride.id)
+      setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      setToast({
+        tone: 'success',
+        message: `Request sent to ${ride.driverName}. The driver will be notified.`,
       })
-      const body = await readResponseBody(response)
-
-      if (response.status === 401) {
-        onUnauthorized?.()
-        return
-      }
-
-      if (!response.ok) {
+    } catch (error) {
+      if (error?.status === 409) {
+        // Already requested - reflect that rather than inviting a retry.
+        setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
         setToast({
-          message: body?.message || 'Unable to request to join this ride.',
-          success: false,
+          tone: 'error',
+          message: error.message || 'You have already requested this ride.',
         })
         return
       }
-
-      setToast({
-        message:
-          body?.message ||
-          `Request sent to ${ride.driverName}. The driver will be notified.`,
-        success: true,
+      setRequestStates((current) => {
+        const next = { ...current }
+        delete next[ride.id]
+        return next
       })
-      setPendingRequestRideIds((currentIds) =>
-        new Set(currentIds).add(ride.id),
-      )
-    } catch {
       setToast({
-        message: 'Unable to request to join this ride.',
-        success: false,
+        tone: 'error',
+        message: error?.message || 'Could not send your request.',
       })
     }
   }
@@ -425,7 +459,7 @@ function FindARide({
             ride={ride}
             onRequest={handleRequest}
             onManage={onManageRide}
-            isRequestPending={pendingRequestRideIds.has(ride.id)}
+            requestState={requestStates[ride.id]}
             isHighlighted={ride.id === highlightedRideId}
           />
         ))}
@@ -559,9 +593,16 @@ function FindARide({
         )}
 
         {toast && (
-          <div className="find-ride-toast" role="status">
+          <div
+            className={`find-ride-toast find-ride-toast-${toast.tone}`}
+            role={toast.tone === 'error' ? 'alert' : 'status'}
+          >
             <i
-              className={`fa-solid ${toast.success ? 'fa-circle-check' : 'fa-circle-exclamation'}`}
+              className={
+                toast.tone === 'error'
+                  ? 'fa-solid fa-circle-exclamation'
+                  : 'fa-solid fa-circle-check'
+              }
               aria-hidden="true"
             />
             <span>{toast.message}</span>
