@@ -8,6 +8,7 @@ import {
 } from '@jest/globals'
 import {
   fetchMyRides,
+  requestToJoinRide,
   updateRideStatus,
   acceptPassengerRequest,
   declinePassengerRequest,
@@ -77,6 +78,71 @@ describe('rides service', () => {
 
       await expect(fetchMyRides()).rejects.toThrow(
         'Failed to load your rides (503)',
+      )
+    })
+  })
+
+  describe('requestToJoinRide', () => {
+    it('posts to the ride requests endpoint and returns the request', async () => {
+      const data = {
+        id: 'c4d5e6f7-2222-3333-4444-555566667777',
+        rideId: 'b3f1c2a0-1e2d-4a3b-9c5e-6f7a8b9c0d1e',
+        passengerId: 'd5e6f7a8-3333-4444-5555-666677778888',
+        status: 'PENDING',
+        createdAt: '2026-09-22T09:12:00.000Z',
+      }
+
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          success: true,
+          message: 'Request submitted successfully',
+          data,
+        }),
+      })
+
+      const result = await requestToJoinRide(
+        'b3f1c2a0-1e2d-4a3b-9c5e-6f7a8b9c0d1e',
+      )
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/rides/b3f1c2a0-1e2d-4a3b-9c5e-6f7a8b9c0d1e/requests',
+        ),
+        expect.objectContaining({ method: 'POST', credentials: 'include' }),
+      )
+      expect(result).toEqual(data)
+    })
+
+    it('surfaces a duplicate request with its status', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          success: false,
+          message: 'You have already requested this ride.',
+        }),
+      })
+
+      await expect(requestToJoinRide('ride-123')).rejects.toMatchObject({
+        name: 'RideStatusError',
+        status: 409,
+        message: 'You have already requested this ride.',
+      })
+    })
+
+    it('falls back to a generic message on a non-JSON failure', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('Not JSON')
+        },
+      })
+
+      await expect(requestToJoinRide('ride-123')).rejects.toThrow(
+        'Failed to send your request (500)',
       )
     })
   })

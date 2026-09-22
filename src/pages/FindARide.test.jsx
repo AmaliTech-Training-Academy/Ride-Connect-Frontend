@@ -3,9 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { apiFetch } from '../lib/api'
 import FindARide from './FindARide'
+import { fetchMyRides, requestToJoinRide } from '../services/rides'
 
 jest.mock('../lib/api', () => ({
   apiFetch: jest.fn(),
+}))
+
+// `jest.mock` on '../lib/api' does not reach the service's own import of it
+// under this ESM setup, so the service is mocked directly.
+jest.mock('../services/rides', () => ({
+  fetchMyRides: jest.fn(),
+  requestToJoinRide: jest.fn(),
 }))
 
 function response(data, message = '') {
@@ -36,6 +44,10 @@ describe('FindARide', () => {
   beforeEach(() => {
     apiFetch.mockReset()
     apiFetch.mockResolvedValue(response([ride()]))
+    fetchMyRides.mockReset()
+    fetchMyRides.mockResolvedValue({ data: { joined: [] } })
+    requestToJoinRide.mockReset()
+    requestToJoinRide.mockResolvedValue({ id: 'req-1', status: 'PENDING' })
   })
 
   it('renders rides from a successful API response', async () => {
@@ -181,10 +193,124 @@ describe('FindARide', () => {
     await user.click(screen.getByRole('button', { name: 'Request to Join' }))
 
     expect(
-      screen.getByText(
+      await screen.findByText(
         'Request sent to Ama Owusu. The driver will be notified.',
       ),
     ).toBeInTheDocument()
+  })
+
+  it('sends the join request for the ride that was clicked', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+
+    await waitFor(() =>
+      expect(requestToJoinRide).toHaveBeenCalledWith('ride-1'),
+    )
+  })
+
+  it('marks the ride as requested and blocks a second request', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+
+    const requested = await screen.findByRole('button', { name: /Requested/ })
+    expect(requested).toBeDisabled()
+
+    expect(requestToJoinRide).toHaveBeenCalledTimes(1)
+
+    await user.click(requested)
+    expect(requestToJoinRide).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends only one request when the button is double-clicked', async () => {
+    const user = userEvent.setup({ delay: null })
+    let release
+    requestToJoinRide.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ id: 'req-1', status: 'PENDING' })
+        }),
+    )
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    const button = screen.getByRole('button', { name: 'Request to Join' })
+    await user.click(button)
+    await user.click(button)
+
+    expect(requestToJoinRide).toHaveBeenCalledTimes(1)
+    release()
+  })
+
+  it('shows an already-requested ride as requested on load', async () => {
+    fetchMyRides.mockResolvedValue({
+      data: { joined: [{ id: 'ride-1', requestStatus: 'PENDING' }] },
+    })
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: /Requested/ }),
+    ).toBeDisabled()
+  })
+
+  it('reports a duplicate request without inviting a retry', async () => {
+    const error = new Error('You have already requested this ride.')
+    error.status = 409
+    requestToJoinRide.mockRejectedValueOnce(error)
+
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'You have already requested this ride.',
+    )
+    expect(screen.getByRole('button', { name: /Requested/ })).toBeDisabled()
+  })
+
+  it('re-enables the button when the request fails for another reason', async () => {
+    const error = new Error('Something went wrong')
+    error.status = 500
+    requestToJoinRide.mockRejectedValueOnce(error)
+
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Something went wrong',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Request to Join' }),
+    ).toBeEnabled()
+  })
+
+  it('signs the user out when the join request returns a 401', async () => {
+    const onUnauthorized = jest.fn()
+    const error = new Error('Authentication required.')
+    error.status = 401
+    requestToJoinRide.mockRejectedValueOnce(error)
+
+    const user = userEvent.setup()
+    render(
+      <FindARide onOfferRide={jest.fn()} onUnauthorized={onUnauthorized} />,
+    )
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+
+    await waitFor(() => expect(onUnauthorized).toHaveBeenCalled())
   })
 
   it('shows the backend error when rides require authentication', async () => {

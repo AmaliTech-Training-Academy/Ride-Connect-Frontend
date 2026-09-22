@@ -31,6 +31,29 @@ export async function fetchMyRides() {
 }
 
 /**
+ * Asks to join a ride as a passenger.
+ *
+ * @param {string} rideId - UUID of the ride
+ * @returns {Promise<{ id: string, rideId: string, passengerId: string, status: string, createdAt: string }>}
+ */
+export async function requestToJoinRide(rideId) {
+  const response = await apiFetch(
+    `/api/rides/${encodeURIComponent(rideId)}/requests`,
+    { method: 'POST' },
+  )
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      body?.message || `Failed to send your request (${response.status})`
+    throw new RideStatusError(message, response.status)
+  }
+
+  return body?.data ?? body
+}
+
+/**
  * Updates a ride's status to OPEN, FULL, or CANCELLED.
  *
  * @param {string} rideId - UUID of the ride
