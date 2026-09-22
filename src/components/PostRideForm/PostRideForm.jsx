@@ -119,7 +119,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
+function PostRideForm({ onFindRide, onMyRides }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -166,16 +166,24 @@ function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
     setServerErrors({})
 
     try {
+      const payload = {
+        origin: values.origin.trim(),
+        destination: values.destination.trim(),
+        departureDate: values.date,
+        departureTime: values.time,
+        availableSeats: Number(values.seats),
+      }
+
+      // Route description is optional. Omit the key when it is blank rather
+      // than sending null, which the backend schema rejects outright.
+      const routeDescription = values.description.trim()
+      if (routeDescription) {
+        payload.routeDescription = routeDescription
+      }
+
       const response = await apiFetch('/api/rides', {
         method: 'POST',
-        body: JSON.stringify({
-          origin: values.origin.trim(),
-          destination: values.destination.trim(),
-          departureDate: values.date,
-          departureTime: values.time,
-          availableSeats: Number(values.seats),
-          routeDescription: values.description.trim() || null,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const body = await readResponseBody(response)
@@ -186,8 +194,6 @@ function PostRideForm({ onFindRide, onMyRides, onUnauthorized }) {
       } else if (response.status === 400) {
         setServerErrors(mapServerFieldErrors(body?.data?.fields))
         setStatus('idle')
-      } else if (response.status === 401) {
-        onUnauthorized?.()
       } else {
         setStatus('error')
       }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import { fetchMyRides, requestToJoinRide } from '../services/rides'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -64,10 +65,10 @@ function Avatar({ initials }) {
   return <span className="find-ride-avatar">{initials}</span>
 }
 
-function RideCard({ ride, onRequest, isHighlighted }) {
-  // TODO: add requestStatus-based variants (pending/joined) once the backend
-  // exposes per-ride request status for the current user.
+function RideCard({ ride, onRequest, isHighlighted, requestState }) {
   const isLowSeat = ride.seatsAvailable === 1
+  const isRequested = requestState === 'requested'
+  const isSending = requestState === 'sending'
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
@@ -91,7 +92,6 @@ function RideCard({ ride, onRequest, isHighlighted }) {
             </span>
           </div>
         </div>
-        <i className="fa-solid fa-ellipsis" aria-hidden="true" />
       </div>
 
       <div className="find-ride-route">
@@ -137,10 +137,19 @@ function RideCard({ ride, onRequest, isHighlighted }) {
         ) : (
           <button
             type="button"
-            className="find-ride-button"
+            className={`find-ride-button ${isRequested ? 'find-ride-button-requested' : ''}`}
+            disabled={isRequested || isSending}
             onClick={() => onRequest(ride)}
           >
-            Request to Join
+            {isRequested ? (
+              <>
+                <i className="fa-solid fa-check" aria-hidden="true" /> Requested
+              </>
+            ) : isSending ? (
+              'Sending...'
+            ) : (
+              'Request to Join'
+            )}
           </button>
         )}
       </div>
@@ -231,7 +240,6 @@ async function readResponseBody(response) {
 function FindARide({
   onOfferRide,
   onMyRides,
-  onUnauthorized,
   currentUserId,
   highlightedRideId,
 }) {
@@ -243,6 +251,8 @@ function FindARide({
   const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
+  // rideId -> 'sending' | 'requested'
+  const [requestStates, setRequestStates] = useState({})
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
@@ -267,7 +277,6 @@ function FindARide({
         if (!response.ok) {
           const message =
             body?.message || `Request failed with status ${response.status}`
-          if (response.status === 401) onUnauthorized?.()
           throw new Error(message)
         }
         setRides(
@@ -286,7 +295,39 @@ function FindARide({
       })
 
     return () => controller.abort()
-  }, [search, selectedDate, currentUserId, onUnauthorized, reloadToken])
+  }, [search, selectedDate, currentUserId, reloadToken])
+
+  useEffect(() => {
+    let ignore = false
+
+    // `GET /api/rides` carries no per-user request status, so the rides this
+    // user has already asked to join are read from their own joined buckets.
+    fetchMyRides()
+      .then((payload) => {
+        if (ignore) return
+        const joined = [
+          ...(payload?.data?.joined ?? []),
+          ...(payload?.data?.joinedPastAndCancelled ?? []),
+        ]
+        if (joined.length === 0) return
+        setRequestStates((current) => {
+          const next = { ...current }
+          joined.forEach((ride) => {
+            if (ride?.id && !next[ride.id]) next[ride.id] = 'requested'
+          })
+          return next
+        })
+      })
+      .catch(() => {
+        // A failure only costs the pre-marked state; the request itself still
+        // reports a duplicate, so the screen stays usable. A 401 is handled
+        // centrally by the API layer.
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [reloadToken])
 
   const startLoading = () => setLoadState('loading')
 
@@ -316,8 +357,38 @@ function FindARide({
     setSelectedDate(selectedDate === date ? '' : date)
   }
 
-  const handleRequest = (ride) => {
-    setToast(ride.driverName)
+  const handleRequest = async (ride) => {
+    if (requestStates[ride.id]) return
+
+    setRequestStates((current) => ({ ...current, [ride.id]: 'sending' }))
+
+    try {
+      await requestToJoinRide(ride.id)
+      setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      setToast({
+        tone: 'success',
+        message: `Request sent to ${ride.driverName}. The driver will be notified.`,
+      })
+    } catch (error) {
+      if (error?.status === 409) {
+        // Already requested - reflect that rather than inviting a retry.
+        setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+        setToast({
+          tone: 'error',
+          message: error.message || 'You have already requested this ride.',
+        })
+        return
+      }
+      setRequestStates((current) => {
+        const next = { ...current }
+        delete next[ride.id]
+        return next
+      })
+      setToast({
+        tone: 'error',
+        message: error?.message || 'Could not send your request.',
+      })
+    }
   }
 
   const renderResults = () => {
@@ -383,6 +454,7 @@ function FindARide({
             key={ride.id}
             ride={ride}
             onRequest={handleRequest}
+            requestState={requestStates[ride.id]}
             isHighlighted={ride.id === highlightedRideId}
           />
         ))}
@@ -516,9 +588,19 @@ function FindARide({
         )}
 
         {toast && (
-          <div className="find-ride-toast" role="status">
-            <i className="fa-solid fa-circle-check" aria-hidden="true" />
-            <span>Request sent to {toast}. The driver will be notified.</span>
+          <div
+            className={`find-ride-toast find-ride-toast-${toast.tone}`}
+            role={toast.tone === 'error' ? 'alert' : 'status'}
+          >
+            <i
+              className={
+                toast.tone === 'error'
+                  ? 'fa-solid fa-circle-exclamation'
+                  : 'fa-solid fa-circle-check'
+              }
+              aria-hidden="true"
+            />
+            <span>{toast.message}</span>
           </div>
         )}
 
