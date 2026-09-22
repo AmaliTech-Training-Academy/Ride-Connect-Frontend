@@ -20,6 +20,9 @@ function futureISODate(daysAhead) {
 
 describe('PostRideForm', () => {
   beforeEach(() => {
+    // Calls accumulated across tests, so assertions on mock.calls[0] read
+    // whatever an earlier test happened to send.
+    apiFetch.mockClear()
     apiFetch.mockResolvedValue({
       status: 201,
       ok: true,
@@ -30,15 +33,19 @@ describe('PostRideForm', () => {
   it('renders the empty form correctly', () => {
     render(<PostRideForm />)
 
-    expect(screen.getByRole('heading', { name: 'Offer a ride' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Offer a ride' }),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('Origin')).toHaveValue('')
     expect(screen.getByLabelText('Destination')).toHaveValue('AmaliTech Office')
     expect(screen.getByText('Select a date')).toBeInTheDocument()
     expect(screen.getByText('Select a time')).toBeInTheDocument()
     expect(
-      screen.getByText('Fill in the details to preview your ride card.')
+      screen.getByText('Fill in the details to preview your ride card.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Post Ride' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Post Ride' }),
+    ).toBeInTheDocument()
   })
 
   it('shows validation errors when required fields are submitted empty', async () => {
@@ -48,10 +55,14 @@ describe('PostRideForm', () => {
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
     expect(screen.getByText('Please enter an origin')).toBeInTheDocument()
-    expect(screen.getByText('Please enter a departure date')).toBeInTheDocument()
-    expect(screen.getByText('Please enter a departure time')).toBeInTheDocument()
     expect(
-      screen.getByText('Fix the errors to preview your ride card.')
+      screen.getByText('Please enter a departure date'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Please enter a departure time'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Fix the errors to preview your ride card.'),
     ).toBeInTheDocument()
   })
 
@@ -65,7 +76,9 @@ describe('PostRideForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
-    expect(screen.getByText('Origin and destination must be different')).toBeInTheDocument()
+    expect(
+      screen.getByText('Origin and destination must be different'),
+    ).toBeInTheDocument()
     expect(apiFetch).not.toHaveBeenCalled()
   })
 
@@ -83,11 +96,59 @@ describe('PostRideForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
-    expect(
-      await screen.findByText('Your ride is live!')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
     expect(screen.getByText('NEW')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Request to Join' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Request to Join' }),
+    ).toBeDisabled()
+  })
+
+  it('omits routeDescription entirely when the optional field is blank', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    fireEvent.change(screen.getByLabelText('Departure date'), {
+      target: { value: futureISODate(3) },
+    })
+    fireEvent.change(screen.getByLabelText('Departure time'), {
+      target: { value: '08:30' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await screen.findByText('Your ride is live!')
+
+    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
+    // Sending null here is what the backend schema rejects.
+    expect(body).not.toHaveProperty('routeDescription')
+    expect(body).toMatchObject({
+      origin: 'Kumasi',
+      destination: 'AmaliTech Office',
+      departureTime: '08:30',
+    })
+  })
+
+  it('sends routeDescription when the optional field is filled in', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    await user.type(
+      screen.getByLabelText(/Route description/),
+      '  Via the N1  ',
+    )
+    fireEvent.change(screen.getByLabelText('Departure date'), {
+      target: { value: futureISODate(3) },
+    })
+    fireEvent.change(screen.getByLabelText('Departure time'), {
+      target: { value: '08:30' },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await screen.findByText('Your ride is live!')
+
+    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
+    expect(body.routeDescription).toBe('Via the N1')
   })
 
   it('swaps origin and destination when the swap button is clicked', async () => {
@@ -95,7 +156,9 @@ describe('PostRideForm', () => {
     render(<PostRideForm />)
 
     await user.type(screen.getByLabelText('Origin'), 'Kumasi')
-    await user.click(screen.getByRole('button', { name: 'Swap origin and destination' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Swap origin and destination' }),
+    )
 
     expect(screen.getByLabelText('Origin')).toHaveValue('AmaliTech Office')
     expect(screen.getByLabelText('Destination')).toHaveValue('Kumasi')
@@ -125,7 +188,10 @@ describe('PostRideForm', () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText(/Route description/), 'Via the market road')
+    await user.type(
+      screen.getByLabelText(/Route description/),
+      'Via the market road',
+    )
 
     expect(screen.getByText('19 / 500')).toBeInTheDocument()
   })
