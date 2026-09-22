@@ -22,6 +22,7 @@ function App() {
         <MyRidesDashboard
           onFindRide={() => setRideScreen('find')}
           onOfferRide={() => setRideScreen('post')}
+          onUnauthorized={handleUnauthorized}
         />
       )
     }
