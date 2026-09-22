@@ -677,4 +677,82 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(fetchMyRides).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('driving tab badge', () => {
+    it('counts every pending request, not the rides holding them', async () => {
+      await renderDashboard()
+
+      // Fixture: driving-1 has 3 requests, driving-3 has 1, driving-2 has none.
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+    })
+
+    it('hides the badge when nothing is waiting', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.driving = payload.data.driving.map((ride) => ({
+        ...ride,
+        pendingRequests: [],
+      }))
+      fetchMyRides.mockResolvedValue(payload)
+
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab.querySelector('.my-rides-count-badge')).toBeNull()
+    })
+
+    it('drops the count as requests are accepted', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+
+      expect(drivingTab).toHaveTextContent('3')
+    })
+
+    it('ignores requests on past rides', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.pastAndCancelled[0].pendingRequests = [
+        {
+          id: 'stale-request',
+          passengerId: 'p-stale',
+          passengerName: 'Stale Request',
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+
+      await renderDashboard()
+
+      const drivingTab = screen.getByRole('tab', { name: /Rides I.m driving/ })
+      expect(drivingTab).toHaveTextContent('4')
+    })
+  })
+
+  describe('expanded ride with nothing in it', () => {
+    it('explains the empty panel instead of rendering a blank area', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      // driving-2 has no requests and no passengers. The route text is split
+      // across nodes by the arrow icon, so reach the card via its kebab.
+      const card = screen
+        .getByRole('button', { name: /Options for Adenta/ })
+        .closest('.my-rides-card')
+      await user.click(card.querySelector('.my-rides-summary-button'))
+
+      expect(screen.getByText(/No join requests yet/)).toBeInTheDocument()
+    })
+
+    it('does not show the note when the ride has passengers', async () => {
+      await renderDashboard()
+
+      // driving-1 is expanded by default and has both requests and passengers.
+      expect(screen.queryByText(/No join requests yet/)).not.toBeInTheDocument()
+    })
+  })
 })

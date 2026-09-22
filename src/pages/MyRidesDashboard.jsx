@@ -225,6 +225,13 @@ function RideRow({
               ))}
             </section>
           )}
+          {ride.pendingRequests.length === 0 &&
+            ride.confirmedPassengers.length === 0 && (
+              <p className="my-rides-detail-empty">
+                No join requests yet. Colleagues who ask for a seat will show up
+                here.
+              </p>
+            )}
           {ride.confirmedPassengers.length > 0 && (
             <section className="my-rides-detail-section">
               <h3>Confirmed passengers</h3>
@@ -424,9 +431,10 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
 
   const upcomingRides = rides.filter((ride) => !isPastRide(ride))
   const pastRides = rides.filter(isPastRide)
-  const pendingRequestCount = upcomingRides.filter(
-    (ride) => ride.pendingRequests.length > 0,
-  ).length
+  const pendingRequestCount = upcomingRides.reduce(
+    (total, ride) => total + ride.pendingRequests.length,
+    0,
+  )
 
   useEffect(() => {
     if (!toast) return undefined
@@ -653,7 +661,11 @@ function MyRidesDashboard({ onFindRide, onOfferRide, onUnauthorized }) {
             onClick={() => setActiveTab('driving')}
           >
             Rides I&apos;m driving{' '}
-            <span className="my-rides-count-badge">{pendingRequestCount}</span>
+            {pendingRequestCount > 0 && (
+              <span className="my-rides-count-badge">
+                {pendingRequestCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
