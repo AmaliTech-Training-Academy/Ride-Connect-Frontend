@@ -11,117 +11,6 @@
   box-sizing: border-box;
 }
 
-.auth-shell {
-  width: min(1440px, 100%);
-  min-height: min(880px, 100svh);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.auth-brand {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 72px;
-  overflow: hidden;
-  color: #fff;
-  background: linear-gradient(135deg, #0d3b12, #1b5e20 45%, #2e7d32);
-}
-
-.auth-brand-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-}
-
-.auth-orb {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.auth-orb-top {
-  width: 320px;
-  height: 320px;
-  top: -100px;
-  right: -100px;
-}
-
-.auth-wordmark {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 56px;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.auth-headline {
-  max-width: 440px;
-  margin: 0 0 44px;
-  color: #fff;
-  font-size: clamp(2rem, 3vw, 2.1rem);
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.auth-illustration {
-  display: flex;
-  align-items: flex-end;
-}
-
-.auth-car-card {
-  width: 190px;
-  height: 110px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px 16px 0 0;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.auth-car-card .car-icon {
-  width: 52px;
-  height: 52px;
-}
-
-.auth-avatars {
-  display: flex;
-  margin: 0 0 10px -18px;
-}
-
-.auth-avatars span {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  background: #c8e6c9;
-  color: #1b5e20;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.auth-avatars span + span {
-  margin-left: -14px;
-  background: #fff;
-}
-
-.auth-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  background: #fff;
-}
-
 .register-form {
   width: min(380px, 100%);
   color: #424242;
@@ -355,13 +244,6 @@
   }
 }
 
-.register-switch {
-  margin: 0;
-  color: #424242;
-  font-size: 13.5px;
-  text-align: center;
-}
-
 .register-success {
   width: min(380px, 100%);
   text-align: center;
@@ -413,40 +295,4 @@
   width: 70%;
   height: 100%;
   background: #2e7d32;
-}
-
-@media (max-width: 720px) {
-  .auth-shell {
-    min-height: 100svh;
-    display: flex;
-    flex-direction: column;
-    border: 0;
-    border-radius: 0;
-  }
-
-  .auth-brand {
-    min-height: 240px;
-    align-items: flex-start;
-    padding: 36px 24px 28px;
-  }
-
-  .auth-wordmark {
-    margin-bottom: 28px;
-    font-size: 18px;
-  }
-
-  .auth-headline {
-    margin-bottom: 0;
-    font-size: clamp(1.7rem, 8vw, 2.2rem);
-  }
-
-  .auth-illustration {
-    display: none;
-  }
-
-  .auth-panel {
-    flex: 1;
-    align-items: flex-start;
-    padding: 40px 24px 48px;
-  }
 }

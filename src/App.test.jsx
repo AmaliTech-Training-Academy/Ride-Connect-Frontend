@@ -328,7 +328,7 @@ describe('App', () => {
     const user = userEvent.setup()
     renderApp()
 
-    await user.click(await screen.findByRole('button', { name: 'Log in' }))
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
@@ -342,7 +342,7 @@ describe('App', () => {
     const user = userEvent.setup()
     renderApp()
 
-    await user.click(await screen.findByRole('button', { name: 'Log in' }))
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
@@ -361,7 +361,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const { unmount } = renderApp()
 
-    await user.click(await screen.findByRole('button', { name: 'Log in' }))
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
