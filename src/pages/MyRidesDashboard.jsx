@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { initialDrivingRides } from './myRidesMockData'
+import { apiFetch } from '../lib/api'
+import UserMenu from '../components/UserMenu/UserMenu'
 import './MyRidesDashboard.css'
 
 function formatDate(dateString) {
@@ -22,6 +23,29 @@ function getRideStatus(ride) {
   if (hasDeparted(ride)) return 'departed'
   if (ride.seatsAvailable === 0) return 'full'
   return 'open'
+}
+
+function normaliseRide(ride) {
+  const departure = new Date(ride.departureAt)
+  return {
+    ...ride,
+    date: `${departure.getFullYear()}-${String(departure.getMonth() + 1).padStart(2, '0')}-${String(departure.getDate()).padStart(2, '0')}`,
+    time: `${String(departure.getHours()).padStart(2, '0')}:${String(departure.getMinutes()).padStart(2, '0')}`,
+    status: ride.status?.toLowerCase() || 'open',
+    seatsTotal: ride.totalSeats,
+    seatsAvailable: ride.availableSeats,
+    pendingRequests: [],
+    confirmedPassengers: [],
+  }
+}
+
+function normaliseJoinedRide(ride) {
+  const departure = new Date(ride.departureAt)
+  return {
+    ...ride,
+    date: `${departure.getFullYear()}-${String(departure.getMonth() + 1).padStart(2, '0')}-${String(departure.getDate()).padStart(2, '0')}`,
+    time: `${String(departure.getHours()).padStart(2, '0')}:${String(departure.getMinutes()).padStart(2, '0')}`,
+  }
 }
 
 function Avatar({ initials }) {
@@ -163,6 +187,37 @@ function RideRow({ ride, isExpanded, onToggle, onMenu, onAccept, onDecline }) {
   )
 }
 
+function JoinedRideRow({ ride, onWithdraw }) {
+  return (
+    <div className="my-rides-joined-row">
+      <div className="my-rides-joined-info">
+        <strong>
+          {ride.origin}{' '}
+          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
+          {ride.destination}
+        </strong>
+        <span>
+          <i className="fa-regular fa-calendar" aria-hidden="true" />{' '}
+          {formatDate(ride.date)} · {formatTime(ride.time)}
+        </span>
+        <span className="my-rides-joined-driver">
+          Driver: {ride.driverName}
+        </span>
+      </div>
+      <div className="my-rides-joined-actions">
+        <StatusBadge status={ride.requestStatus.toLowerCase()} />
+        <button
+          type="button"
+          className="my-rides-withdraw-button"
+          onClick={() => onWithdraw(ride)}
+        >
+          Withdraw request
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function CancelRideModal({ ride, onKeep, onConfirm }) {
   if (!ride) return null
   return (
@@ -202,10 +257,24 @@ function CancelRideModal({ ride, onKeep, onConfirm }) {
   )
 }
 
-function MyRidesDashboard({ onFindRide, onOfferRide }) {
-  const [rides, setRides] = useState(initialDrivingRides)
+function MyRidesDashboard({
+  onFindRide,
+  onOfferRide,
+  currentUserId,
+  managedRideId,
+  onUnauthorized,
+  onLogout,
+}) {
+  const [rides, setRides] = useState([])
+  const [loadState, setLoadState] = useState('loading')
+  const [loadError, setLoadError] = useState('')
+  const [joinedRides, setJoinedRides] = useState([])
+  const [joinedLoadState, setJoinedLoadState] = useState('loading')
+  const [joinedLoadError, setJoinedLoadError] = useState('')
+  const [managedRequests, setManagedRequests] = useState(null)
+  const [managedRequestsError, setManagedRequestsError] = useState('')
   const [activeTab, setActiveTab] = useState('driving')
-  const [expandedRideId, setExpandedRideId] = useState('driving-1')
+  const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
   const [toast, setToast] = useState(null)
@@ -218,12 +287,143 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
   const pendingRequestCount = upcomingRides.filter(
     (ride) => ride.pendingRequests.length > 0,
   ).length
+  const pendingJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'PENDING',
+  )
+  const approvedJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'ACCEPTED',
+  )
 
   useEffect(() => {
     if (!toast) return undefined
     const timer = setTimeout(() => setToast(null), 3500)
     return () => clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    apiFetch('/api/rides', { signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json().catch(() => null)
+        if (response.status === 401) {
+          onUnauthorized?.()
+          return
+        }
+        if (!response.ok) {
+          throw new Error(body?.message || 'Unable to load your rides.')
+        }
+
+        const ownedRides = (body?.data || [])
+          .filter(
+            (ride) =>
+              currentUserId != null &&
+              String(ride.driverId).trim() === String(currentUserId).trim(),
+          )
+          .map(normaliseRide)
+
+        const ridesWithRequests = await Promise.all(
+          ownedRides.map(async (ride) => {
+            const requestsResponse = await apiFetch(
+              `/api/rides/${ride.id}/requests`,
+              { signal: controller.signal },
+            )
+            const requestsBody = await requestsResponse.json().catch(() => null)
+            if (requestsResponse.status === 401) {
+              onUnauthorized?.()
+              return ride
+            }
+            if (!requestsResponse.ok) return ride
+            return {
+              ...ride,
+              pendingRequests: (requestsBody?.data || []).map((request) => ({
+                ...request,
+                name: request.passengerName,
+                initials: request.passengerName
+                  .split(/\s+/)
+                  .map((part) => part[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase(),
+                requestedMinutesAgo: Math.max(
+                  0,
+                  Math.floor(
+                    (Date.now() - new Date(request.createdAt).getTime()) /
+                      60000,
+                  ),
+                ),
+              })),
+            }
+          }),
+        )
+
+        setRides(ridesWithRequests)
+        setExpandedRideId((currentId) => currentId || ridesWithRequests[0]?.id)
+        setLoadError('')
+        setLoadState('loaded')
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          setLoadError(error.message || 'Unable to load your rides.')
+          setLoadState('error')
+        }
+      })
+
+    return () => controller.abort()
+  }, [currentUserId, onUnauthorized])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    apiFetch('/api/rides/mine', { signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json().catch(() => null)
+        if (response.status === 401) {
+          onUnauthorized?.()
+          return
+        }
+        if (!response.ok) {
+          throw new Error(body?.message || 'Unable to load your joined rides.')
+        }
+        setJoinedRides((body?.data?.joined || []).map(normaliseJoinedRide))
+        setJoinedLoadError('')
+        setJoinedLoadState('loaded')
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          setJoinedLoadError(error.message || 'Unable to load your joined rides.')
+          setJoinedLoadState('error')
+        }
+      })
+
+    return () => controller.abort()
+  }, [onUnauthorized])
+
+  useEffect(() => {
+    if (!managedRideId) return undefined
+
+    const controller = new AbortController()
+
+    apiFetch(`/api/rides/${managedRideId}/requests`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const body = await response.json().catch(() => null)
+        if (response.status === 401) {
+          onUnauthorized?.()
+          return
+        }
+        if (!response.ok) {
+          throw new Error(body?.message || 'Unable to load ride requests.')
+        }
+        setManagedRequests(body?.data || [])
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setManagedRequestsError(error.message)
+      })
+
+    return () => controller.abort()
+  }, [managedRideId, onUnauthorized])
 
   const acceptRequest = (rideId, requestId) => {
     // TODO: replace mock mutation with RID-4 accept endpoint.
@@ -265,6 +465,11 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
           : ride,
       ),
     )
+  }
+
+  const handleWithdraw = () => {
+    // TODO: wire up once the backend exposes a withdraw-request endpoint.
+    setToast("Withdrawing a request isn't available yet.")
   }
 
   const confirmCancel = () => {
@@ -320,7 +525,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="my-rides-unread-dot" />
           </button>
-          <Avatar initials="YO" />
+          <UserMenu initials="YO" onLogout={onLogout} />
         </div>
       </header>
       <section className="my-rides-content">
@@ -333,6 +538,35 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
             </p>
           </div>
         </div>
+        {managedRideId && (
+          <section className="my-rides-detail-section" aria-live="polite">
+            <h2>Join requests</h2>
+            {managedRequestsError && <p>{managedRequestsError}</p>}
+            {!managedRequestsError && managedRequests === null && (
+              <p>Loading requests...</p>
+            )}
+            {!managedRequestsError && managedRequests?.length === 0 && (
+              <p>No pending requests for this ride.</p>
+            )}
+            {managedRequests?.map((request) => (
+              <div className="my-rides-person-row" key={request.id}>
+                <Avatar
+                  initials={request.passengerName
+                    .split(/\s+/)
+                    .map((part) => part[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()}
+                />
+                <div className="my-rides-person-info">
+                  <strong>{request.passengerName}</strong>
+                  <span>{request.status}</span>
+                </div>
+                <StatusBadge status={request.status.toLowerCase()} />
+              </div>
+            ))}
+          </section>
+        )}
         <div
           className="my-rides-tabs"
           role="tablist"
@@ -358,12 +592,73 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
             Rides I&apos;ve joined
           </button>
         </div>
-        {activeTab === 'joined' ? (
-          <div className="my-rides-placeholder">
-            <i className="fa-solid fa-route" aria-hidden="true" />
-            <h2>Coming soon</h2>
-            <p>Your joined rides will appear here.</p>
+        {loadState === 'loading' ? (
+          <div className="my-rides-empty-state">
+            <h2>Loading your rides...</h2>
           </div>
+        ) : loadState === 'error' ? (
+          <div className="my-rides-empty-state">
+            <h2>Couldn&apos;t load your rides</h2>
+            <p>{loadError}</p>
+          </div>
+        ) : activeTab === 'joined' ? (
+          joinedLoadState === 'loading' ? (
+            <div className="my-rides-empty-state">
+              <h2>Loading your joined rides...</h2>
+            </div>
+          ) : joinedLoadState === 'error' ? (
+            <div className="my-rides-empty-state">
+              <h2>Couldn&apos;t load your joined rides</h2>
+              <p>{joinedLoadError}</p>
+            </div>
+          ) : joinedRides.length === 0 ? (
+            <div className="my-rides-empty-state">
+              <div className="my-rides-empty-icon">
+                <i className="fa-solid fa-route" aria-hidden="true" />
+              </div>
+              <h2>You haven&apos;t requested any rides yet.</h2>
+              <p>Find a ride and request a seat to see it here.</p>
+              <button
+                type="button"
+                className="my-rides-primary-button"
+                onClick={onFindRide}
+              >
+                <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />{' '}
+                Find a Ride
+              </button>
+            </div>
+          ) : (
+            <>
+              {pendingJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Pending</h2>
+                  <div className="my-rides-joined-list">
+                    {pendingJoinedRides.map((ride) => (
+                      <JoinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onWithdraw={handleWithdraw}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {approvedJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Approved</h2>
+                  <div className="my-rides-joined-list">
+                    {approvedJoinedRides.map((ride) => (
+                      <JoinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onWithdraw={handleWithdraw}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )
         ) : upcomingRides.length === 0 ? (
           <div className="my-rides-empty-state">
             <div className="my-rides-empty-icon">

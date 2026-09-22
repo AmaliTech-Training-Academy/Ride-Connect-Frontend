@@ -153,6 +153,25 @@ describe('FindARide', () => {
     )
   })
 
+  it('opens the managed ride action with the selected ride', async () => {
+    const onManageRide = jest.fn()
+    apiFetch.mockResolvedValue(
+      response([ride({ id: 'own', driverId: 'user-1' })]),
+    )
+    render(
+      <FindARide
+        currentUserId="user-1"
+        onManageRide={onManageRide}
+        onOfferRide={jest.fn()}
+      />,
+    )
+
+    await screen.findByText('Your ride')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Manage' }))
+
+    expect(onManageRide).toHaveBeenCalledWith(expect.objectContaining({ id: 'own' }))
+  })
+
   it('normalizes user and driver ID formatting when identifying own rides', async () => {
     apiFetch.mockResolvedValue(
       response([
@@ -175,16 +194,31 @@ describe('FindARide', () => {
 
   it('shows the request success toast', async () => {
     const user = userEvent.setup()
+    apiFetch.mockImplementation((path) => {
+      if (path === '/api/rides/ride-1/requests') {
+        return Promise.resolve({
+          status: 201,
+          ok: true,
+          json: async () => ({
+            success: true,
+            message: 'Request submitted successfully',
+            data: { id: 'request-1' },
+          }),
+        })
+      }
+
+      return Promise.resolve(response([ride()]))
+    })
     render(<FindARide onOfferRide={jest.fn()} />)
     await screen.findByText('Ama Owusu')
 
     await user.click(screen.getByRole('button', { name: 'Request to Join' }))
 
-    expect(
-      screen.getByText(
-        'Request sent to Ama Owusu. The driver will be notified.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Request submitted successfully')).toBeInTheDocument()
+    expect(apiFetch).toHaveBeenCalledWith('/api/rides/ride-1/requests', {
+      method: 'POST',
+    })
+    expect(screen.getByRole('button', { name: 'Requested' })).toBeDisabled()
   })
 
   it('shows the backend error when rides require authentication', async () => {

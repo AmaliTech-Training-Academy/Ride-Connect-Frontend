@@ -2,7 +2,9 @@ import { describe, expect, it } from '@jest/globals'
 import {
   DuplicateEmailError,
   InvalidCredentialsError,
+  getCurrentUser,
   loginUser,
+  logoutUser,
   registerUser,
 } from './auth'
 
@@ -24,6 +26,14 @@ describe('auth backend configuration', () => {
         password: 'Sup3rSecret!',
       }),
     ).rejects.toThrow('Authentication backend is not configured.')
+  })
+
+  it('resolves to null when no backend URL is configured', async () => {
+    await expect(getCurrentUser()).resolves.toBeNull()
+  })
+
+  it('is a no-op when no backend URL is configured', async () => {
+    await expect(logoutUser()).resolves.toBeUndefined()
   })
 })
 

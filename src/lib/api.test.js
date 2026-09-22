@@ -30,4 +30,20 @@ describe('apiFetch', () => {
       },
     )
   })
+
+  it('defaults to an empty options object when none is passed', async () => {
+    const response = { ok: true, status: 200 }
+    const fetchSpy = jest.fn().mockResolvedValue(response)
+    globalThis.fetch = fetchSpy
+
+    await apiFetch('/api/rides')
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://52.213.178.166.nip.io/api/rides',
+      {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
+  })
 })

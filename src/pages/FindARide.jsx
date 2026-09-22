@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import UserMenu from '../components/UserMenu/UserMenu'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -64,7 +65,7 @@ function Avatar({ initials }) {
   return <span className="find-ride-avatar">{initials}</span>
 }
 
-function RideCard({ ride, onRequest, isHighlighted }) {
+function RideCard({ ride, onRequest, onManage, isRequestPending, isHighlighted }) {
   // TODO: add requestStatus-based variants (pending/joined) once the backend
   // exposes per-ride request status for the current user.
   const isLowSeat = ride.seatsAvailable === 1
@@ -131,16 +132,18 @@ function RideCard({ ride, onRequest, isHighlighted }) {
           <button
             type="button"
             className="find-ride-button find-ride-button-outline"
+            onClick={() => onManage(ride)}
           >
             Manage
           </button>
         ) : (
           <button
             type="button"
-            className="find-ride-button"
+            className={`find-ride-button ${isRequestPending ? 'find-ride-action-pending' : ''}`}
             onClick={() => onRequest(ride)}
+            disabled={isRequestPending}
           >
-            Request to Join
+            {isRequestPending ? 'Requested' : 'Request to Join'}
           </button>
         )}
       </div>
@@ -231,7 +234,9 @@ async function readResponseBody(response) {
 function FindARide({
   onOfferRide,
   onMyRides,
+  onManageRide,
   onUnauthorized,
+  onLogout,
   currentUserId,
   highlightedRideId,
 }) {
@@ -243,6 +248,9 @@ function FindARide({
   const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
+  const [pendingRequestRideIds, setPendingRequestRideIds] = useState(
+    () => new Set(),
+  )
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
@@ -316,8 +324,41 @@ function FindARide({
     setSelectedDate(selectedDate === date ? '' : date)
   }
 
-  const handleRequest = (ride) => {
-    setToast(ride.driverName)
+  const handleRequest = async (ride) => {
+    try {
+      const response = await apiFetch(`/api/rides/${ride.id}/requests`, {
+        method: 'POST',
+      })
+      const body = await readResponseBody(response)
+
+      if (response.status === 401) {
+        onUnauthorized?.()
+        return
+      }
+
+      if (!response.ok) {
+        setToast({
+          message: body?.message || 'Unable to request to join this ride.',
+          success: false,
+        })
+        return
+      }
+
+      setToast({
+        message:
+          body?.message ||
+          `Request sent to ${ride.driverName}. The driver will be notified.`,
+        success: true,
+      })
+      setPendingRequestRideIds((currentIds) =>
+        new Set(currentIds).add(ride.id),
+      )
+    } catch {
+      setToast({
+        message: 'Unable to request to join this ride.',
+        success: false,
+      })
+    }
   }
 
   const renderResults = () => {
@@ -383,6 +424,8 @@ function FindARide({
             key={ride.id}
             ride={ride}
             onRequest={handleRequest}
+            onManage={onManageRide}
+            isRequestPending={pendingRequestRideIds.has(ride.id)}
             isHighlighted={ride.id === highlightedRideId}
           />
         ))}
@@ -429,7 +472,7 @@ function FindARide({
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="find-ride-unread-dot" />
           </button>
-          <Avatar initials="YO" />
+          <UserMenu initials="YO" onLogout={onLogout} />
         </div>
       </header>
 
@@ -517,8 +560,11 @@ function FindARide({
 
         {toast && (
           <div className="find-ride-toast" role="status">
-            <i className="fa-solid fa-circle-check" aria-hidden="true" />
-            <span>Request sent to {toast}. The driver will be notified.</span>
+            <i
+              className={`fa-solid ${toast.success ? 'fa-circle-check' : 'fa-circle-exclamation'}`}
+              aria-hidden="true"
+            />
+            <span>{toast.message}</span>
           </div>
         )}
 
