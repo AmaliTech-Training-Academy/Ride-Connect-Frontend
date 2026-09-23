@@ -67,7 +67,7 @@ describe('LoginScreen', () => {
 
     render(<LoginScreen onCreateAccount={onCreateAccount} />)
 
-    await user.click(screen.getByRole('button', { name: /create an account/i }))
+    await user.click(screen.getByRole('button', { name: /register/i }))
     expect(onCreateAccount).toHaveBeenCalledTimes(1)
 
     const passwordInput = screen.getByLabelText(/^password$/i)

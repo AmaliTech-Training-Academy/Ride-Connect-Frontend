@@ -2,6 +2,7 @@ import { useState } from 'react'
 import CarIcon from '../components/CarIcon'
 import EyeIcon from '../components/EyeIcon'
 import { loginUser } from '../services/auth'
+import './authLayout.css'
 import './LoginScreen.css'
 
 function LoginScreen({ onCreateAccount, onLoggedIn, login = loginUser }) {
@@ -41,105 +42,106 @@ function LoginScreen({ onCreateAccount, onLoggedIn, login = loginUser }) {
   }
 
   return (
-    <main className="login-shell">
-      <section className="brand-panel" aria-label="RideConnect introduction">
-        <div className="orb orb-top" />
-        <div className="orb orb-bottom" />
-        <div className="brand-content">
-          <div className="brand">
-            <CarIcon />
-            <span>RideConnect</span>
-          </div>
-          <h1>
-            Share the drive to work. Save fuel, cut traffic, meet colleagues.
-          </h1>
-          <div className="ride-illustration" aria-hidden="true">
-            <div className="car-card">
-              <CarIcon />
-            </div>
-            <div className="avatars">
-              <span>AO</span>
-              <span>KM</span>
-            </div>
-          </div>
+    <main className="auth-shell">
+      <div className="auth-backdrop" aria-hidden="true" />
+      <div className="auth-container">
+        <div className="auth-wordmark">
+          <CarIcon />
+          <span>
+            Ride<strong>Connect</strong>
+          </span>
         </div>
-      </section>
 
-      <section className="form-panel">
-        <form className="login-form" onSubmit={handleSubmit} noValidate>
-          <h2>Welcome back</h2>
-          <p className="intro">
-            Log in with your work account to find or offer a ride.
-          </p>
-
-          <label htmlFor="email">Work email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@company.com"
-            className={errors.email ? 'has-error' : ''}
-            autoComplete="email"
-          />
-          {errors.email && (
-            <p className="field-error" role="alert">
-              {errors.email}
-            </p>
+        <div className="auth-card">
+          {onCreateAccount && (
+            <div className="auth-tabs">
+              <button type="button" className="auth-tab auth-tab-active">
+                Sign in
+              </button>
+              <button
+                type="button"
+                className="auth-tab"
+                onClick={onCreateAccount}
+              >
+                Register
+              </button>
+            </div>
           )}
 
-          <label htmlFor="password">Password</label>
-          <div
-            className={`password-field ${errors.password ? 'has-error' : ''}`}
-          >
+          <form className="login-form" onSubmit={handleSubmit} noValidate>
+            <h2>Welcome back</h2>
+            <p className="intro">
+              Log in with your work account to find or offer a ride.
+            </p>
+
+            <label htmlFor="email">Work email</label>
             <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@company.com"
+              className={errors.email ? 'has-error' : ''}
+              autoComplete="email"
             />
-            <button
-              type="button"
-              className="visibility-toggle"
-              onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              <EyeIcon hidden={showPassword} />
-            </button>
-          </div>
-          {errors.password && (
-            <p className="field-error" role="alert">
-              {errors.password}
-            </p>
-          )}
-
-          {authError && (
-            <p className="login-error" role="alert">
-              {authError}
-            </p>
-          )}
-
-          <button className="submit-button" type="submit" disabled={isLoading}>
-            {isLoading ? (
-              <span className="spinner" aria-hidden="true" />
-            ) : (
-              'Log in'
+            {errors.email && (
+              <p className="field-error" role="alert">
+                {errors.email}
+              </p>
             )}
-          </button>
-          <p className="signup">
-            New to RideConnect?{' '}
-            <button
-              type="button"
-              className="login-link"
-              onClick={onCreateAccount}
+
+            <label htmlFor="password">Password</label>
+            <div
+              className={`password-field ${errors.password ? 'has-error' : ''}`}
             >
-              Create an account
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="visibility-toggle"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <EyeIcon hidden={showPassword} />
+              </button>
+            </div>
+            {errors.password && (
+              <p className="field-error" role="alert">
+                {errors.password}
+              </p>
+            )}
+
+            {authError && (
+              <p className="login-error" role="alert">
+                {authError}
+              </p>
+            )}
+
+            <button
+              className="submit-button"
+              type="submit"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <span className="spinner" aria-hidden="true" />
+              ) : (
+                'Log in'
+              )}
             </button>
-          </p>
-        </form>
-      </section>
+          </form>
+        </div>
+
+        <p className="auth-footnote">
+          Use your <strong>@amalitech.com</strong> email to keep it
+          colleagues-only.
+        </p>
+      </div>
     </main>
   )
 }
