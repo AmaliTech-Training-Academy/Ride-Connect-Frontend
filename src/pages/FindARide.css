@@ -76,6 +76,12 @@
   margin-left: auto;
 }
 
+.find-ride-profile-group {
+  display: flex;
+  align-items: center;
+  gap: 33px; /* the header's normal 18px gap, plus 15px extra */
+}
+
 .find-ride-offer-link,
 .find-ride-button {
   display: inline-flex;
@@ -522,13 +528,13 @@
   margin-top: 24px;
 }
 .find-ride-button-requested {
-  border-color: #4a8951;
+  border-color: #2e7d32;
   color: #2e7d32;
-  background: transparent;
+  background: #fff;
 }
 .find-ride-button-requested:hover {
-  border-color: #a33b35;
-  color: #a33b35;
+  color: #fff;
+  background: #2e7d32;
 }
 .find-ride-button:disabled {
   opacity: 0.75;
@@ -598,6 +604,9 @@
   .find-ride-header-actions {
     gap: 10px;
     margin-bottom: 10px;
+  }
+  .find-ride-profile-group {
+    gap: 25px; /* the mobile 10px gap, plus 15px extra */
   }
   .find-ride-offer-link {
     font-size: 0;

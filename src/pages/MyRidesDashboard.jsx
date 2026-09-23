@@ -671,15 +671,17 @@ function MyRidesDashboard({
           >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
           </button>
-          <button
-            type="button"
-            className="my-rides-icon-button"
-            aria-label="Notifications"
-          >
-            <i className="fa-regular fa-bell" aria-hidden="true" />
-            <span className="my-rides-unread-dot" />
-          </button>
-          <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
+          <div className="my-rides-profile-group">
+            <button
+              type="button"
+              className="my-rides-icon-button"
+              aria-label="Notifications"
+            >
+              <i className="fa-regular fa-bell" aria-hidden="true" />
+              <span className="my-rides-unread-dot" />
+            </button>
+            <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
+          </div>
         </div>
       </header>
       <section className="my-rides-content">

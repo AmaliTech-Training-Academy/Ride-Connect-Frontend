@@ -515,15 +515,17 @@ function FindARide({
           >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
           </button>
-          <button
-            type="button"
-            className="find-ride-icon-button"
-            aria-label="Notifications"
-          >
-            <i className="fa-regular fa-bell" aria-hidden="true" />
-            <span className="find-ride-unread-dot" />
-          </button>
-          <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
+          <div className="find-ride-profile-group">
+            <button
+              type="button"
+              className="find-ride-icon-button"
+              aria-label="Notifications"
+            >
+              <i className="fa-regular fa-bell" aria-hidden="true" />
+              <span className="find-ride-unread-dot" />
+            </button>
+            <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
+          </div>
         </div>
       </header>
 

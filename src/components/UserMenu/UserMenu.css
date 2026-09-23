@@ -4,7 +4,12 @@
 
 .user-menu-trigger {
   display: inline-flex;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: none;
   border-radius: 50%;
+  cursor: pointer;
 }
 
 .user-menu-trigger[aria-expanded='true'] .user-menu-avatar {
@@ -18,6 +23,7 @@
   width: 38px;
   height: 38px;
   place-items: center;
+  border: 1.5px solid #ccd8cd;
   border-radius: 50%;
   color: #246b2b;
   background: #d8efd9;
