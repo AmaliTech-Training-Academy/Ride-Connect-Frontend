@@ -183,6 +183,44 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
+  it('stays signed in when the server-side logout fails', async () => {
+    const user = userEvent.setup()
+    getCurrentUser.mockResolvedValue({ id: 'user-1', email: TAKEN.email })
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    })
+    logoutUser.mockRejectedValue(new Error('Logout failed'))
+    renderApp()
+    await screen.findByRole('heading', { name: /offer a ride/i })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: /logout/i }))
+
+    expect(logoutUser).toHaveBeenCalled()
+    expect(
+      await screen.findByRole('heading', { name: /offer a ride/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows initials derived from the signed-in user in the account menu', async () => {
+    getCurrentUser.mockResolvedValue({
+      id: 'user-1',
+      name: 'Ama Owusu',
+      email: TAKEN.email,
+    })
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    })
+    renderApp()
+    await screen.findByRole('heading', { name: /offer a ride/i })
+
+    expect(screen.getByText('AO')).toBeInTheDocument()
+  })
+
   it('opens the join-requests panel for a ride the driver manages', async () => {
     const user = userEvent.setup()
     getCurrentUser.mockResolvedValue({ id: 'user-1', email: TAKEN.email })

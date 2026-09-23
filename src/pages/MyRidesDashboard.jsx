@@ -403,6 +403,7 @@ function MyRidesDashboard({
   onOfferRide,
   managedRideId,
   onLogout,
+  userInitials,
 }) {
   const [rides, setRides] = useState([])
   const [joinedRides, setJoinedRides] = useState([])
@@ -678,7 +679,7 @@ function MyRidesDashboard({
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="my-rides-unread-dot" />
           </button>
-          <UserMenu initials="YO" onLogout={onLogout} />
+          <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
         </div>
       </header>
       <section className="my-rides-content">

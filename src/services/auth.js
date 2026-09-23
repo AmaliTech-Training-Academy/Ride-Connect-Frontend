@@ -87,11 +87,17 @@ export async function getCurrentUser() {
 /**
  * Clears the session cookie server-side so the next getCurrentUser() call
  * (or sign-in as a different account) doesn't pick the old session back up.
+ * Throws on failure so a caller doesn't clear local state and redirect while
+ * the server-side session is still live.
  */
 export async function logoutUser() {
   if (!authClient) {
     return
   }
 
-  await authClient.signOut()
+  const { error } = await authClient.signOut()
+
+  if (error) {
+    throw new Error(error.message || 'Logout failed')
+  }
 }

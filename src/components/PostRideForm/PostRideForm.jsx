@@ -120,7 +120,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onMyRides, onLogout }) {
+function PostRideForm({ onFindRide, onMyRides, onLogout, userInitials }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -238,7 +238,7 @@ function PostRideForm({ onFindRide, onMyRides, onLogout }) {
             </button>
           </nav>
         )}
-        <UserMenu initials="YO" onLogout={onLogout} />
+        <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
       </header>
 
       {status === 'error' && (

@@ -15,6 +15,7 @@ import RequireAuth from './routes/RequireAuth'
 import RedirectIfAuthed from './routes/RedirectIfAuthed'
 import { getCurrentUser, logoutUser } from './services/auth'
 import { onSessionExpired } from './lib/session'
+import { initialsFrom } from './lib/myRides'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -59,7 +60,14 @@ function App() {
   )
 
   const handleLogout = async () => {
-    await logoutUser()
+    try {
+      await logoutUser()
+    } catch (error) {
+      // The server-side session may still be live, so local state must not
+      // be cleared as if logout succeeded.
+      console.error('Failed to log out:', error)
+      return
+    }
     setUser(null)
     setAuthStatus('unauthenticated')
     navigate('/login', { replace: true })
@@ -68,6 +76,8 @@ function App() {
   if (authStatus === 'checking') {
     return null
   }
+
+  const userInitials = initialsFrom(user?.name || user?.email || '')
 
   return (
     <Routes>
@@ -105,6 +115,7 @@ function App() {
               }
               onMyRides={() => navigate('/my-rides')}
               onLogout={handleLogout}
+              userInitials={userInitials}
             />
           </RequireAuth>
         }
@@ -120,6 +131,7 @@ function App() {
               onLogout={handleLogout}
               currentUserId={user?.id}
               highlightedRideId={searchParams.get('ride')}
+              userInitials={userInitials}
             />
           </RequireAuth>
         }
@@ -133,6 +145,7 @@ function App() {
               onOfferRide={() => navigate('/offer-a-ride')}
               managedRideId={searchParams.get('manage')}
               onLogout={handleLogout}
+              userInitials={userInitials}
             />
           </RequireAuth>
         }

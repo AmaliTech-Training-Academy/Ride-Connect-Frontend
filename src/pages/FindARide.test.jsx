@@ -245,19 +245,26 @@ describe('FindARide', () => {
     )
   })
 
-  it('marks the ride as requested and blocks a second request', async () => {
+  it('marks the ride as requested and turns the button into a withdraw action', async () => {
     const user = userEvent.setup()
     render(<FindARide onOfferRide={jest.fn()} />)
     await screen.findByText('Ama Owusu')
 
     await user.click(screen.getByRole('button', { name: 'Request to Join' }))
 
-    const requested = await screen.findByRole('button', { name: /Requested/ })
-    expect(requested).toBeDisabled()
-
+    const withdraw = await screen.findByRole('button', {
+      name: 'Withdraw request',
+    })
+    expect(withdraw).toBeEnabled()
     expect(requestToJoinRide).toHaveBeenCalledTimes(1)
 
-    await user.click(requested)
+    await user.click(withdraw)
+
+    // No backend endpoint exists yet, so it reports that rather than
+    // pretending to withdraw the request.
+    expect(
+      await screen.findByText("Withdrawing a request isn't available yet."),
+    ).toBeInTheDocument()
     expect(requestToJoinRide).toHaveBeenCalledTimes(1)
   })
 
@@ -290,8 +297,8 @@ describe('FindARide', () => {
     render(<FindARide onOfferRide={jest.fn()} />)
 
     expect(
-      await screen.findByRole('button', { name: /Requested/ }),
-    ).toBeDisabled()
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
   })
 
   it('reports a duplicate request without inviting a retry', async () => {
@@ -308,7 +315,9 @@ describe('FindARide', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'You have already requested this ride.',
     )
-    expect(screen.getByRole('button', { name: /Requested/ })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
   })
 
   it('re-enables the button when the request fails for another reason', async () => {
