@@ -205,14 +205,128 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     expect(updateRideStatus).not.toHaveBeenCalled()
   })
 
-  it('switches to joined rides tab and renders placeholder', async () => {
-    const user = userEvent.setup()
-    await renderDashboard()
+  describe('rides I have joined', () => {
+    function joinedRide(overrides = {}) {
+      return {
+        id: 'ride-10',
+        driverId: 'driver-1',
+        driverName: 'Ama Owusu',
+        origin: 'Madina',
+        destination: 'AmaliTech Office',
+        routeDescription: null,
+        departureAt: '2099-09-19T08:15:00.000Z',
+        totalSeats: 4,
+        availableSeats: 2,
+        status: 'OPEN',
+        requestId: 'request-10',
+        requestStatus: 'PENDING',
+        requestedAt: '2099-09-18T08:00:00.000Z',
+        ...overrides,
+      }
+    }
 
-    await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
-    expect(
-      screen.getByRole('heading', { name: 'Coming soon' }),
-    ).toBeInTheDocument()
+    it('splits joined rides into pending and approved sections', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [
+        joinedRide({ requestStatus: 'PENDING' }),
+        joinedRide({
+          id: 'ride-11',
+          requestId: 'request-11',
+          driverName: 'Kojo Mensah',
+          requestStatus: 'ACCEPTED',
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(screen.getByText('Pending')).toBeInTheDocument()
+      expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
+      expect(screen.getByText('Approved')).toBeInTheDocument()
+      expect(screen.getByText('Driver: Kojo Mensah')).toBeInTheDocument()
+    })
+
+    it('shows the empty state when nothing has been requested', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(
+        await screen.findByRole('heading', {
+          name: "You haven't requested any rides yet.",
+        }),
+      ).toBeInTheDocument()
+    })
+
+    it("shows a not-yet-available message when withdrawing a request", async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [joinedRide()]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+      await user.click(
+        screen.getByRole('button', { name: 'Withdraw request' }),
+      )
+
+      expect(
+        await screen.findByText("Withdrawing a request isn't available yet."),
+      ).toBeInTheDocument()
+    })
+
+    it('shows the error state when the load fails', async () => {
+      const error = new Error('Session expired')
+      error.status = 401
+      fetchMyRides.mockRejectedValue(error)
+      const user = userEvent.setup()
+
+      render(<MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />)
+
+      await user.click(
+        await screen.findByRole('tab', { name: /Rides I.ve joined/ }),
+      )
+
+      expect(
+        await screen.findByRole('heading', {
+          name: "Couldn't load your joined rides",
+        }),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('managed ride deep link', () => {
+    it('expands the ride passed in managedRideId instead of the first upcoming one', async () => {
+      await renderDashboard({ managedRideId: 'driving-2' })
+
+      // driving-2 has no requests, so its empty-panel note proves it (not
+      // driving-1, the default) is the one expanded.
+      expect(screen.getByText(/No join requests yet/)).toBeInTheDocument()
+    })
+
+    it('falls back to the first upcoming ride when the id does not match', async () => {
+      await renderDashboard({ managedRideId: 'does-not-exist' })
+
+      expect(
+        screen.getByRole('heading', { name: 'Join requests' }),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('account menu', () => {
+    it('logs out from the account menu popover', async () => {
+      const user = userEvent.setup()
+      const onLogout = jest.fn()
+      await renderDashboard({ onLogout })
+
+      await user.click(screen.getByRole('button', { name: 'Account menu' }))
+      await user.click(screen.getByRole('menuitem', { name: /logout/i }))
+
+      expect(onLogout).toHaveBeenCalled()
+    })
   })
 
   describe('regressions', () => {

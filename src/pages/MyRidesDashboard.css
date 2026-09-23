@@ -478,8 +478,54 @@
   color: #89958b;
   font-size: 11px;
 }
-.my-rides-empty-state,
-.my-rides-placeholder {
+
+.my-rides-joined-list {
+  border-top: 1px solid #e1e9e1;
+  margin-bottom: 28px;
+}
+.my-rides-joined-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 8px;
+  border-bottom: 1px solid #e8eee8;
+}
+.my-rides-joined-info strong,
+.my-rides-joined-info span {
+  display: block;
+}
+.my-rides-joined-info strong {
+  color: #556158;
+  font-size: 13px;
+}
+.my-rides-joined-info span {
+  margin-top: 5px;
+  color: #8b968d;
+  font-size: 11px;
+}
+.my-rides-joined-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.my-rides-withdraw-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #ccd8cd;
+  border-radius: 8px;
+  color: #526157;
+  background: #fff;
+  cursor: pointer;
+  font:
+    600 12px 'Poppins',
+    sans-serif;
+}
+.my-rides-withdraw-button:hover {
+  background: #f2f8f2;
+}
+.my-rides-empty-state {
   display: flex;
   align-items: center;
   flex-direction: column;
@@ -497,25 +543,18 @@
   background: #e5f3e6;
   font-size: 24px;
 }
-.my-rides-empty-state h2,
-.my-rides-placeholder h2 {
+.my-rides-empty-state h2 {
   margin: 0 0 8px;
   color: #2d3c30;
   font-size: 20px;
 }
-.my-rides-empty-state p,
-.my-rides-placeholder p {
+.my-rides-empty-state p {
   max-width: 380px;
   color: #7b877d;
   font-size: 13px;
 }
 .my-rides-primary-button {
   margin-top: 24px;
-}
-.my-rides-placeholder > i {
-  margin-bottom: 18px;
-  color: #6da272;
-  font-size: 32px;
 }
 .my-rides-toast {
   position: fixed;

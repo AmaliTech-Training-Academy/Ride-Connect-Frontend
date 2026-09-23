@@ -5,7 +5,8 @@ import {
   fetchMyRides,
   updateRideStatus,
 } from '../services/rides'
-import { normaliseMyRides } from '../lib/myRides'
+import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
+import UserMenu from '../components/UserMenu/UserMenu'
 import './MyRidesDashboard.css'
 
 function formatDate(dateString) {
@@ -258,6 +259,37 @@ function RideRow({
   )
 }
 
+function JoinedRideRow({ ride, onWithdraw }) {
+  return (
+    <div className="my-rides-joined-row">
+      <div className="my-rides-joined-info">
+        <strong>
+          {ride.origin}{' '}
+          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
+          {ride.destination}
+        </strong>
+        <span>
+          <i className="fa-regular fa-calendar" aria-hidden="true" />{' '}
+          {formatDate(ride.date)} · {formatTime(ride.time)}
+        </span>
+        <span className="my-rides-joined-driver">
+          Driver: {ride.driverName}
+        </span>
+      </div>
+      <div className="my-rides-joined-actions">
+        <StatusBadge status={ride.requestStatus.toLowerCase()} />
+        <button
+          type="button"
+          className="my-rides-withdraw-button"
+          onClick={() => onWithdraw(ride)}
+        >
+          Withdraw request
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Rendered only while a ride is pending cancellation, so the focus-trap effect
  * runs on open and tears down on close. aria-modal is only honest if focus
@@ -366,8 +398,15 @@ function CancelRideModal({ ride, ...props }) {
   return <CancelRideDialog key={ride.id} {...props} />
 }
 
-function MyRidesDashboard({ onFindRide, onOfferRide }) {
+function MyRidesDashboard({
+  onFindRide,
+  onOfferRide,
+  managedRideId,
+  onLogout,
+  userInitials,
+}) {
   const [rides, setRides] = useState([])
+  const [joinedRides, setJoinedRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
   const [reloadToken, setReloadToken] = useState(0)
@@ -413,7 +452,14 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
         if (ignore) return
         const loaded = normaliseMyRides(payload)
         setRides(loaded)
-        setExpandedRideId(loaded.find((ride) => !isPastRide(ride))?.id ?? null)
+        // A "Manage" click from Find a Ride asks for one ride's requests
+        // directly; otherwise fall back to the first upcoming ride.
+        const preferredId =
+          managedRideId && loaded.some((ride) => ride.id === managedRideId)
+            ? managedRideId
+            : (loaded.find((ride) => !isPastRide(ride))?.id ?? null)
+        setExpandedRideId(preferredId)
+        setJoinedRides(normaliseMyJoinedRides(payload))
         setLoadState('loaded')
       })
       .catch((error) => {
@@ -425,6 +471,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
     return () => {
       ignore = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadToken])
 
   const retryLoad = () => {
@@ -438,6 +485,12 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
   const pendingRequestCount = upcomingRides.reduce(
     (total, ride) => total + ride.pendingRequests.length,
     0,
+  )
+  const pendingJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'PENDING',
+  )
+  const approvedJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'ACCEPTED',
   )
 
   useEffect(() => {
@@ -582,6 +635,11 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
     })
   }
 
+  const handleWithdraw = () => {
+    // TODO: wire up once the backend exposes a withdraw-request endpoint.
+    showToast("Withdrawing a request isn't available yet.", 'error')
+  }
+
   return (
     <main className="my-rides-page" onClick={() => setMenuRideId(null)}>
       <header className="my-rides-header">
@@ -621,7 +679,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="my-rides-unread-dot" />
           </button>
-          <Avatar initials="YO" />
+          <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
         </div>
       </header>
       <section className="my-rides-content">
@@ -664,11 +722,77 @@ function MyRidesDashboard({ onFindRide, onOfferRide }) {
           </button>
         </div>
         {activeTab === 'joined' ? (
-          <div className="my-rides-placeholder">
-            <i className="fa-solid fa-route" aria-hidden="true" />
-            <h2>Coming soon</h2>
-            <p>Your joined rides will appear here.</p>
-          </div>
+          loadState === 'loading' ? (
+            <div className="my-rides-loading" role="status">
+              <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />
+              <p>Loading your joined rides...</p>
+            </div>
+          ) : loadState === 'error' ? (
+            <div className="my-rides-empty-state" role="alert">
+              <div className="my-rides-empty-icon">
+                <i
+                  className="fa-solid fa-triangle-exclamation"
+                  aria-hidden="true"
+                />
+              </div>
+              <h2>Couldn&apos;t load your joined rides</h2>
+              <p>{loadError}</p>
+              <button
+                type="button"
+                className="my-rides-primary-button"
+                onClick={retryLoad}
+              >
+                Try again
+              </button>
+            </div>
+          ) : joinedRides.length === 0 ? (
+            <div className="my-rides-empty-state">
+              <div className="my-rides-empty-icon">
+                <i className="fa-solid fa-route" aria-hidden="true" />
+              </div>
+              <h2>You haven&apos;t requested any rides yet.</h2>
+              <p>Find a ride and request a seat to see it here.</p>
+              <button
+                type="button"
+                className="my-rides-primary-button"
+                onClick={onFindRide}
+              >
+                <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />{' '}
+                Find a Ride
+              </button>
+            </div>
+          ) : (
+            <>
+              {pendingJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Pending</h2>
+                  <div className="my-rides-joined-list">
+                    {pendingJoinedRides.map((ride) => (
+                      <JoinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onWithdraw={handleWithdraw}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {approvedJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Approved</h2>
+                  <div className="my-rides-joined-list">
+                    {approvedJoinedRides.map((ride) => (
+                      <JoinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onWithdraw={handleWithdraw}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )
         ) : loadState === 'loading' ? (
           <div className="my-rides-loading" role="status">
             <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />

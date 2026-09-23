@@ -3,6 +3,8 @@ import {
   describeElapsed,
   initialsFrom,
   normaliseDriverRide,
+  normaliseJoinedRide,
+  normaliseMyJoinedRides,
   normaliseMyRides,
   toLocalDateAndTime,
 } from './myRides'
@@ -222,5 +224,81 @@ describe('normaliseMyRides', () => {
     expect(normaliseMyRides(null)).toEqual([])
     expect(normaliseMyRides({})).toEqual([])
     expect(normaliseMyRides({ data: {} })).toEqual([])
+  })
+})
+
+describe('normaliseJoinedRide', () => {
+  const ride = {
+    id: 'ride-1',
+    driverId: 'driver-1',
+    driverName: 'Ama Owusu',
+    origin: 'Madina',
+    destination: 'AmaliTech Office',
+    routeDescription: 'Via the main road.',
+    departureAt: new Date(2026, 8, 23, 8, 15).toISOString(),
+    totalSeats: 4,
+    availableSeats: 3,
+    status: 'OPEN',
+    requestId: 'request-1',
+    requestStatus: 'PENDING',
+    requestedAt: '2026-09-22T08:00:00.000Z',
+  }
+
+  it('maps the request fields alongside the ride details', () => {
+    expect(normaliseJoinedRide(ride)).toEqual({
+      id: 'ride-1',
+      driverId: 'driver-1',
+      driverName: 'Ama Owusu',
+      origin: 'Madina',
+      destination: 'AmaliTech Office',
+      description: 'Via the main road.',
+      date: '2026-09-23',
+      time: '08:15',
+      status: 'open',
+      seatsTotal: 4,
+      seatsAvailable: 3,
+      requestId: 'request-1',
+      requestStatus: 'PENDING',
+      requestedAt: '2026-09-22T08:00:00.000Z',
+      isPast: false,
+    })
+  })
+
+  it('tags past rides via the isPast option', () => {
+    expect(normaliseJoinedRide(ride, { isPast: true }).isPast).toBe(true)
+  })
+})
+
+describe('normaliseMyJoinedRides', () => {
+  const payload = {
+    success: true,
+    data: {
+      driving: [{ id: 'driving-1' }],
+      joined: [
+        { id: 'joined-1', requestStatus: 'PENDING', departureAt: null },
+      ],
+      joinedPastAndCancelled: [
+        { id: 'joined-past-1', requestStatus: 'DECLINED', departureAt: null },
+      ],
+    },
+  }
+
+  it('flattens both passenger buckets and tags which one each ride came from', () => {
+    const rides = normaliseMyJoinedRides(payload)
+
+    expect(rides.map((ride) => ride.id)).toEqual(['joined-1', 'joined-past-1'])
+    expect(rides[0].isPast).toBe(false)
+    expect(rides[1].isPast).toBe(true)
+  })
+
+  it('ignores the driver-side buckets', () => {
+    const ids = normaliseMyJoinedRides(payload).map((ride) => ride.id)
+    expect(ids).not.toContain('driving-1')
+  })
+
+  it('returns an empty list for a missing or empty payload', () => {
+    expect(normaliseMyJoinedRides(null)).toEqual([])
+    expect(normaliseMyJoinedRides({})).toEqual([])
+    expect(normaliseMyJoinedRides({ data: {} })).toEqual([])
   })
 })

@@ -112,3 +112,47 @@ export function normaliseMyRides(payload, now = new Date()) {
     ),
   ]
 }
+
+/**
+ * Maps a ride from the `joined`/`joinedPastAndCancelled` buckets onto the
+ * shape the "Rides I've joined" tab renders. These buckets already carry
+ * `requestId`/`requestStatus`/`requestedAt` from the server, so there is no
+ * passenger list to normalise the way `normaliseDriverRide` does.
+ */
+export function normaliseJoinedRide(ride, { isPast = false } = {}) {
+  const { date, time } = toLocalDateAndTime(ride.departureAt)
+
+  return {
+    id: ride.id,
+    driverId: ride.driverId,
+    driverName: ride.driverName,
+    origin: ride.origin,
+    destination: ride.destination,
+    description: ride.routeDescription || '',
+    date,
+    time,
+    status: String(ride.status || '').toLowerCase(),
+    seatsTotal: ride.totalSeats,
+    seatsAvailable: ride.availableSeats,
+    requestId: ride.requestId,
+    requestStatus: ride.requestStatus,
+    requestedAt: ride.requestedAt,
+    isPast,
+  }
+}
+
+/**
+ * Flattens the passenger-side buckets into one list, mirroring
+ * `normaliseMyRides` for the driver side.
+ */
+export function normaliseMyJoinedRides(payload) {
+  const data = payload?.data ?? {}
+  return [
+    ...(data.joined ?? []).map((ride) =>
+      normaliseJoinedRide(ride, { isPast: false }),
+    ),
+    ...(data.joinedPastAndCancelled ?? []).map((ride) =>
+      normaliseJoinedRide(ride, { isPast: true }),
+    ),
+  ]
+}

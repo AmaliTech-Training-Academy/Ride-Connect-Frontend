@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import { fetchMyRides, requestToJoinRide } from '../services/rides'
+import UserMenu from '../components/UserMenu/UserMenu'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -65,7 +66,14 @@ function Avatar({ initials }) {
   return <span className="find-ride-avatar">{initials}</span>
 }
 
-function RideCard({ ride, onRequest, isHighlighted, requestState }) {
+function RideCard({
+  ride,
+  onRequest,
+  onWithdraw,
+  onManage,
+  isHighlighted,
+  requestState,
+}) {
   const isLowSeat = ride.seatsAvailable === 1
   const isRequested = requestState === 'requested'
   const isSending = requestState === 'sending'
@@ -131,6 +139,7 @@ function RideCard({ ride, onRequest, isHighlighted, requestState }) {
           <button
             type="button"
             className="find-ride-button find-ride-button-outline"
+            onClick={() => onManage(ride)}
           >
             Manage
           </button>
@@ -138,13 +147,13 @@ function RideCard({ ride, onRequest, isHighlighted, requestState }) {
           <button
             type="button"
             className={`find-ride-button ${isRequested ? 'find-ride-button-requested' : ''}`}
-            disabled={isRequested || isSending}
-            onClick={() => onRequest(ride)}
+            disabled={isSending}
+            onClick={() =>
+              isRequested ? onWithdraw(ride) : onRequest(ride)
+            }
           >
             {isRequested ? (
-              <>
-                <i className="fa-solid fa-check" aria-hidden="true" /> Requested
-              </>
+              'Withdraw request'
             ) : isSending ? (
               'Sending...'
             ) : (
@@ -240,6 +249,9 @@ async function readResponseBody(response) {
 function FindARide({
   onOfferRide,
   onMyRides,
+  onManageRide,
+  onLogout,
+  userInitials,
   currentUserId,
   highlightedRideId,
 }) {
@@ -391,6 +403,14 @@ function FindARide({
     }
   }
 
+  const handleWithdraw = () => {
+    // TODO: wire up once the backend exposes a withdraw-request endpoint.
+    setToast({
+      tone: 'error',
+      message: "Withdrawing a request isn't available yet.",
+    })
+  }
+
   const renderResults = () => {
     if (loadState === 'loading') {
       return (
@@ -454,6 +474,8 @@ function FindARide({
             key={ride.id}
             ride={ride}
             onRequest={handleRequest}
+            onWithdraw={handleWithdraw}
+            onManage={onManageRide}
             requestState={requestStates[ride.id]}
             isHighlighted={ride.id === highlightedRideId}
           />
@@ -501,7 +523,7 @@ function FindARide({
             <i className="fa-regular fa-bell" aria-hidden="true" />
             <span className="find-ride-unread-dot" />
           </button>
-          <Avatar initials="YO" />
+          <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
         </div>
       </header>
 

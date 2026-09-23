@@ -165,6 +165,25 @@ describe('FindARide', () => {
     )
   })
 
+  it('opens the managed ride action with the selected ride', async () => {
+    const onManageRide = jest.fn()
+    apiFetch.mockResolvedValue(
+      response([ride({ id: 'own', driverId: 'user-1' })]),
+    )
+    render(
+      <FindARide
+        currentUserId="user-1"
+        onManageRide={onManageRide}
+        onOfferRide={jest.fn()}
+      />,
+    )
+
+    await screen.findByText('Your ride')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Manage' }))
+
+    expect(onManageRide).toHaveBeenCalledWith(expect.objectContaining({ id: 'own' }))
+  })
+
   it('normalizes user and driver ID formatting when identifying own rides', async () => {
     apiFetch.mockResolvedValue(
       response([
@@ -187,6 +206,21 @@ describe('FindARide', () => {
 
   it('shows the request success toast', async () => {
     const user = userEvent.setup()
+    apiFetch.mockImplementation((path) => {
+      if (path === '/api/rides/ride-1/requests') {
+        return Promise.resolve({
+          status: 201,
+          ok: true,
+          json: async () => ({
+            success: true,
+            message: 'Request submitted successfully',
+            data: { id: 'request-1' },
+          }),
+        })
+      }
+
+      return Promise.resolve(response([ride()]))
+    })
     render(<FindARide onOfferRide={jest.fn()} />)
     await screen.findByText('Ama Owusu')
 
@@ -211,19 +245,26 @@ describe('FindARide', () => {
     )
   })
 
-  it('marks the ride as requested and blocks a second request', async () => {
+  it('marks the ride as requested and turns the button into a withdraw action', async () => {
     const user = userEvent.setup()
     render(<FindARide onOfferRide={jest.fn()} />)
     await screen.findByText('Ama Owusu')
 
     await user.click(screen.getByRole('button', { name: 'Request to Join' }))
 
-    const requested = await screen.findByRole('button', { name: /Requested/ })
-    expect(requested).toBeDisabled()
-
+    const withdraw = await screen.findByRole('button', {
+      name: 'Withdraw request',
+    })
+    expect(withdraw).toBeEnabled()
     expect(requestToJoinRide).toHaveBeenCalledTimes(1)
 
-    await user.click(requested)
+    await user.click(withdraw)
+
+    // No backend endpoint exists yet, so it reports that rather than
+    // pretending to withdraw the request.
+    expect(
+      await screen.findByText("Withdrawing a request isn't available yet."),
+    ).toBeInTheDocument()
     expect(requestToJoinRide).toHaveBeenCalledTimes(1)
   })
 
@@ -256,8 +297,8 @@ describe('FindARide', () => {
     render(<FindARide onOfferRide={jest.fn()} />)
 
     expect(
-      await screen.findByRole('button', { name: /Requested/ }),
-    ).toBeDisabled()
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
   })
 
   it('reports a duplicate request without inviting a retry', async () => {
@@ -274,7 +315,9 @@ describe('FindARide', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'You have already requested this ride.',
     )
-    expect(screen.getByRole('button', { name: /Requested/ })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
   })
 
   it('re-enables the button when the request fails for another reason', async () => {

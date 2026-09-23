@@ -67,3 +67,37 @@ export async function loginUser({ email, password }) {
 
   return result.data?.user ?? result.data
 }
+
+/**
+ * Resolves the currently signed-in user from the session cookie, or `null`
+ * if there is no valid session. Used to rehydrate auth state on page load
+ * (e.g. after a refresh) instead of throwing like registerUser/loginUser do,
+ * since "not logged in" is an expected steady state here.
+ */
+export async function getCurrentUser() {
+  if (!authClient) {
+    return null
+  }
+
+  const { data, error } = await authClient.getSession()
+
+  return error ? null : (data?.user ?? null)
+}
+
+/**
+ * Clears the session cookie server-side so the next getCurrentUser() call
+ * (or sign-in as a different account) doesn't pick the old session back up.
+ * Throws on failure so a caller doesn't clear local state and redirect while
+ * the server-side session is still live.
+ */
+export async function logoutUser() {
+  if (!authClient) {
+    return
+  }
+
+  const { error } = await authClient.signOut()
+
+  if (error) {
+    throw new Error(error.message || 'Logout failed')
+  }
+}

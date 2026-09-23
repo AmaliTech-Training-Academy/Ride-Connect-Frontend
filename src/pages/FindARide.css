@@ -521,7 +521,15 @@
   gap: 10px;
   margin-top: 24px;
 }
-.find-ride-button-requested,
+.find-ride-button-requested {
+  border-color: #4a8951;
+  color: #2e7d32;
+  background: transparent;
+}
+.find-ride-button-requested:hover {
+  border-color: #a33b35;
+  color: #a33b35;
+}
 .find-ride-button:disabled {
   opacity: 0.75;
   cursor: default;

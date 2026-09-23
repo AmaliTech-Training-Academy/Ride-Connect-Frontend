@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
+import UserMenu from '../UserMenu/UserMenu'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
@@ -119,7 +120,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onMyRides }) {
+function PostRideForm({ onFindRide, onMyRides, onLogout, userInitials }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -237,6 +238,7 @@ function PostRideForm({ onFindRide, onMyRides }) {
             </button>
           </nav>
         )}
+        <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
       </header>
 
       {status === 'error' && (
