@@ -153,7 +153,7 @@ function App() {
       <Route
         path="/"
         element={
-          <Navigate to={user ? '/offer-a-ride' : '/register'} replace />
+          <Navigate to={user ? '/find-a-ride' : '/register'} replace />
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
