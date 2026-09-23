@@ -36,7 +36,9 @@ h1 {
   }
 }
 .login-form {
-  width: min(380px, 100%);
+  /* Fills the card so the fields line up with the tabs above them. The
+     380px cap was for the old two-column layout. */
+  width: 100%;
   color: #424242;
 }
 .login-form h2 {

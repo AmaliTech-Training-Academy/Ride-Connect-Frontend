@@ -12,7 +12,9 @@
 }
 
 .register-form {
-  width: min(380px, 100%);
+  /* Fills the card so the fields line up with the tabs above them. The
+     380px cap was for the old two-column layout. */
+  width: 100%;
   color: #424242;
 }
 
@@ -245,7 +247,7 @@
 }
 
 .register-success {
-  width: min(380px, 100%);
+  width: 100%;
   text-align: center;
 }
 
