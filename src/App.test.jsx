@@ -117,9 +117,7 @@ describe('App', () => {
     const user = userEvent.setup()
     renderApp('/login')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Create an account' }),
-    )
+    await user.click(await screen.findByRole('button', { name: 'Register' }))
 
     expect(
       await screen.findByRole('heading', { name: /create your account/i }),
@@ -366,7 +364,7 @@ describe('App', () => {
     const user = userEvent.setup()
     renderApp()
 
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.click(await screen.findByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
@@ -380,7 +378,7 @@ describe('App', () => {
     const user = userEvent.setup()
     renderApp()
 
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.click(await screen.findByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
@@ -399,7 +397,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const { unmount } = renderApp()
 
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.click(await screen.findByRole('button', { name: 'Sign in' }))
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
