@@ -100,7 +100,7 @@ describe('App', () => {
     renderApp()
 
     expect(
-      await screen.findByRole('heading', { name: /offer a ride/i }),
+      await screen.findByRole('heading', { name: /find a ride/i }),
     ).toBeInTheDocument()
   })
 
@@ -135,7 +135,7 @@ describe('App', () => {
       json: async () => ({ data: [] }),
     })
     renderApp()
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     await click('My Rides')
     await screen.findAllByRole('button', { name: 'Find a Ride' })
@@ -170,7 +170,7 @@ describe('App', () => {
       json: async () => ({ data: [] }),
     })
     renderApp()
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: /logout/i }))
@@ -191,14 +191,14 @@ describe('App', () => {
     })
     logoutUser.mockRejectedValue(new Error('Logout failed'))
     renderApp()
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: /logout/i }))
 
     expect(logoutUser).toHaveBeenCalled()
     expect(
-      await screen.findByRole('heading', { name: /offer a ride/i }),
+      await screen.findByRole('heading', { name: /find a ride/i }),
     ).toBeInTheDocument()
   })
 
@@ -214,7 +214,7 @@ describe('App', () => {
       json: async () => ({ data: [] }),
     })
     renderApp()
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     expect(screen.getByText('AO')).toBeInTheDocument()
   })
@@ -309,12 +309,9 @@ describe('App', () => {
     expect(
       await screen.findByRole(
         'heading',
-        { name: /offer a ride/i },
+        { name: /find a ride/i },
         { timeout: 5000 },
       ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Post Ride' }),
     ).toBeInTheDocument()
   }, 10000)
 
@@ -338,7 +335,7 @@ describe('App', () => {
       ),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /offer a ride/i }),
+      screen.queryByRole('heading', { name: /find a ride/i }),
     ).not.toBeInTheDocument()
   })
 
@@ -356,11 +353,11 @@ describe('App', () => {
       await screen.findByText('Password must be at least 8 characters'),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: /offer a ride/i }),
+      screen.queryByRole('heading', { name: /find a ride/i }),
     ).not.toBeInTheDocument()
   })
 
-  it('logs an existing colleague in and opens the post-ride screen', async () => {
+  it('logs an existing colleague in and opens the find-ride screen', async () => {
     const user = userEvent.setup()
     renderApp()
 
@@ -370,7 +367,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
     expect(
-      await screen.findByRole('heading', { name: /offer a ride/i }),
+      await screen.findByRole('heading', { name: /find a ride/i }),
     ).toBeInTheDocument()
   })
 
@@ -382,7 +379,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     // No screen handles this itself - the API layer announces it once and App
     // is the only subscriber.
@@ -401,7 +398,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Work email'), TAKEN.email)
     await user.type(screen.getByLabelText('Password'), TAKEN.password)
     await user.click(screen.getByRole('button', { name: 'Log in' }))
-    await screen.findByRole('heading', { name: /offer a ride/i })
+    await screen.findByRole('heading', { name: /find a ride/i })
 
     unmount()
 
@@ -411,25 +408,33 @@ describe('App', () => {
   it('opens the find-ride screen after posting a ride successfully', async () => {
     const user = userEvent.setup()
     const email = freshEmail()
-    apiFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => ({ data: { id: 'ride-1' } }),
-      })
-      .mockResolvedValue({
+    apiFetch.mockImplementation((path, options) => {
+      if (path === '/api/rides' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 201,
+          json: async () => ({ data: { id: 'ride-1' } }),
+        })
+      }
+      return Promise.resolve({
         ok: true,
         status: 200,
         json: async () => ({ data: [] }),
       })
+    })
     renderApp()
 
     await fillForm(user, { name: 'Ama Owusu', email, password: 'Sup3rSecret!' })
     await screen.findByRole(
       'heading',
-      { name: /offer a ride/i },
+      { name: /find a ride/i },
       { timeout: 5000 },
     )
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'Offer a Ride' })[0],
+    )
+    await screen.findByRole('heading', { name: /offer a ride/i })
 
     await user.type(screen.getByLabelText('Origin'), 'Kumasi')
     fireEvent.change(screen.getByLabelText('Departure date'), {
