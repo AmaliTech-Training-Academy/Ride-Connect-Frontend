@@ -169,6 +169,38 @@ describe('normaliseDriverRide', () => {
   })
 })
 
+describe('normaliseJoinedRide - decline reason', () => {
+  const base = {
+    id: 'ride-1',
+    driverName: 'Ama Owusu',
+    departureAt: new Date(2026, 8, 23, 7, 30).toISOString(),
+    requestId: 'req-1',
+    requestStatus: 'DECLINED',
+  }
+
+  it('carries the reason the driver gave', () => {
+    const ride = normaliseJoinedRide({
+      ...base,
+      rejectionReason: 'Car is already full.',
+      rerequestCount: 0,
+    })
+
+    expect(ride.rejectionReason).toBe('Car is already full.')
+    expect(ride.rerequestCount).toBe(0)
+  })
+
+  it('falls back to empty when the backend sends no reason', () => {
+    const ride = normaliseJoinedRide(base)
+    expect(ride.rejectionReason).toBe('')
+    expect(ride.rerequestCount).toBe(0)
+  })
+
+  it('reads a re-request that has already been used', () => {
+    const ride = normaliseJoinedRide({ ...base, rerequestCount: 1 })
+    expect(ride.rerequestCount).toBe(1)
+  })
+})
+
 describe('normaliseMyRides', () => {
   const now = new Date('2026-09-22T12:00:00.000Z')
 
@@ -259,6 +291,8 @@ describe('normaliseJoinedRide', () => {
       seatsAvailable: 3,
       requestId: 'request-1',
       requestStatus: 'PENDING',
+      rejectionReason: '',
+      rerequestCount: 0,
       requestedAt: '2026-09-22T08:00:00.000Z',
       isPast: false,
     })
@@ -274,9 +308,7 @@ describe('normaliseMyJoinedRides', () => {
     success: true,
     data: {
       driving: [{ id: 'driving-1' }],
-      joined: [
-        { id: 'joined-1', requestStatus: 'PENDING', departureAt: null },
-      ],
+      joined: [{ id: 'joined-1', requestStatus: 'PENDING', departureAt: null }],
       joinedPastAndCancelled: [
         { id: 'joined-past-1', requestStatus: 'DECLINED', departureAt: null },
       ],

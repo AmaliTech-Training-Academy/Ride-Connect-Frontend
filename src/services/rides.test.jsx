@@ -328,6 +328,61 @@ describe('rides service', () => {
       expect(result).toEqual(mockData)
     })
 
+    it('sends the reason when the driver gives one', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { id: 'request-1' } }),
+      })
+
+      await declinePassengerRequest('ride-123', 'request-1', '  Car is full  ')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/rides/ride-123/requests/request-1/decline',
+        ),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ reason: 'Car is full' }),
+        }),
+      )
+    })
+
+    it('always sends a reason body, since the backend requires one', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: {} }),
+      })
+
+      await declinePassengerRequest('ride-123', 'request-1', '   ')
+
+      // Trimmed to empty, but still sent so the backend's own validation
+      // is the single source of truth.
+      expect(globalThis.fetch.mock.calls[0][1].body).toBe(
+        JSON.stringify({ reason: '' }),
+      )
+    })
+
+    it('surfaces the field error from a 400 rather than the generic message', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          message: 'Validation failed',
+          data: { fields: { reason: ['A reason is required.'] } },
+        }),
+      })
+
+      await expect(
+        declinePassengerRequest('ride-123', 'request-1', ''),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'A reason is required.',
+      })
+    })
+
     it('throws RideStatusError when decline fails', async () => {
       globalThis.fetch.mockResolvedValueOnce({
         ok: false,

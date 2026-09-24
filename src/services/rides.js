@@ -113,20 +113,29 @@ export async function acceptPassengerRequest(rideId, requestId) {
  *
  * @param {string} rideId - UUID of the ride
  * @param {string} requestId - UUID of the join request
+ * @param {string} reason - Required, 1-500 characters after trimming
  * @returns {Promise<any>}
  */
-export async function declinePassengerRequest(rideId, requestId) {
+export async function declinePassengerRequest(rideId, requestId, reason = '') {
+  // The backend requires a reason of 1-500 characters after trimming.
+  const trimmedReason = String(reason ?? '').trim()
+
   const response = await apiFetch(
     `/api/rides/${encodeURIComponent(rideId)}/requests/${encodeURIComponent(requestId)}/decline`,
     {
       method: 'PATCH',
+      body: JSON.stringify({ reason: trimmedReason }),
     },
   )
 
   const body = await response.json().catch(() => null)
 
   if (!response.ok) {
+    // A 400 names the offending field, which reads better beside the input
+    // than the generic message does above the dialog.
+    const fieldMessage = body?.data?.fields?.reason?.[0]
     const message =
+      fieldMessage ||
       body?.message ||
       `Failed to decline passenger request (${response.status})`
     throw new RideStatusError(message, response.status)
