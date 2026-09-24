@@ -12,6 +12,7 @@ import {
   updateRideStatus,
   acceptPassengerRequest,
   declinePassengerRequest,
+  withdrawRideRequest,
   RideStatusError,
 } from './rides'
 
@@ -143,6 +144,83 @@ describe('rides service', () => {
 
       await expect(requestToJoinRide('ride-123')).rejects.toThrow(
         'Failed to send your request (500)',
+      )
+    })
+  })
+
+  describe('requestToJoinRide with a reason', () => {
+    it('sends the reason in the body', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ data: { id: 'req-2', status: 'PENDING' } }),
+      })
+
+      await requestToJoinRide('ride-1', 'Flexible on pickup time.')
+
+      expect(globalThis.fetch.mock.calls[0][1].body).toBe(
+        JSON.stringify({ reason: 'Flexible on pickup time.' }),
+      )
+    })
+
+    it('sends no body without a reason', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({ data: { id: 'req-3' } }),
+      })
+
+      await requestToJoinRide('ride-1')
+
+      expect(globalThis.fetch.mock.calls[0][1].body).toBeUndefined()
+    })
+  })
+
+  describe('withdrawRideRequest', () => {
+    it('patches the withdraw endpoint and returns the request', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: { id: 'req-1', status: 'WITHDRAWN' },
+        }),
+      })
+
+      const result = await withdrawRideRequest('ride-1', 'req-1')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rides/ride-1/requests/req-1/withdraw'),
+        expect.objectContaining({ method: 'PATCH' }),
+      )
+      expect(result).toEqual({ id: 'req-1', status: 'WITHDRAWN' })
+    })
+
+    it('throws RideStatusError with the backend message', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'Request can no longer be withdrawn' }),
+      })
+
+      const error = await withdrawRideRequest('ride-1', 'req-1').catch((e) => e)
+
+      expect(error).toBeInstanceOf(RideStatusError)
+      expect(error.status).toBe(409)
+      expect(error.message).toBe('Request can no longer be withdrawn')
+    })
+
+    it('falls back to a generic message on a non-JSON failure', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('not json')
+        },
+      })
+
+      await expect(withdrawRideRequest('ride-1', 'req-1')).rejects.toThrow(
+        'Failed to withdraw your request (500)',
       )
     })
   })
@@ -326,6 +404,61 @@ describe('rides service', () => {
         }),
       )
       expect(result).toEqual(mockData)
+    })
+
+    it('sends the reason when the driver gives one', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { id: 'request-1' } }),
+      })
+
+      await declinePassengerRequest('ride-123', 'request-1', '  Car is full  ')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/rides/ride-123/requests/request-1/decline',
+        ),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ reason: 'Car is full' }),
+        }),
+      )
+    })
+
+    it('always sends a reason body, since the backend requires one', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: {} }),
+      })
+
+      await declinePassengerRequest('ride-123', 'request-1', '   ')
+
+      // Trimmed to empty, but still sent so the backend's own validation
+      // is the single source of truth.
+      expect(globalThis.fetch.mock.calls[0][1].body).toBe(
+        JSON.stringify({ reason: '' }),
+      )
+    })
+
+    it('surfaces the field error from a 400 rather than the generic message', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          message: 'Validation failed',
+          data: { fields: { reason: ['A reason is required.'] } },
+        }),
+      })
+
+      await expect(
+        declinePassengerRequest('ride-123', 'request-1', ''),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'A reason is required.',
+      })
     })
 
     it('throws RideStatusError when decline fails', async () => {

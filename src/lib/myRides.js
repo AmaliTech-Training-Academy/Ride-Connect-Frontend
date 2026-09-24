@@ -137,7 +137,10 @@ export function normaliseJoinedRide(ride, { isPast = false } = {}) {
     requestId: ride.requestId,
     requestStatus: ride.requestStatus,
     requestedAt: ride.requestedAt,
-    declineReason: ride.declineReason,
+    // Only present once a driver has declined; the passenger is shown why.
+    rejectionReason: ride.rejectionReason ?? '',
+    // 0 means the passenger may ask once more; 1 means the decline is final.
+    rerequestCount: Number(ride.rerequestCount ?? 0),
     isPast,
   }
 }
