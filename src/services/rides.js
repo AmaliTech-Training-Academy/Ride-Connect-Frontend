@@ -31,20 +31,15 @@ export async function fetchMyRides() {
 }
 
 /**
- * Asks to join a ride as a passenger. `reason` is optional and is mainly
- * used when re-requesting a ride after an earlier request was declined.
+ * Asks to join a ride as a passenger.
  *
  * @param {string} rideId - UUID of the ride
- * @param {string} [reason] - Why the passenger wants to join
  * @returns {Promise<{ id: string, rideId: string, passengerId: string, status: string, createdAt: string }>}
  */
-export async function requestToJoinRide(rideId, reason) {
+export async function requestToJoinRide(rideId) {
   const response = await apiFetch(
     `/api/rides/${encodeURIComponent(rideId)}/requests`,
-    {
-      method: 'POST',
-      ...(reason ? { body: JSON.stringify({ reason }) } : {}),
-    },
+    { method: 'POST' },
   )
 
   const body = await response.json().catch(() => null)
@@ -85,6 +80,37 @@ export async function updateRideStatus(rideId, status) {
   }
 
   return body?.data
+}
+
+/**
+ * Asks once more after a decline. The backend allows a single re-request,
+ * and only while the ride is open and has not departed.
+ *
+ * @param {string} rideId - UUID of the ride
+ * @param {string} requestId - UUID of the declined request
+ * @param {string} reason - Required, 1-500 characters after trimming
+ * @returns {Promise<{ id: string, rideId: string, passengerId: string, status: string }>}
+ */
+export async function rerequestRide(rideId, requestId, reason) {
+  const response = await apiFetch(
+    `/api/rides/${encodeURIComponent(rideId)}/requests/${encodeURIComponent(requestId)}/rerequest`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ reason: String(reason ?? '').trim() }),
+    },
+  )
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      body?.data?.fields?.reason?.[0] ||
+      body?.message ||
+      `Failed to send your request again (${response.status})`
+    throw new RideStatusError(message, response.status)
+  }
+
+  return body?.data ?? body
 }
 
 /**

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import {
   Navigate,
+  Outlet,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useSearchParams,
 } from 'react-router-dom'
+import AppHeader from './components/AppHeader/AppHeader'
 import PostRideForm from './components/PostRideForm/PostRideForm'
 import FindARide from './pages/FindARide'
 import LoginScreen from './pages/LoginScreen'
@@ -22,6 +25,13 @@ function App() {
   const [authStatus, setAuthStatus] = useState('checking')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { pathname } = useLocation()
+
+  // The header stays mounted, so without this a new screen opens at the old
+  // scroll position with its top hidden under the sticky header.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   useEffect(() => {
     let isMounted = true
@@ -103,54 +113,50 @@ function App() {
           </RedirectIfAuthed>
         }
       />
+      {/* One header for every signed-in screen, so it stays put on navigation. */}
       <Route
-        path="/offer-a-ride"
         element={
           <RequireAuth user={user}>
+            <AppHeader userInitials={userInitials} onLogout={handleLogout} />
+            <Outlet />
+          </RequireAuth>
+        }
+      >
+        <Route
+          path="/offer-a-ride"
+          element={
             <PostRideForm
               onFindRide={(rideId) =>
                 navigate(
                   rideId ? `/find-a-ride?ride=${rideId}` : '/find-a-ride',
                 )
               }
-              onMyRides={() => navigate('/my-rides')}
-              onLogout={handleLogout}
-              userInitials={userInitials}
             />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/find-a-ride"
-        element={
-          <RequireAuth user={user}>
+          }
+        />
+        <Route
+          path="/find-a-ride"
+          element={
             <FindARide
               onOfferRide={() => navigate('/offer-a-ride')}
-              onMyRides={() => navigate('/my-rides')}
               onManageRide={(ride) => navigate(`/my-rides?manage=${ride.id}`)}
-              onLogout={handleLogout}
               currentUserId={user?.id}
               highlightedRideId={searchParams.get('ride')}
-              userInitials={userInitials}
               userName={user?.name}
             />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/my-rides"
-        element={
-          <RequireAuth user={user}>
+          }
+        />
+        <Route
+          path="/my-rides"
+          element={
             <MyRidesDashboard
               onFindRide={() => navigate('/find-a-ride')}
               onOfferRide={() => navigate('/offer-a-ride')}
               managedRideId={searchParams.get('manage')}
-              onLogout={handleLogout}
-              userInitials={userInitials}
             />
-          </RequireAuth>
-        }
-      />
+          }
+        />
+      </Route>
       <Route
         path="/"
         element={

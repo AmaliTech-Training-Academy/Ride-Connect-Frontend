@@ -5,35 +5,6 @@
   font-family: 'Poppins', sans-serif;
   text-align: left;
 }
-.my-rides-header {
-  display: flex;
-  align-items: center;
-  gap: 36px;
-  min-height: 76px;
-  padding: 0 5vw;
-  border-bottom: 1px solid #e3eae3;
-  background: #fff;
-}
-.my-rides-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: #246b2b;
-  font-size: 20px;
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.my-rides-brand i {
-  font-size: 22px;
-}
-.my-rides-nav {
-  display: flex;
-  align-self: stretch;
-  gap: 26px;
-}
-.my-rides-nav-link,
-.my-rides-icon-button,
 .my-rides-summary-button,
 .my-rides-menu-button,
 .my-rides-tabs button,
@@ -43,38 +14,6 @@
   cursor: pointer;
   font: inherit;
 }
-.my-rides-nav-link {
-  position: relative;
-  color: #718074;
-  font-size: 14px;
-  font-weight: 500;
-}
-.my-rides-nav-link.active {
-  color: #246b2b;
-  font-weight: 600;
-}
-.my-rides-nav-link.active::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: #4caf50;
-  content: '';
-}
-.my-rides-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-left: auto;
-}
-.my-rides-profile-group {
-  display: flex;
-  align-items: center;
-  gap: 33px; /* the header's normal 18px gap, plus 15px extra */
-}
-.my-rides-offer-link,
 .my-rides-primary-button {
   display: inline-flex;
   align-items: center;
@@ -91,30 +30,9 @@
     600 13px 'Poppins',
     sans-serif;
 }
-.my-rides-offer-link {
-  min-height: 36px;
-  padding: 7px 13px;
-}
-.my-rides-offer-link:hover,
 .my-rides-primary-button:hover,
 .my-rides-accept:hover {
   background: #256b2a;
-}
-.my-rides-icon-button {
-  position: relative;
-  padding: 8px;
-  color: #59645b;
-  font-size: 18px;
-}
-.my-rides-unread-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
-  border: 1px solid #fff;
-  border-radius: 50%;
-  background: #e05252;
 }
 .my-rides-avatar {
   display: inline-grid;
@@ -792,10 +710,6 @@
 }
 
 @media (max-width: 950px) {
-  .my-rides-header {
-    gap: 22px;
-    padding-inline: 24px;
-  }
   .my-rides-content {
     width: min(100% - 32px, 760px);
     padding-top: 34px;
@@ -809,37 +723,6 @@
   }
 }
 @media (max-width: 680px) {
-  .my-rides-header {
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 14px 16px 0;
-  }
-  .my-rides-brand {
-    margin-bottom: 13px;
-  }
-  .my-rides-header-actions {
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .my-rides-profile-group {
-    gap: 25px; /* the mobile 10px gap, plus 15px extra */
-  }
-  .my-rides-offer-link {
-    font-size: 0;
-    padding: 8px 10px;
-  }
-  .my-rides-offer-link i {
-    font-size: 14px;
-  }
-  .my-rides-nav {
-    order: 3;
-    width: 100%;
-    height: 42px;
-    gap: 24px;
-  }
-  .my-rides-nav-link {
-    flex: 0 0 auto;
-  }
   .my-rides-content {
     width: calc(100% - 28px);
     padding-top: 28px;

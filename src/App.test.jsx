@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
@@ -159,6 +165,56 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: /offer a ride/i }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps one header mounted across every signed-in screen', async () => {
+    const user = userEvent.setup()
+    getCurrentUser.mockResolvedValue({ id: 'user-1', email: TAKEN.email })
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    })
+    renderApp()
+    await screen.findByRole('heading', { name: /find a ride/i })
+
+    const header = screen.getByRole('banner')
+    const nav = () => within(header)
+
+    await user.click(nav().getByRole('button', { name: 'My Rides' }))
+    await screen.findByRole('heading', { name: /my rides/i })
+    expect(screen.getAllByRole('banner')).toEqual([header])
+    expect(nav().getByRole('button', { name: 'My Rides' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+
+    await user.click(nav().getByRole('button', { name: 'Offer a Ride' }))
+    await screen.findByRole('heading', { name: /offer a ride/i })
+    expect(screen.getAllByRole('banner')).toEqual([header])
+  })
+
+  it('opens each new screen at the top, not under the sticky header', async () => {
+    const user = userEvent.setup()
+    const scrollTo = jest.spyOn(window, 'scrollTo')
+    getCurrentUser.mockResolvedValue({ id: 'user-1', email: TAKEN.email })
+    apiFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    })
+    renderApp()
+    await screen.findByRole('heading', { name: /find a ride/i })
+    scrollTo.mockClear()
+
+    await user.click(
+      within(screen.getByRole('banner')).getByRole('button', {
+        name: 'My Rides',
+      }),
+    )
+
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    scrollTo.mockRestore()
   })
 
   it('logs the user out from the account menu and returns to the login screen', async () => {

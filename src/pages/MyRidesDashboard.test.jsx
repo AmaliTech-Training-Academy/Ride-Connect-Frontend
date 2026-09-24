@@ -6,7 +6,7 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
-  requestToJoinRide,
+  rerequestRide,
   updateRideStatus,
   withdrawRideRequest,
 } from '../services/rides'
@@ -17,7 +17,7 @@ jest.mock('../services/rides', () => ({
   updateRideStatus: jest.fn(),
   acceptPassengerRequest: jest.fn(),
   declinePassengerRequest: jest.fn(),
-  requestToJoinRide: jest.fn(),
+  rerequestRide: jest.fn(),
   withdrawRideRequest: jest.fn(),
   RideStatusError: class RideStatusError extends Error {
     constructor(message, status) {
@@ -333,7 +333,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
         }),
       ]
       fetchMyRides.mockResolvedValue(payload)
-      requestToJoinRide.mockResolvedValue({ id: 'request-20', status: 'PENDING' })
+      rerequestRide.mockResolvedValue({ id: 'request-20', status: 'PENDING' })
       await renderDashboard()
 
       await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
@@ -357,8 +357,9 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       )
       await user.click(screen.getByRole('button', { name: 'Send request' }))
 
-      expect(requestToJoinRide).toHaveBeenCalledWith(
+      expect(rerequestRide).toHaveBeenCalledWith(
         'ride-10',
+        'request-10',
         'I can be flexible on the pickup time.',
       )
       expect(
@@ -383,12 +384,58 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).not.toBeInTheDocument()
     })
 
+    it.each([
+      ['the ride is no longer open', { status: 'FULL' }],
+      ['the ride has departed', { departureAt: '2020-01-01T08:00:00.000Z' }],
+    ])('hides "Request again" when %s', async (_, overrides) => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joinedPastAndCancelled = [
+        joinedRide({ requestStatus: 'DECLINED', rerequestCount: 0, ...overrides }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(screen.getByText('Declined')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Request again' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('closes the dialog and explains why on a 409', async () => {
+      const error = new Error('You have already re-requested this ride.')
+      error.status = 409
+      rerequestRide.mockRejectedValueOnce(error)
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [joinedRide({ requestStatus: 'DECLINED' })]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+      await user.click(screen.getByRole('button', { name: 'Request again' }))
+      await user.type(
+        await screen.findByLabelText('Reason for rejoining'),
+        'Please reconsider.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Send request' }))
+
+      expect(
+        await screen.findByText('You have already re-requested this ride.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByLabelText('Reason for rejoining'),
+      ).not.toBeInTheDocument()
+    })
+
     it('shows an inline error and keeps the dialog open when rejoining fails', async () => {
       const user = userEvent.setup()
       const payload = buildMyRidesResponse()
       payload.data.joined = [joinedRide({ requestStatus: 'DECLINED' })]
       fetchMyRides.mockResolvedValue(payload)
-      requestToJoinRide.mockRejectedValueOnce(
+      rerequestRide.mockRejectedValueOnce(
         new Error('Failed to send your request.'),
       )
       await renderDashboard()
@@ -446,19 +493,6 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(
         screen.getByRole('heading', { name: 'Join requests' }),
       ).toBeInTheDocument()
-    })
-  })
-
-  describe('account menu', () => {
-    it('logs out from the account menu popover', async () => {
-      const user = userEvent.setup()
-      const onLogout = jest.fn()
-      await renderDashboard({ onLogout })
-
-      await user.click(screen.getByRole('button', { name: 'Account menu' }))
-      await user.click(screen.getByRole('menuitem', { name: /logout/i }))
-
-      expect(onLogout).toHaveBeenCalled()
     })
   })
 

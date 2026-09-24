@@ -3,12 +3,11 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
-  requestToJoinRide,
+  rerequestRide,
   updateRideStatus,
   withdrawRideRequest,
 } from '../services/rides'
 import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
-import UserMenu from '../components/UserMenu/UserMenu'
 import './MyRidesDashboard.css'
 
 function formatDate(dateString) {
@@ -274,8 +273,13 @@ function JoinedRideRow({
   const isDeclined = status === 'DECLINED'
   // Withdrawing applies to a request still standing, not one already refused.
   const canWithdraw = status === 'PENDING' || status === 'ACCEPTED'
-  // A passenger gets one more ask after a decline; after that it is final.
-  const canRejoin = isDeclined && ride.rerequestCount === 0 && onRejoin
+  // One more ask after a decline, and only while the ride can still take it.
+  const canRejoin =
+    isDeclined &&
+    ride.rerequestCount === 0 &&
+    ride.status === 'open' &&
+    !hasDeparted(ride) &&
+    onRejoin
 
   return (
     <div
@@ -753,13 +757,7 @@ function RejoinRideModal({ ride, ...props }) {
   return <RejoinRideDialog key={ride.id} ride={ride} {...props} />
 }
 
-function MyRidesDashboard({
-  onFindRide,
-  onOfferRide,
-  managedRideId,
-  onLogout,
-  userInitials,
-}) {
+function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
   const [rides, setRides] = useState([])
   const [joinedRides, setJoinedRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
@@ -1041,11 +1039,22 @@ function MyRidesDashboard({
     return runExclusive(`rejoin:${ride.id}`, async () => {
       setRejoinError('')
       try {
-        await requestToJoinRide(ride.id, rejoinReasonText.trim())
+        await rerequestRide(ride.id, ride.requestId, rejoinReasonText)
         setRideToRejoin(null)
         showToast('Your request has been sent again.')
         setReloadToken((token) => token + 1)
       } catch (error) {
+        if (error?.status === 409) {
+          // Already re-requested, or the ride is full/closed/departed; a
+          // retry can't succeed, so close and refresh the row's real state.
+          setRideToRejoin(null)
+          showToast(
+            error.message || 'This ride can no longer be requested again.',
+            'error',
+          )
+          setReloadToken((token) => token + 1)
+          return
+        }
         setRejoinError(error?.message || 'Failed to send your request.')
       }
     })
@@ -1053,48 +1062,6 @@ function MyRidesDashboard({
 
   return (
     <main className="my-rides-page" onClick={() => setMenuRideId(null)}>
-      <header className="my-rides-header">
-        <a
-          className="my-rides-brand"
-          href="#my-rides"
-          onClick={(event) => event.preventDefault()}
-        >
-          <i className="fa-solid fa-car-side" aria-hidden="true" />
-          <span>RideConnect</span>
-        </a>
-        <nav className="my-rides-nav" aria-label="Main navigation">
-          <button
-            type="button"
-            className="my-rides-nav-link"
-            onClick={onFindRide}
-          >
-            Find a Ride
-          </button>
-          <button type="button" className="my-rides-nav-link active">
-            My Rides
-          </button>
-        </nav>
-        <div className="my-rides-header-actions">
-          <button
-            type="button"
-            className="my-rides-offer-link"
-            onClick={onOfferRide}
-          >
-            <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
-          </button>
-          <div className="my-rides-profile-group">
-            <button
-              type="button"
-              className="my-rides-icon-button"
-              aria-label="Notifications"
-            >
-              <i className="fa-regular fa-bell" aria-hidden="true" />
-              <span className="my-rides-unread-dot" />
-            </button>
-            <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
-          </div>
-        </div>
-      </header>
       <section className="my-rides-content">
         <div className="my-rides-title-row">
           <div>

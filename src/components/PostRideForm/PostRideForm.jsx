@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
-import UserMenu from '../UserMenu/UserMenu'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
@@ -120,7 +119,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, onMyRides, onLogout, userInitials }) {
+function PostRideForm({ onFindRide }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -217,30 +216,6 @@ function PostRideForm({ onFindRide, onMyRides, onLogout, userInitials }) {
 
   return (
     <div className="post-ride-page">
-      <header className="app-header">
-        <i className="fa-solid fa-car-side" aria-hidden="true" />
-        <span>RideConnect</span>
-        {onFindRide && (
-          <nav className="post-ride-nav" aria-label="Main navigation">
-            <button
-              type="button"
-              className="post-ride-nav-link"
-              onClick={onFindRide}
-            >
-              Find a Ride
-            </button>
-            <button
-              type="button"
-              className="post-ride-nav-link"
-              onClick={onMyRides}
-            >
-              My Rides
-            </button>
-          </nav>
-        )}
-        <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
-      </header>
-
       {status === 'error' && (
         <div className="error-banner">
           <span>

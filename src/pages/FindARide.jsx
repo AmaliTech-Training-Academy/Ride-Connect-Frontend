@@ -5,7 +5,6 @@ import {
   requestToJoinRide,
   withdrawRideRequest,
 } from '../services/rides'
-import UserMenu from '../components/UserMenu/UserMenu'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -306,10 +305,7 @@ async function readResponseBody(response) {
 
 function FindARide({
   onOfferRide,
-  onMyRides,
   onManageRide,
-  onLogout,
-  userInitials,
   userName,
   currentUserId,
   highlightedRideId,
@@ -626,51 +622,6 @@ function FindARide({
 
   return (
     <main className="find-ride-page">
-      <header className="find-ride-header">
-        <a
-          className="find-ride-brand"
-          href="#find-ride"
-          onClick={(event) => event.preventDefault()}
-        >
-          <span className="find-ride-logo-badge">
-            <i className="fa-solid fa-car-side" aria-hidden="true" />
-          </span>
-          <span>RideConnect</span>
-        </a>
-        <nav className="find-ride-nav" aria-label="Main navigation">
-          <button type="button" className="find-ride-nav-link active">
-            Find a Ride
-          </button>
-          <button
-            type="button"
-            className="find-ride-nav-link"
-            onClick={onMyRides}
-          >
-            My Rides
-          </button>
-        </nav>
-        <div className="find-ride-header-actions">
-          <button
-            type="button"
-            className="find-ride-offer-link"
-            onClick={onOfferRide}
-          >
-            <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
-          </button>
-          <div className="find-ride-profile-group">
-            <button
-              type="button"
-              className="find-ride-icon-button"
-              aria-label="Notifications"
-            >
-              <i className="fa-regular fa-bell" aria-hidden="true" />
-              <span className="find-ride-unread-dot" />
-            </button>
-            <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
-          </div>
-        </div>
-      </header>
-
       <section className="find-ride-hero">
         <div className="find-ride-hero-inner">
           <p className="find-ride-hero-eyebrow">

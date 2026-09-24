@@ -7,51 +7,6 @@
   text-align: left;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 14px;
-  padding: 16px 24px;
-  margin-bottom: 20px;
-}
-
-.app-header i {
-  color: #2e7d32;
-  font-size: 20px;
-}
-
-.app-header span {
-  font-weight: 700;
-  font-size: 20px;
-  color: #2e7d32;
-}
-
-.post-ride-nav {
-  display: flex;
-  gap: 18px;
-  margin-left: auto;
-}
-
-.app-header .user-menu {
-  margin-left: auto;
-}
-
-.post-ride-nav-link {
-  border: 0;
-  background: transparent;
-  color: #6d796f;
-  cursor: pointer;
-  font: 500 13px 'Poppins', sans-serif;
-}
-
-.post-ride-nav-link.active {
-  color: #2e7d32;
-  font-weight: 600;
-}
-
 .error-banner {
   display: flex;
   align-items: center;

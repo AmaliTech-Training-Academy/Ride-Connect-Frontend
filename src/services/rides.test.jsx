@@ -13,6 +13,7 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   withdrawRideRequest,
+  rerequestRide,
   RideStatusError,
 } from './rides'
 
@@ -148,31 +149,71 @@ describe('rides service', () => {
     })
   })
 
-  describe('requestToJoinRide with a reason', () => {
-    it('sends the reason in the body', async () => {
+  describe('rerequestRide', () => {
+    it('patches the rerequest endpoint with the trimmed reason', async () => {
       globalThis.fetch.mockResolvedValueOnce({
         ok: true,
-        status: 201,
-        json: async () => ({ data: { id: 'req-2', status: 'PENDING' } }),
+        status: 200,
+        json: async () => ({
+          message: 'Request sent again successfully',
+          data: { id: 'req-1', status: 'PENDING' },
+        }),
       })
 
-      await requestToJoinRide('ride-1', 'Flexible on pickup time.')
+      const result = await rerequestRide('ride-1', 'req-1', '  Flexible.  ')
 
-      expect(globalThis.fetch.mock.calls[0][1].body).toBe(
-        JSON.stringify({ reason: 'Flexible on pickup time.' }),
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rides/ride-1/requests/req-1/rerequest'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ reason: 'Flexible.' }),
+        }),
+      )
+      expect(result).toEqual({ id: 'req-1', status: 'PENDING' })
+    })
+
+    it('surfaces the field error from a 400', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          message: 'The request is invalid',
+          data: { fields: { reason: ['A reason is required.'] } },
+        }),
+      })
+
+      await expect(rerequestRide('ride-1', 'req-1', ' ')).rejects.toThrow(
+        'A reason is required.',
       )
     })
 
-    it('sends no body without a reason', async () => {
+    it('carries a 409 status so the screen can explain it', async () => {
       globalThis.fetch.mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => ({ data: { id: 'req-3' } }),
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'You have already re-requested.' }),
       })
 
-      await requestToJoinRide('ride-1')
+      const error = await rerequestRide('ride-1', 'req-1', 'x').catch((e) => e)
 
-      expect(globalThis.fetch.mock.calls[0][1].body).toBeUndefined()
+      expect(error).toBeInstanceOf(RideStatusError)
+      expect(error.status).toBe(409)
+      expect(error.message).toBe('You have already re-requested.')
+    })
+
+    it('falls back to a generic message on a non-JSON failure', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('not json')
+        },
+      })
+
+      await expect(rerequestRide('ride-1', 'req-1', 'x')).rejects.toThrow(
+        'Failed to send your request again (500)',
+      )
     })
   })
 
