@@ -137,6 +137,7 @@ export function normaliseJoinedRide(ride, { isPast = false } = {}) {
     requestId: ride.requestId,
     requestStatus: ride.requestStatus,
     requestedAt: ride.requestedAt,
+    declineReason: ride.declineReason,
     isPast,
   }
 }

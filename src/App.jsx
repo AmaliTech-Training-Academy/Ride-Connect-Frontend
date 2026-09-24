@@ -132,6 +132,7 @@ function App() {
               currentUserId={user?.id}
               highlightedRideId={searchParams.get('ride')}
               userInitials={userInitials}
+              userName={user?.name}
             />
           </RequireAuth>
         }

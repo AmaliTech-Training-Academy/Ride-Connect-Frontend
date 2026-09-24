@@ -6,7 +6,9 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
+  requestToJoinRide,
   updateRideStatus,
+  withdrawRideRequest,
 } from '../services/rides'
 import { buildMyRidesResponse } from './myRidesMockData'
 
@@ -15,6 +17,8 @@ jest.mock('../services/rides', () => ({
   updateRideStatus: jest.fn(),
   acceptPassengerRequest: jest.fn(),
   declinePassengerRequest: jest.fn(),
+  requestToJoinRide: jest.fn(),
+  withdrawRideRequest: jest.fn(),
   RideStatusError: class RideStatusError extends Error {
     constructor(message, status) {
       super(message)
@@ -46,6 +50,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     fetchMyRides.mockResolvedValue(buildMyRidesResponse())
     acceptPassengerRequest.mockResolvedValue({ success: true })
     declinePassengerRequest.mockResolvedValue({ success: true })
+    withdrawRideRequest.mockResolvedValue({ status: 'WITHDRAWN' })
   })
 
   it('accepts requests until a ride is full and blocks remaining requests', async () => {
@@ -261,7 +266,32 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).toBeInTheDocument()
     })
 
-    it("shows a not-yet-available message when withdrawing a request", async () => {
+    it('withdraws a joined ride and removes it from the list', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [joinedRide()]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+      await user.click(
+        screen.getByRole('button', { name: 'Withdraw request' }),
+      )
+
+      expect(withdrawRideRequest).toHaveBeenCalledWith(
+        'ride-10',
+        'request-10',
+      )
+      expect(
+        await screen.findByText('Your request has been withdrawn.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Driver: Ama Owusu')).not.toBeInTheDocument()
+    })
+
+    it('shows an error and keeps the request when withdrawing fails', async () => {
+      withdrawRideRequest.mockRejectedValueOnce(
+        new Error('Failed to withdraw your request.'),
+      )
       const user = userEvent.setup()
       const payload = buildMyRidesResponse()
       payload.data.joined = [joinedRide()]
@@ -274,7 +304,74 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       )
 
       expect(
-        await screen.findByText("Withdrawing a request isn't available yet."),
+        await screen.findByText('Failed to withdraw your request.'),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
+    })
+
+    it('shows a declined request with a reason and offers to rejoin', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [
+        joinedRide({
+          requestStatus: 'DECLINED',
+          declineReason: 'Ride is full for this route already.',
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      requestToJoinRide.mockResolvedValue({ id: 'request-20', status: 'PENDING' })
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(screen.getByText('Declined')).toBeInTheDocument()
+      expect(
+        screen.getByText('Declined: Ride is full for this route already.'),
+      ).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Request again' }))
+      expect(
+        screen.getByRole('button', { name: 'Send request' }),
+      ).toBeDisabled()
+
+      await user.type(
+        await screen.findByLabelText('Reason for rejoining'),
+        'I can be flexible on the pickup time.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Send request' }))
+
+      expect(requestToJoinRide).toHaveBeenCalledWith(
+        'ride-10',
+        'I can be flexible on the pickup time.',
+      )
+      expect(
+        await screen.findByText('Your request has been sent again.'),
+      ).toBeInTheDocument()
+    })
+
+    it('shows an inline error and keeps the dialog open when rejoining fails', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [joinedRide({ requestStatus: 'DECLINED' })]
+      fetchMyRides.mockResolvedValue(payload)
+      requestToJoinRide.mockRejectedValueOnce(
+        new Error('Failed to send your request.'),
+      )
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+      await user.click(screen.getByRole('button', { name: 'Request again' }))
+      await user.type(
+        await screen.findByLabelText('Reason for rejoining'),
+        'Please reconsider.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Send request' }))
+
+      expect(
+        await screen.findByRole('alert'),
+      ).toHaveTextContent('Failed to send your request.')
+      expect(
+        screen.getByRole('button', { name: 'Try again' }),
       ).toBeInTheDocument()
     })
 

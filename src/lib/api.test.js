@@ -26,11 +26,21 @@ describe('apiFetch', () => {
       'https://52.213.178.166.nip.io/api/rides',
       {
         credentials: 'include',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json', 'X-Test': 'enabled' },
         method: 'POST',
         body: JSON.stringify({ origin: 'Madina' }),
       },
     )
+  })
+
+  it('never lets the browser answer from its HTTP cache', async () => {
+    const fetchSpy = jest.fn().mockResolvedValue({ ok: true, status: 200 })
+    globalThis.fetch = fetchSpy
+
+    await apiFetch('/api/rides/mine')
+
+    expect(fetchSpy.mock.calls[0][1].cache).toBe('no-store')
   })
 
   it('keeps the default Content-Type when a caller passes no headers', async () => {

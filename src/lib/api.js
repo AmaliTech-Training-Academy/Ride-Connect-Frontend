@@ -8,6 +8,9 @@ const API_BASE_URL =
 export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
+    // Per-user state (open requests, seat counts) changes on every action, so
+    // a refresh must never be answered from the browser's HTTP cache.
+    cache: 'no-store',
     ...options,
     headers: { 'Content-Type': 'application/json', ...options.headers },
   })

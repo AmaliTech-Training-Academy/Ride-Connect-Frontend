@@ -3,7 +3,9 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
+  requestToJoinRide,
   updateRideStatus,
+  withdrawRideRequest,
 } from '../services/rides'
 import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
 import UserMenu from '../components/UserMenu/UserMenu'
@@ -259,7 +261,7 @@ function RideRow({
   )
 }
 
-function JoinedRideRow({ ride, onWithdraw }) {
+function JoinedRideRow({ ride, onWithdraw, isBusy }) {
   return (
     <div className="my-rides-joined-row">
       <div className="my-rides-joined-info">
@@ -281,9 +283,47 @@ function JoinedRideRow({ ride, onWithdraw }) {
         <button
           type="button"
           className="my-rides-withdraw-button"
+          disabled={isBusy}
           onClick={() => onWithdraw(ride)}
         >
-          Withdraw request
+          {isBusy ? 'Withdrawing...' : 'Withdraw request'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DeclinedRideRow({ ride, onRejoin, isBusy }) {
+  return (
+    <div className="my-rides-joined-row">
+      <div className="my-rides-joined-info">
+        <strong>
+          {ride.origin}{' '}
+          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
+          {ride.destination}
+        </strong>
+        <span>
+          <i className="fa-regular fa-calendar" aria-hidden="true" />{' '}
+          {formatDate(ride.date)} · {formatTime(ride.time)}
+        </span>
+        <span className="my-rides-joined-driver">
+          Driver: {ride.driverName}
+        </span>
+        {ride.declineReason && (
+          <span className="my-rides-decline-reason">
+            Declined: {ride.declineReason}
+          </span>
+        )}
+      </div>
+      <div className="my-rides-joined-actions">
+        <StatusBadge status={ride.requestStatus.toLowerCase()} />
+        <button
+          type="button"
+          className="my-rides-withdraw-button"
+          disabled={isBusy}
+          onClick={(event) => onRejoin(ride, event.currentTarget)}
+        >
+          {isBusy ? 'Sending...' : 'Request again'}
         </button>
       </div>
     </div>
@@ -398,6 +438,135 @@ function CancelRideModal({ ride, ...props }) {
   return <CancelRideDialog key={ride.id} {...props} />
 }
 
+/**
+ * Shared focus-trap behaviour for the decline/rejoin confirmation dialogs:
+ * focus the "safe" action on open, wrap Tab inside the dialog, and restore
+ * focus to whatever opened it on close.
+ */
+function useModalFocusTrap(dialogRef, safeRef, returnFocusTo, onDismiss) {
+  const onDismissRef = useRef(onDismiss)
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss
+  }, [onDismiss])
+
+  useEffect(() => {
+    const previouslyFocused = returnFocusTo?.current ?? document.activeElement
+    safeRef.current?.focus()
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onDismissRef.current?.()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = dialogRef.current?.querySelectorAll(
+        'button:not([disabled]), textarea:not([disabled])',
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+}
+
+function RejoinRideDialog({
+  ride,
+  reason,
+  onReasonChange,
+  error,
+  isPending,
+  returnFocusTo,
+  onCancel,
+  onConfirm,
+}) {
+  const dialogRef = useRef(null)
+  const cancelRef = useRef(null)
+  useModalFocusTrap(dialogRef, cancelRef, returnFocusTo, onCancel)
+
+  const trimmedReason = reason.trim()
+
+  return (
+    <div className="my-rides-modal-backdrop">
+      <div
+        ref={dialogRef}
+        className="my-rides-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rejoin-ride-title"
+      >
+        <div className="my-rides-modal-icon my-rides-modal-icon-neutral">
+          <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+        </div>
+        <h2 id="rejoin-ride-title">Request to join again?</h2>
+        <p>
+          Your last request for {ride.origin} <i
+            className="fa-solid fa-arrow-right-long"
+            aria-hidden="true"
+          /> {ride.destination} was declined. Let {ride.driverName} know why
+          you&apos;d like to join again.
+        </p>
+        <label className="my-rides-modal-field" htmlFor="rejoin-reason">
+          Reason for rejoining
+        </label>
+        <textarea
+          id="rejoin-reason"
+          className="my-rides-modal-textarea"
+          rows={3}
+          value={reason}
+          onChange={(event) => onReasonChange(event.target.value)}
+          placeholder="e.g. I can be flexible on the pickup time."
+        />
+        {error && (
+          <p className="my-rides-modal-error" role="alert">
+            <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />{' '}
+            {error}
+          </p>
+        )}
+        <div className="my-rides-modal-actions">
+          <button
+            ref={cancelRef}
+            type="button"
+            className="my-rides-ghost-button"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="my-rides-confirm-button"
+            disabled={isPending || !trimmedReason}
+            onClick={onConfirm}
+          >
+            {error ? 'Try again' : 'Send request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RejoinRideModal({ ride, ...props }) {
+  if (!ride) return null
+  return <RejoinRideDialog key={ride.id} ride={ride} {...props} />
+}
+
 function MyRidesDashboard({
   onFindRide,
   onOfferRide,
@@ -416,6 +585,10 @@ function MyRidesDashboard({
   const [rideToCancel, setRideToCancel] = useState(null)
   const [cancelError, setCancelError] = useState('')
   const cancelTriggerRef = useRef(null)
+  const [rideToRejoin, setRideToRejoin] = useState(null)
+  const [rejoinReasonText, setRejoinReasonText] = useState('')
+  const [rejoinError, setRejoinError] = useState('')
+  const rejoinTriggerRef = useRef(null)
   const [toast, setToast] = useState(null)
   // Ref is the source of truth for the in-flight guard so two clicks in the
   // same tick can't both get past it; the state mirror only drives `disabled`.
@@ -431,6 +604,8 @@ function MyRidesDashboard({
    * leave the seat count stale.
    */
   const isRideBusy = (rideId) => pendingKeys.includes(`ride:${rideId}`)
+  const isJoinBusy = (rideId) => pendingKeys.includes(`join:${rideId}`)
+  const isRejoinBusy = (rideId) => pendingKeys.includes(`rejoin:${rideId}`)
 
   const runExclusive = async (key, action) => {
     if (pendingRef.current.has(key)) return
@@ -491,6 +666,9 @@ function MyRidesDashboard({
   )
   const approvedJoinedRides = joinedRides.filter(
     (ride) => ride.requestStatus === 'ACCEPTED',
+  )
+  const declinedJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'DECLINED',
   )
 
   useEffect(() => {
@@ -635,9 +813,43 @@ function MyRidesDashboard({
     })
   }
 
-  const handleWithdraw = () => {
-    // TODO: wire up once the backend exposes a withdraw-request endpoint.
-    showToast("Withdrawing a request isn't available yet.", 'error')
+  const handleWithdraw = (ride) =>
+    runExclusive(`join:${ride.id}`, async () => {
+      try {
+        await withdrawRideRequest(ride.id, ride.requestId)
+        setJoinedRides((current) =>
+          current.filter((item) => item.requestId !== ride.requestId),
+        )
+        showToast('Your request has been withdrawn.')
+      } catch (error) {
+        showToast(
+          error?.message || 'Failed to withdraw your request.',
+          'error',
+        )
+      }
+    })
+
+  const openRejoinDialog = (ride, trigger) => {
+    rejoinTriggerRef.current = trigger
+    setRejoinError('')
+    setRejoinReasonText('')
+    setRideToRejoin(ride)
+  }
+
+  const confirmRejoin = () => {
+    if (!rideToRejoin) return undefined
+    const ride = rideToRejoin
+    return runExclusive(`rejoin:${ride.id}`, async () => {
+      setRejoinError('')
+      try {
+        await requestToJoinRide(ride.id, rejoinReasonText.trim())
+        setRideToRejoin(null)
+        showToast('Your request has been sent again.')
+        setReloadToken((token) => token + 1)
+      } catch (error) {
+        setRejoinError(error?.message || 'Failed to send your request.')
+      }
+    })
   }
 
   return (
@@ -774,6 +986,7 @@ function MyRidesDashboard({
                         key={ride.requestId}
                         ride={ride}
                         onWithdraw={handleWithdraw}
+                        isBusy={isJoinBusy(ride.id)}
                       />
                     ))}
                   </div>
@@ -788,6 +1001,22 @@ function MyRidesDashboard({
                         key={ride.requestId}
                         ride={ride}
                         onWithdraw={handleWithdraw}
+                        isBusy={isJoinBusy(ride.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {declinedJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Declined</h2>
+                  <div className="my-rides-joined-list">
+                    {declinedJoinedRides.map((ride) => (
+                      <DeclinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onRejoin={openRejoinDialog}
+                        isBusy={isRejoinBusy(ride.id)}
                       />
                     ))}
                   </div>
@@ -951,6 +1180,21 @@ function MyRidesDashboard({
             setRideToCancel(null)
           }}
           onConfirm={confirmCancel}
+        />
+        <RejoinRideModal
+          ride={rideToRejoin}
+          reason={rejoinReasonText}
+          onReasonChange={setRejoinReasonText}
+          error={rejoinError}
+          returnFocusTo={rejoinTriggerRef}
+          isPending={
+            rideToRejoin ? pendingKeys.includes(`rejoin:${rideToRejoin.id}`) : false
+          }
+          onCancel={() => {
+            setRejoinError('')
+            setRideToRejoin(null)
+          }}
+          onConfirm={confirmRejoin}
         />
       </>
     </main>

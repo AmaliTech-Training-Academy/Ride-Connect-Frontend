@@ -530,6 +530,10 @@
 .my-rides-withdraw-button:hover {
   background: #f2f8f2;
 }
+.my-rides-withdraw-button:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
 .my-rides-empty-state {
   display: flex;
   align-items: center;
@@ -658,6 +662,35 @@
   font-size: 12px;
   text-align: left;
 }
+.my-rides-modal-field {
+  display: block;
+  margin: 18px 0 6px;
+  color: #405144;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+.my-rides-modal-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  color: #2b382d;
+  background: #fbfdfb;
+  font:
+    13px 'Poppins',
+    sans-serif;
+  text-align: left;
+  resize: vertical;
+}
+.my-rides-modal-textarea:focus {
+  outline: 2px solid #b8d8ba;
+  outline-offset: 1px;
+}
+.my-rides-modal-icon-neutral {
+  color: #246b2b;
+  background: #e1f1e2;
+}
 .my-rides-modal-actions {
   display: flex;
   justify-content: center;
@@ -673,6 +706,10 @@
     600 12px 'Poppins',
     sans-serif;
 }
+.my-rides-modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .my-rides-ghost-button {
   border: 1px solid #ccd8cd;
   color: #526157;
@@ -682,6 +719,18 @@
   border: 1px solid #bf4841;
   color: #fff;
   background: #bf4841;
+}
+.my-rides-confirm-button {
+  border: 1px solid #2e7d32;
+  color: #fff;
+  background: #2e7d32;
+}
+.my-rides-confirm-button:hover {
+  background: #256b2a;
+}
+.my-rides-decline-reason {
+  color: #a33b35;
+  font-size: 11.5px;
 }
 
 @media (max-width: 950px) {

@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { apiFetch } from '../lib/api'
 import FindARide from './FindARide'
-import { fetchMyRides, requestToJoinRide } from '../services/rides'
+import {
+  fetchMyRides,
+  requestToJoinRide,
+  withdrawRideRequest,
+} from '../services/rides'
 
 jest.mock('../lib/api', () => ({
   apiFetch: jest.fn(),
@@ -14,6 +18,7 @@ jest.mock('../lib/api', () => ({
 jest.mock('../services/rides', () => ({
   fetchMyRides: jest.fn(),
   requestToJoinRide: jest.fn(),
+  withdrawRideRequest: jest.fn(),
 }))
 
 function response(data, message = '') {
@@ -48,6 +53,8 @@ describe('FindARide', () => {
     fetchMyRides.mockResolvedValue({ data: { joined: [] } })
     requestToJoinRide.mockReset()
     requestToJoinRide.mockResolvedValue({ id: 'req-1', status: 'PENDING' })
+    withdrawRideRequest.mockReset()
+    withdrawRideRequest.mockResolvedValue({ status: 'WITHDRAWN' })
   })
 
   it('renders rides from a successful API response', async () => {
@@ -260,12 +267,55 @@ describe('FindARide', () => {
 
     await user.click(withdraw)
 
-    // No backend endpoint exists yet, so it reports that rather than
-    // pretending to withdraw the request.
     expect(
-      await screen.findByText("Withdrawing a request isn't available yet."),
+      await screen.findByText('Your request has been withdrawn.'),
     ).toBeInTheDocument()
-    expect(requestToJoinRide).toHaveBeenCalledTimes(1)
+    expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-1')
+    expect(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    ).toBeInTheDocument()
+  })
+
+  it('re-marks the ride as requested when withdrawing fails', async () => {
+    withdrawRideRequest.mockRejectedValueOnce(
+      new Error('Could not withdraw your request.'),
+    )
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    )
+
+    expect(
+      await screen.findByText('Could not withdraw your request.'),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
+  })
+
+  it('withdraws an already-requested ride using the request id from load', async () => {
+    fetchMyRides.mockResolvedValue({
+      data: {
+        joined: [
+          { id: 'ride-1', requestId: 'req-loaded', requestStatus: 'PENDING' },
+        ],
+      },
+    })
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    )
+
+    expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-loaded')
+    expect(
+      await screen.findByText('Your request has been withdrawn.'),
+    ).toBeInTheDocument()
   })
 
   it('sends only one request when the button is double-clicked', async () => {
@@ -301,22 +351,119 @@ describe('FindARide', () => {
     ).toBeInTheDocument()
   })
 
-  it('reports a duplicate request without inviting a retry', async () => {
+  it('reports a duplicate request and turns it into a working withdraw', async () => {
     const error = new Error('You have already requested this ride.')
+    error.status = 409
+    requestToJoinRide.mockRejectedValueOnce(error)
+    // First lookup (page load) misses the request; the 409 lookup finds it.
+    fetchMyRides
+      .mockResolvedValueOnce({ data: { joined: [] } })
+      .mockResolvedValue({
+        data: {
+          joined: [
+            { id: 'ride-1', requestId: 'req-existing', requestStatus: 'PENDING' },
+          ],
+        },
+      })
+
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'You have already requested this ride.',
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    )
+    expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-existing')
+  })
+
+  it('treats a 409 with no open request as a closed ride', async () => {
+    const error = new Error('This ride is full.')
     error.status = 409
     requestToJoinRide.mockRejectedValueOnce(error)
 
     const user = userEvent.setup()
     render(<FindARide onOfferRide={jest.fn()} />)
-    await screen.findByText('Ama Owusu')
 
-    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'You have already requested this ride.',
+      'This ride is full.',
     )
     expect(
-      screen.getByRole('button', { name: 'Withdraw request' }),
+      screen.getByRole('button', { name: 'Request to Join' }),
+    ).toBeInTheDocument()
+  })
+
+  it('never shows "Request to Join" before the request status has loaded', async () => {
+    let resolveMine
+    fetchMyRides.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMine = resolve
+      }),
+    )
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    // The ride list has loaded, but the viewer's own requests have not.
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled())
+    expect(
+      screen.queryByRole('button', { name: 'Request to Join' }),
+    ).not.toBeInTheDocument()
+
+    resolveMine({
+      data: {
+        joined: [
+          { id: 'ride-1', requestId: 'req-1', requestStatus: 'PENDING' },
+        ],
+      },
+    })
+
+    expect(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Request to Join' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps an accepted request as withdrawable after a reload', async () => {
+    fetchMyRides.mockResolvedValue({
+      data: {
+        joined: [
+          { id: 'ride-1', requestId: 'req-1', requestStatus: 'ACCEPTED' },
+        ],
+      },
+    })
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
+  })
+
+  it('offers "Request to Join" again for a withdrawn or declined request', async () => {
+    fetchMyRides.mockResolvedValue({
+      data: {
+        joined: [],
+        joinedPastAndCancelled: [
+          { id: 'ride-1', requestId: 'req-old', requestStatus: 'WITHDRAWN' },
+        ],
+      },
+    })
+
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Request to Join' }),
     ).toBeInTheDocument()
   })
 

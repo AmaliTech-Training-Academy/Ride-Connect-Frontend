@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
-import { fetchMyRides, requestToJoinRide } from '../services/rides'
+import {
+  fetchMyRides,
+  requestToJoinRide,
+  withdrawRideRequest,
+} from '../services/rides'
 import UserMenu from '../components/UserMenu/UserMenu'
 import './FindARide.css'
 
@@ -56,10 +60,42 @@ function normaliseRide(ride, currentUserId) {
   }
 }
 
+const INACTIVE_REQUEST_STATUSES = ['DECLINED', 'WITHDRAWN']
+
+/**
+ * `GET /api/rides` carries no per-user request status, so the viewer's open
+ * requests come from their own joined buckets: rideId -> requestId.
+ */
+async function fetchActiveRequestIds() {
+  const payload = await fetchMyRides()
+  const entries = [
+    ...(payload?.data?.joined ?? []),
+    ...(payload?.data?.joinedPastAndCancelled ?? []),
+  ]
+  const active = {}
+  entries.forEach((ride) => {
+    const status = String(ride?.requestStatus || '').toUpperCase()
+    if (!ride?.id || INACTIVE_REQUEST_STATUSES.includes(status)) return
+    if (!active[ride.id]) active[ride.id] = ride.requestId ?? null
+  })
+  return active
+}
+
 function getActiveDateLabel(date) {
   if (date === getDateOffset(0)) return 'Today'
   if (date === getDateOffset(1)) return 'Tomorrow'
   return formatDate(date)
+}
+
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function getFirstName(name) {
+  return name?.trim().split(/\s+/)[0] || 'there'
 }
 
 function Avatar({ initials }) {
@@ -77,6 +113,7 @@ function RideCard({
   const isLowSeat = ride.seatsAvailable === 1
   const isRequested = requestState === 'requested'
   const isSending = requestState === 'sending'
+  const isWithdrawing = requestState === 'withdrawing'
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
@@ -89,23 +126,29 @@ function RideCard({
   return (
     <article className={cardClassName}>
       <div className="find-ride-card-header">
-        <div className="find-ride-driver">
-          <Avatar initials={ride.driverInitials} />
-          <div>
-            <strong>{ride.driverName}</strong>
-            <span
-              className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
-            >
-              {ride.isOwnRide ? 'Your ride' : 'Open'}
-            </span>
-          </div>
-        </div>
+        <span
+          className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
+        >
+          {ride.isOwnRide ? 'Your ride' : 'Open'}
+        </span>
+        {typeof ride.price === 'number' && (
+          <span className="find-ride-price">
+            GHS {ride.price}
+            <small>/seat</small>
+          </span>
+        )}
       </div>
 
       <div className="find-ride-route">
-        <span>{ride.origin}</span>
-        <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />
-        <span>{ride.destination}</span>
+        <span className="find-ride-route-timeline" aria-hidden="true">
+          <span className="find-ride-route-dot find-ride-route-dot-start" />
+          <span className="find-ride-route-line" />
+          <span className="find-ride-route-dot find-ride-route-dot-end" />
+        </span>
+        <span className="find-ride-route-labels">
+          <span>{ride.origin}</span>
+          <span>{ride.destination}</span>
+        </span>
       </div>
 
       {ride.description && (
@@ -123,15 +166,26 @@ function RideCard({
         </span>
       </div>
 
-      <div
-        className={`find-ride-seats ${isLowSeat ? 'find-ride-seats-warning' : ''}`}
-      >
-        {isLowSeat && (
-          <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-        )}
-        {isLowSeat
-          ? '1 seat left'
-          : `${ride.seatsAvailable} of ${ride.seatsTotal} seats left`}
+      <div className="find-ride-card-divider" />
+
+      <div className="find-ride-driver-row">
+        <div className="find-ride-driver">
+          <Avatar initials={ride.driverInitials} />
+          <strong>{ride.driverName}</strong>
+        </div>
+        <div
+          className={`find-ride-seats ${isLowSeat ? 'find-ride-seats-warning' : ''}`}
+        >
+          {isLowSeat && (
+            <i
+              className="fa-solid fa-triangle-exclamation"
+              aria-hidden="true"
+            />
+          )}
+          {isLowSeat
+            ? '1 seat left'
+            : `${ride.seatsAvailable} of ${ride.seatsTotal} seats left`}
+        </div>
       </div>
 
       <div className="find-ride-card-action">
@@ -147,13 +201,17 @@ function RideCard({
           <button
             type="button"
             className={`find-ride-button ${isRequested ? 'find-ride-button-requested' : ''}`}
-            disabled={isSending}
+            disabled={isSending || isWithdrawing}
             onClick={() =>
               isRequested ? onWithdraw(ride) : onRequest(ride)
             }
           >
             {isRequested ? (
-              'Withdraw request'
+              isWithdrawing ? (
+                'Withdrawing...'
+              ) : (
+                'Withdraw request'
+              )
             ) : isSending ? (
               'Sending...'
             ) : (
@@ -252,6 +310,7 @@ function FindARide({
   onManageRide,
   onLogout,
   userInitials,
+  userName,
   currentUserId,
   highlightedRideId,
 }) {
@@ -263,13 +322,28 @@ function FindARide({
   const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
-  // rideId -> 'sending' | 'requested'
+  // rideId -> 'sending' | 'requested' | 'withdrawing'
   const [requestStates, setRequestStates] = useState({})
+  // rideId -> requestId, for rides with a request in `requestStates`
+  const [requestIds, setRequestIds] = useState({})
+  // Cards wait for this so a requested ride never flashes "Request to Join".
+  const [requestStatusReady, setRequestStatusReady] = useState(false)
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
+  const weekFromNow = getDateOffset(6)
   const hasFilters = Boolean(search.trim() || selectedDate)
   const filteredRides = rides
+  const ridesTodayCount = rides.filter((ride) => ride.date === today).length
+  const openSeatsCount = rides.reduce(
+    (sum, ride) => sum + (ride.seatsAvailable || 0),
+    0,
+  )
+  const driversThisWeekCount = new Set(
+    rides
+      .filter((ride) => ride.date >= today && ride.date <= weekFromNow)
+      .map((ride) => ride.driverId),
+  ).size
 
   useEffect(() => {
     if (!toast) return undefined
@@ -312,28 +386,31 @@ function FindARide({
   useEffect(() => {
     let ignore = false
 
-    // `GET /api/rides` carries no per-user request status, so the rides this
-    // user has already asked to join are read from their own joined buckets.
-    fetchMyRides()
-      .then((payload) => {
+    fetchActiveRequestIds()
+      .then((active) => {
         if (ignore) return
-        const joined = [
-          ...(payload?.data?.joined ?? []),
-          ...(payload?.data?.joinedPastAndCancelled ?? []),
-        ]
-        if (joined.length === 0) return
         setRequestStates((current) => {
           const next = { ...current }
-          joined.forEach((ride) => {
-            if (ride?.id && !next[ride.id]) next[ride.id] = 'requested'
+          Object.keys(active).forEach((rideId) => {
+            if (!next[rideId]) next[rideId] = 'requested'
+          })
+          return next
+        })
+        setRequestIds((current) => {
+          const next = { ...current }
+          Object.entries(active).forEach(([rideId, requestId]) => {
+            if (requestId) next[rideId] = requestId
           })
           return next
         })
       })
-      .catch(() => {
-        // A failure only costs the pre-marked state; the request itself still
-        // reports a duplicate, so the screen stays usable. A 401 is handled
-        // centrally by the API layer.
+      .catch((error) => {
+        // Falls back to "Request to Join"; a click on an already-requested
+        // ride then self-corrects through the 409 handling below.
+        if (!ignore) console.error('Unable to load your ride requests:', error)
+      })
+      .finally(() => {
+        if (!ignore) setRequestStatusReady(true)
       })
 
     return () => {
@@ -375,16 +452,42 @@ function FindARide({
     setRequestStates((current) => ({ ...current, [ride.id]: 'sending' }))
 
     try {
-      await requestToJoinRide(ride.id)
+      const requestResult = await requestToJoinRide(ride.id)
       setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      if (requestResult?.id) {
+        setRequestIds((current) => ({
+          ...current,
+          [ride.id]: requestResult.id,
+        }))
+      }
       setToast({
         tone: 'success',
         message: `Request sent to ${ride.driverName}. The driver will be notified.`,
       })
     } catch (error) {
       if (error?.status === 409) {
-        // Already requested - reflect that rather than inviting a retry.
+        // 409 means "already requested" or "ride closed"; the viewer's own
+        // requests tell the two apart and supply the id Withdraw needs.
+        const active = await fetchActiveRequestIds().catch(() => null)
+        if (active && !(ride.id in active)) {
+          setRequestStates((current) => {
+            const next = { ...current }
+            delete next[ride.id]
+            return next
+          })
+          setToast({
+            tone: 'error',
+            message: error.message || 'This ride is no longer open.',
+          })
+          return
+        }
         setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+        if (active?.[ride.id]) {
+          setRequestIds((current) => ({
+            ...current,
+            [ride.id]: active[ride.id],
+          }))
+        }
         setToast({
           tone: 'error',
           message: error.message || 'You have already requested this ride.',
@@ -403,16 +506,53 @@ function FindARide({
     }
   }
 
-  const handleWithdraw = () => {
-    // TODO: wire up once the backend exposes a withdraw-request endpoint.
-    setToast({
-      tone: 'error',
-      message: "Withdrawing a request isn't available yet.",
-    })
+  const handleWithdraw = async (ride) => {
+    setRequestStates((current) => ({ ...current, [ride.id]: 'withdrawing' }))
+
+    let requestId = requestIds[ride.id]
+    if (!requestId) {
+      const active = await fetchActiveRequestIds().catch(() => null)
+      requestId = active?.[ride.id]
+    }
+    if (!requestId) {
+      setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      setToast({
+        tone: 'error',
+        message: 'Could not find your request for this ride.',
+      })
+      return
+    }
+
+    try {
+      await withdrawRideRequest(ride.id, requestId)
+      setRequestStates((current) => {
+        const next = { ...current }
+        delete next[ride.id]
+        return next
+      })
+      setRequestIds((current) => {
+        const next = { ...current }
+        delete next[ride.id]
+        return next
+      })
+      setToast({
+        tone: 'success',
+        message: 'Your request has been withdrawn.',
+      })
+    } catch (error) {
+      setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      setToast({
+        tone: 'error',
+        message: error?.message || 'Could not withdraw your request.',
+      })
+    }
   }
 
   const renderResults = () => {
-    if (loadState === 'loading') {
+    if (
+      loadState === 'loading' ||
+      (loadState === 'loaded' && !requestStatusReady)
+    ) {
       return (
         <div className="find-ride-grid">
           {Array.from({ length: 6 }, (_, index) => (
@@ -492,7 +632,9 @@ function FindARide({
           href="#find-ride"
           onClick={(event) => event.preventDefault()}
         >
-          <i className="fa-solid fa-car-side" aria-hidden="true" />
+          <span className="find-ride-logo-badge">
+            <i className="fa-solid fa-car-side" aria-hidden="true" />
+          </span>
           <span>RideConnect</span>
         </a>
         <nav className="find-ride-nav" aria-label="Main navigation">
@@ -528,6 +670,38 @@ function FindARide({
           </div>
         </div>
       </header>
+
+      <section className="find-ride-hero">
+        <div className="find-ride-hero-inner">
+          <p className="find-ride-hero-eyebrow">
+            {getGreeting()}, {getFirstName(userName)}
+          </p>
+          <h2 className="find-ride-hero-heading">Where are you headed today?</h2>
+          <p className="find-ride-hero-subtitle">
+            Find a colleague heading your way and share the ride.
+          </p>
+          <div className="find-ride-stats">
+            <div className="find-ride-stat-card">
+              <span className="find-ride-stat-value">{ridesTodayCount}</span>
+              <span className="find-ride-stat-label">Rides on offer today</span>
+            </div>
+            <div className="find-ride-stat-card">
+              <span className="find-ride-stat-value">{openSeatsCount}</span>
+              <span className="find-ride-stat-label">
+                Seats waiting to be filled
+              </span>
+            </div>
+            <div className="find-ride-stat-card">
+              <span className="find-ride-stat-value">
+                {driversThisWeekCount}
+              </span>
+              <span className="find-ride-stat-label">
+                Colleagues driving this week
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="find-ride-content">
         <div className="find-ride-title-row">

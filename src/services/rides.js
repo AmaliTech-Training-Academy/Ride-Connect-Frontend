@@ -31,15 +31,20 @@ export async function fetchMyRides() {
 }
 
 /**
- * Asks to join a ride as a passenger.
+ * Asks to join a ride as a passenger. `reason` is optional and is mainly
+ * used when re-requesting a ride after an earlier request was declined.
  *
  * @param {string} rideId - UUID of the ride
+ * @param {string} [reason] - Why the passenger wants to join
  * @returns {Promise<{ id: string, rideId: string, passengerId: string, status: string, createdAt: string }>}
  */
-export async function requestToJoinRide(rideId) {
+export async function requestToJoinRide(rideId, reason) {
   const response = await apiFetch(
     `/api/rides/${encodeURIComponent(rideId)}/requests`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      ...(reason ? { body: JSON.stringify({ reason }) } : {}),
+    },
   )
 
   const body = await response.json().catch(() => null)
@@ -80,6 +85,30 @@ export async function updateRideStatus(rideId, status) {
   }
 
   return body?.data
+}
+
+/**
+ * Withdraws the signed-in user's own join request for a ride.
+ *
+ * @param {string} rideId - UUID of the ride
+ * @param {string} requestId - UUID of the join request
+ * @returns {Promise<any>}
+ */
+export async function withdrawRideRequest(rideId, requestId) {
+  const response = await apiFetch(
+    `/api/rides/${encodeURIComponent(rideId)}/requests/${encodeURIComponent(requestId)}/withdraw`,
+    { method: 'PATCH' },
+  )
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      body?.message || `Failed to withdraw your request (${response.status})`
+    throw new RideStatusError(message, response.status)
+  }
+
+  return body?.data ?? body
 }
 
 /**
