@@ -3,6 +3,7 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
+  fetchRideRequests,
   rerequestRide,
   updateRideStatus,
   withdrawRideRequest,
@@ -61,17 +62,77 @@ function StatusBadge({ status }) {
   )
 }
 
+/**
+ * `GET /rides/mine` doesn't say which pending requests are re-requests or
+ * why, so each upcoming ride with requests is asked directly. Resolves to
+ * rideId -> (requestId -> re-request fields); a ride whose lookup fails just
+ * shows its requests as ordinary ones.
+ */
+async function addRerequestDetails(rides) {
+  const withRequests = rides.filter(
+    (ride) => !isPastRide(ride) && ride.pendingRequests.length > 0,
+  )
+  const results = await Promise.all(
+    withRequests.map((ride) =>
+      fetchRideRequests(ride.id)
+        .then((requests) => [ride.id, requests])
+        .catch(() => null),
+    ),
+  )
+
+  const details = new Map()
+  results.filter(Boolean).forEach(([rideId, requests]) => {
+    details.set(
+      rideId,
+      new Map(
+        requests.map((request) => [
+          request.id,
+          {
+            isRerequest: Boolean(request.isRerequest),
+            rejectionReason: request.rejectionReason ?? '',
+            rerequestReason: request.rerequestReason ?? '',
+          },
+        ]),
+      ),
+    )
+  })
+  return details
+}
+
 function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
   return (
     <div
-      className={`my-rides-person-row ${isFull ? 'my-rides-person-row-warning' : ''}`}
+      className={[
+        'my-rides-person-row',
+        isFull ? 'my-rides-person-row-warning' : '',
+        request.isRerequest ? 'my-rides-person-row-rerequest' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <Avatar initials={request.initials} />
       <div className="my-rides-person-info">
-        <strong>{request.name}</strong>
+        <strong>
+          {request.name}
+          {request.isRerequest && (
+            <span className="my-rides-rerequest-badge">Re-request</span>
+          )}
+        </strong>
         <span>Requested {request.requestedLabel} ago</span>
       </div>
       <StatusBadge status="pending" />
+      {request.isRerequest && (
+        <dl className="my-rides-rerequest-reasons">
+          <div>
+            <dt>You declined because</dt>
+            <dd>{request.rejectionReason || 'No reason was given.'}</dd>
+          </div>
+          <div>
+            <dt>{request.name} asks again because</dt>
+            <dd>{request.rerequestReason || 'No reason was given.'}</dd>
+          </div>
+        </dl>
+      )}
       {isFull && (
         <p className="my-rides-full-warning">
           <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />{' '}
@@ -823,6 +884,25 @@ function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
         setExpandedRideId(preferredId)
         setJoinedRides(normaliseMyJoinedRides(payload))
         setLoadState('loaded')
+        // Extra detail only: a failure here must not replace a loaded page
+        // with the error state below.
+        return addRerequestDetails(loaded).catch(() => null)
+      })
+      .then((details) => {
+        if (ignore || !details?.size) return
+        setRides((current) =>
+          current.map((ride) =>
+            details.has(ride.id)
+              ? {
+                  ...ride,
+                  pendingRequests: ride.pendingRequests.map((request) => ({
+                    ...request,
+                    ...details.get(ride.id).get(request.id),
+                  })),
+                }
+              : ride,
+          ),
+        )
       })
       .catch((error) => {
         if (ignore) return

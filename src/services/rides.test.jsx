@@ -14,6 +14,7 @@ import {
   declinePassengerRequest,
   withdrawRideRequest,
   rerequestRide,
+  fetchRideRequests,
   RideStatusError,
 } from './rides'
 
@@ -145,6 +146,72 @@ describe('rides service', () => {
 
       await expect(requestToJoinRide('ride-123')).rejects.toThrow(
         'Failed to send your request (500)',
+      )
+    })
+  })
+
+  describe('fetchRideRequests', () => {
+    it("returns the ride's pending requests with their re-request fields", async () => {
+      const requests = [
+        {
+          id: 'req-1',
+          passengerName: 'Ada Lovelace',
+          status: 'PENDING',
+          isRerequest: true,
+          rejectionReason: 'Car is already full.',
+          rerequestReason: 'I can meet you at the junction instead.',
+        },
+      ]
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: requests }),
+      })
+
+      const result = await fetchRideRequests('ride-1')
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rides/ride-1/requests'),
+        expect.objectContaining({ credentials: 'include' }),
+      )
+      expect(result).toEqual(requests)
+    })
+
+    it('returns an empty list when the body carries no data', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true }),
+      })
+
+      await expect(fetchRideRequests('ride-1')).resolves.toEqual([])
+    })
+
+    it('throws RideStatusError when the lookup fails', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ message: 'This is not your ride.' }),
+      })
+
+      const error = await fetchRideRequests('ride-1').catch((e) => e)
+
+      expect(error).toBeInstanceOf(RideStatusError)
+      expect(error.status).toBe(403)
+      expect(error.message).toBe('This is not your ride.')
+    })
+
+    it('falls back to a generic message on a non-JSON failure', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('not json')
+        },
+      })
+
+      await expect(fetchRideRequests('ride-1')).rejects.toThrow(
+        "Failed to load the ride's requests (500)",
       )
     })
   })

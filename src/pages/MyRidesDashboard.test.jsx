@@ -6,6 +6,7 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
+  fetchRideRequests,
   rerequestRide,
   updateRideStatus,
   withdrawRideRequest,
@@ -14,6 +15,7 @@ import { buildMyRidesResponse } from './myRidesMockData'
 
 jest.mock('../services/rides', () => ({
   fetchMyRides: jest.fn(),
+  fetchRideRequests: jest.fn(),
   updateRideStatus: jest.fn(),
   acceptPassengerRequest: jest.fn(),
   declinePassengerRequest: jest.fn(),
@@ -62,6 +64,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     fetchMyRides.mockResolvedValue(buildMyRidesResponse())
+    fetchRideRequests.mockResolvedValue([])
     acceptPassengerRequest.mockResolvedValue({ success: true })
     declinePassengerRequest.mockResolvedValue({ success: true })
     withdrawRideRequest.mockResolvedValue({ status: 'WITHDRAWN' })
@@ -108,6 +111,46 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       await screen.findByText('Declined request from Nana Yeboah.'),
     ).toBeInTheDocument()
     expect(screen.queryByText('Requested 8 min ago')).not.toBeInTheDocument()
+  })
+
+  it('shows the driver a re-request with both reasons', async () => {
+    fetchRideRequests.mockImplementation(async (rideId) =>
+      rideId === 'driving-1'
+        ? [
+            {
+              id: 'request-1',
+              passengerName: 'Nana Yeboah',
+              status: 'PENDING',
+              isRerequest: true,
+              rejectionReason: 'Car is already full.',
+              rerequestReason: 'I can meet you at the junction instead.',
+            },
+          ]
+        : [],
+    )
+    await renderDashboard()
+
+    expect(await screen.findByText('Re-request')).toBeInTheDocument()
+    expect(fetchRideRequests).toHaveBeenCalledWith('driving-1')
+    expect(screen.getByText('You declined because')).toBeInTheDocument()
+    expect(screen.getByText('Car is already full.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Nana Yeboah asks again because'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('I can meet you at the junction instead.'),
+    ).toBeInTheDocument()
+    // Only the re-request is marked; the other requests stay plain.
+    expect(screen.getAllByText('Re-request')).toHaveLength(1)
+  })
+
+  it('still lists requests as plain ones when the re-request lookup fails', async () => {
+    fetchRideRequests.mockRejectedValue(new Error('Service unavailable'))
+    await renderDashboard()
+
+    expect(screen.getByText('3 new requests')).toBeInTheDocument()
+    expect(screen.getByText('Nana Yeboah')).toBeInTheDocument()
+    expect(screen.queryByText('Re-request')).not.toBeInTheDocument()
   })
 
   it('handles error when accepting request fails', async () => {

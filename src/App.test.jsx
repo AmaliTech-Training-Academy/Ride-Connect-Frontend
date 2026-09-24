@@ -49,6 +49,7 @@ function renderApp(initialRoute = '/') {
 // FindARide reads the viewer's own rides to mark ones already requested.
 jest.mock('./services/rides', () => ({
   fetchMyRides: jest.fn(() => Promise.resolve({ data: { joined: [] } })),
+  fetchRideRequests: jest.fn(() => Promise.resolve([])),
   requestToJoinRide: jest.fn(),
 }))
 

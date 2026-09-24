@@ -263,6 +263,43 @@
 .my-rides-person-row:last-child {
   border-bottom: 0;
 }
+.my-rides-person-row-rerequest {
+  flex-wrap: wrap;
+}
+.my-rides-person-info .my-rides-rerequest-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #8c6019;
+  background: #fff2d9;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.my-rides-rerequest-reasons {
+  /* Its own line under the row, so Accept/Decline stay on the first one. */
+  display: grid;
+  flex-basis: 100%;
+  order: 1;
+  gap: 8px;
+  margin: 2px 0 4px 50px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f7faf7;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+.my-rides-rerequest-reasons dt {
+  color: #6c7a6f;
+  font-size: 11px;
+  font-weight: 600;
+}
+.my-rides-rerequest-reasons dd {
+  margin: 0;
+  color: #2d3a30;
+}
 .my-rides-person-info {
   display: grid;
   flex: 1;

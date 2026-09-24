@@ -83,6 +83,30 @@ export async function updateRideStatus(rideId, status) {
 }
 
 /**
+ * Lists the pending requests on a ride the viewer drives. Unlike the
+ * `pendingRequests` in `GET /rides/mine`, each one says whether it is a
+ * re-request and carries both reasons.
+ *
+ * @param {string} rideId - UUID of the ride
+ * @returns {Promise<Array<{ id: string, passengerName: string, status: string, isRerequest?: boolean, rejectionReason?: string, rerequestReason?: string }>>}
+ */
+export async function fetchRideRequests(rideId) {
+  const response = await apiFetch(
+    `/api/rides/${encodeURIComponent(rideId)}/requests`,
+  )
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      body?.message || `Failed to load the ride's requests (${response.status})`
+    throw new RideStatusError(message, response.status)
+  }
+
+  return body?.data ?? []
+}
+
+/**
  * Asks once more after a decline. The backend allows a single re-request,
  * and only while the ride is open and has not departed.
  *
