@@ -28,6 +28,20 @@ jest.mock('../services/rides', () => ({
  * Renders the screen and waits for the initial fetch to settle, so tests can
  * act on the list straight away.
  */
+/**
+ * Decline opens a confirm step, then a reason step. The backend requires the
+ * reason, so one is always typed.
+ */
+async function declineThroughDialog(
+  user,
+  { index = 0, reason = 'Car is already full.' } = {},
+) {
+  await user.click(screen.getAllByRole('button', { name: 'Decline' })[index])
+  await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+  await user.type(screen.getByLabelText(/Reason/), reason)
+  await user.click(screen.getByRole('button', { name: /Decline request/ }))
+}
+
 async function renderDashboard(props = {}) {
   const result = render(
     <MyRidesDashboard
@@ -79,10 +93,11 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     const user = userEvent.setup()
     await renderDashboard()
 
-    await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+    await declineThroughDialog(user)
     expect(declinePassengerRequest).toHaveBeenCalledWith(
       'driving-1',
       'request-1',
+      'Car is already full.',
     )
     expect(
       await screen.findByText('Declined request from Nana Yeboah.'),
@@ -261,7 +276,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).toBeInTheDocument()
     })
 
-    it("shows a not-yet-available message when withdrawing a request", async () => {
+    it('shows a not-yet-available message when withdrawing a request', async () => {
       const user = userEvent.setup()
       const payload = buildMyRidesResponse()
       payload.data.joined = [joinedRide()]
@@ -269,9 +284,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       await renderDashboard()
 
       await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
-      await user.click(
-        screen.getByRole('button', { name: 'Withdraw request' }),
-      )
+      await user.click(screen.getByRole('button', { name: 'Withdraw request' }))
 
       expect(
         await screen.findByText("Withdrawing a request isn't available yet."),
@@ -284,7 +297,9 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       fetchMyRides.mockRejectedValue(error)
       const user = userEvent.setup()
 
-      render(<MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />)
+      render(
+        <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
+      )
 
       await user.click(
         await screen.findByRole('tab', { name: /Rides I.ve joined/ }),
@@ -424,9 +439,14 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       )
       await renderDashboard()
 
-      const decline = screen.getAllByRole('button', { name: 'Decline' })[0]
-      await user.click(decline)
-      await user.click(decline)
+      // The guard now sits on the dialog's confirm button, since the row's
+      // Decline only opens the dialog.
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+      await user.type(screen.getByLabelText(/Reason/), 'Car is full')
+      const confirm = screen.getByRole('button', { name: /Decline request/ })
+      await user.click(confirm)
+      await user.click(confirm)
 
       expect(declinePassengerRequest).toHaveBeenCalledTimes(1)
       releaseDecline({})
@@ -467,10 +487,10 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       const user = userEvent.setup()
       const error = new Error('Request not found')
       error.status = 404
-      declinePassengerRequest.mockRejectedValueOnce(error)
+      acceptPassengerRequest.mockRejectedValueOnce(error)
       await renderDashboard()
 
-      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
 
       const toast = await screen.findByRole('alert')
       expect(toast).toHaveTextContent('Request not found')
@@ -482,7 +502,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       const user = userEvent.setup()
       await renderDashboard()
 
-      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await declineThroughDialog(user)
 
       const toast = await screen.findByRole('status')
       expect(toast).toHaveClass('my-rides-toast-success')
@@ -958,7 +978,7 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       )
       await renderDashboard()
 
-      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await declineThroughDialog(user)
       await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
 
       expect(acceptPassengerRequest).not.toHaveBeenCalled()
@@ -966,6 +986,260 @@ describe('MyRidesDashboard - Ride Status Management', () => {
 
       release({})
       await screen.findByText('Declined request from Nana Yeboah.')
+    })
+  })
+
+  describe('declining with a reason', () => {
+    it('asks for confirmation instead of declining straight away', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+
+      expect(
+        screen.getByRole('heading', { name: "Decline Nana Yeboah's request?" }),
+      ).toBeInTheDocument()
+      expect(declinePassengerRequest).not.toHaveBeenCalled()
+    })
+
+    it('keeps the request when the driver backs out', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getByRole('button', { name: 'Keep request' }))
+
+      expect(
+        screen.queryByRole('heading', { name: /Decline .* request\?/ }),
+      ).not.toBeInTheDocument()
+      expect(declinePassengerRequest).not.toHaveBeenCalled()
+      expect(screen.getByText('Requested 8 min ago')).toBeInTheDocument()
+    })
+
+    it('asks for a reason only after the driver confirms', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      expect(screen.queryByLabelText('Reason')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+
+      expect(screen.getByLabelText(/Reason/)).toBeInTheDocument()
+      expect(declinePassengerRequest).not.toHaveBeenCalled()
+    })
+
+    it('sends the reason the driver typed', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await declineThroughDialog(user, { reason: '  The car is full  ' })
+
+      expect(declinePassengerRequest).toHaveBeenCalledWith(
+        'driving-1',
+        'request-1',
+        '  The car is full  ',
+      )
+      expect(
+        await screen.findByText('Declined request from Nana Yeboah.'),
+      ).toBeInTheDocument()
+    })
+
+    it('blocks the decline until a reason is given', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+
+      const confirm = screen.getByRole('button', { name: /Decline request/ })
+      expect(confirm).toBeDisabled()
+
+      // Whitespace alone is not a reason; the backend trims before validating.
+      await user.type(screen.getByLabelText(/Reason/), '   ')
+      expect(confirm).toBeDisabled()
+
+      await user.type(screen.getByLabelText(/Reason/), 'No space left')
+      expect(confirm).toBeEnabled()
+    })
+
+    it('shows the backend field error when the reason is rejected', async () => {
+      const user = userEvent.setup()
+      const error = new Error('A reason is required.')
+      error.status = 400
+      declinePassengerRequest.mockRejectedValueOnce(error)
+      await renderDashboard()
+
+      await declineThroughDialog(user, { reason: 'x' })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'A reason is required.',
+      )
+    })
+
+    it('can step back to the confirmation without losing the dialog', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+      await user.click(screen.getByRole('button', { name: 'Back' }))
+
+      expect(
+        screen.getByRole('heading', { name: "Decline Nana Yeboah's request?" }),
+      ).toBeInTheDocument()
+      expect(declinePassengerRequest).not.toHaveBeenCalled()
+    })
+
+    it('counts the characters typed', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.click(screen.getByRole('button', { name: 'Yes, decline' }))
+      await user.type(screen.getByLabelText(/Reason/), 'Full')
+
+      expect(screen.getByText('4/500')).toBeInTheDocument()
+    })
+
+    it('keeps the dialog open with the reason intact when the call fails', async () => {
+      const user = userEvent.setup()
+      const error = new Error('Request not found')
+      error.status = 404
+      declinePassengerRequest.mockRejectedValueOnce(error)
+      await renderDashboard()
+
+      await declineThroughDialog(user, { reason: 'No space' })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Request not found',
+      )
+      // The typed reason survives so a retry does not start from scratch.
+      expect(screen.getByLabelText(/Reason/)).toHaveValue('No space')
+
+      declinePassengerRequest.mockResolvedValueOnce({})
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(
+        await screen.findByText('Declined request from Nana Yeboah.'),
+      ).toBeInTheDocument()
+    })
+
+    it('closes on Escape without declining', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Decline' })[0])
+      await user.keyboard('{Escape}')
+
+      expect(
+        screen.queryByRole('heading', { name: /Decline .* request\?/ }),
+      ).not.toBeInTheDocument()
+      expect(declinePassengerRequest).not.toHaveBeenCalled()
+    })
+
+    it('returns focus to the Decline button it came from', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      const decline = screen.getAllByRole('button', { name: 'Decline' })[0]
+      await user.click(decline)
+      expect(screen.getByRole('button', { name: 'Keep request' })).toHaveFocus()
+
+      await user.click(screen.getByRole('button', { name: 'Keep request' }))
+      expect(decline).toHaveFocus()
+    })
+  })
+
+  describe('a passenger whose request was declined', () => {
+    const withDeclined = (overrides = {}) => {
+      const p = buildMyRidesResponse()
+      p.data.joined = [
+        {
+          id: 'joined-1',
+          driverId: 'driver-9',
+          driverName: 'Ama Owusu',
+          origin: 'Tema',
+          destination: 'AmaliTech Office',
+          departureAt: new Date(Date.now() + 86400000).toISOString(),
+          totalSeats: 3,
+          availableSeats: 1,
+          status: 'OPEN',
+          requestId: 'req-9',
+          requestStatus: 'DECLINED',
+          rejectionReason: 'Car is already full.',
+          rerequestCount: 0,
+          ...overrides,
+        },
+      ]
+      return p
+    }
+
+    const openJoinedTab = async (user) => {
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+    }
+
+    it('shows the declined request instead of dropping it silently', async () => {
+      fetchMyRides.mockResolvedValue(withDeclined())
+      const user = userEvent.setup()
+      await renderDashboard()
+      await openJoinedTab(user)
+
+      expect(
+        await screen.findByRole('heading', { name: 'Declined' }),
+      ).toBeInTheDocument()
+      expect(screen.getByText('declined')).toBeInTheDocument()
+    })
+
+    it('shows the reason the driver gave', async () => {
+      fetchMyRides.mockResolvedValue(withDeclined())
+      const user = userEvent.setup()
+      await renderDashboard()
+      await openJoinedTab(user)
+
+      expect(
+        await screen.findByText(/Car is already full\./),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Ama Owusu said:')).toBeInTheDocument()
+    })
+
+    it('says so plainly when no reason came back', async () => {
+      fetchMyRides.mockResolvedValue(withDeclined({ rejectionReason: '' }))
+      const user = userEvent.setup()
+      await renderDashboard()
+      await openJoinedTab(user)
+
+      expect(
+        await screen.findByText('The driver did not give a reason.'),
+      ).toBeInTheDocument()
+    })
+
+    it('does not offer to withdraw a request already refused', async () => {
+      fetchMyRides.mockResolvedValue(withDeclined())
+      const user = userEvent.setup()
+      await renderDashboard()
+      await openJoinedTab(user)
+
+      await screen.findByRole('heading', { name: 'Declined' })
+      expect(
+        screen.queryByRole('button', { name: 'Withdraw request' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('still offers to withdraw a pending request', async () => {
+      fetchMyRides.mockResolvedValue(
+        withDeclined({ requestStatus: 'PENDING', rejectionReason: '' }),
+      )
+      const user = userEvent.setup()
+      await renderDashboard()
+      await openJoinedTab(user)
+
+      expect(
+        await screen.findByRole('button', { name: 'Withdraw request' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/did not give a reason/),
+      ).not.toBeInTheDocument()
     })
   })
 })

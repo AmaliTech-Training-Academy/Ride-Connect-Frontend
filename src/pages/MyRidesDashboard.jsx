@@ -90,7 +90,7 @@ function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
           type="button"
           className="my-rides-decline"
           disabled={isPending}
-          onClick={onDecline}
+          onClick={(event) => onDecline(event.currentTarget)}
         >
           Decline
         </button>
@@ -230,7 +230,9 @@ function RideRow({
                   isFull={status === 'full'}
                   isPending={isBusy}
                   onAccept={() => onAccept(ride.id, request.id)}
-                  onDecline={() => onDecline(ride.id, request.id)}
+                  onDecline={(trigger) =>
+                    onDecline(ride.id, request.id, trigger)
+                  }
                 />
               ))}
             </section>
@@ -260,8 +262,15 @@ function RideRow({
 }
 
 function JoinedRideRow({ ride, onWithdraw }) {
+  const status = String(ride.requestStatus ?? '').toUpperCase()
+  const isDeclined = status === 'DECLINED'
+  // Withdrawing applies to a request still standing, not one already refused.
+  const canWithdraw = status === 'PENDING' || status === 'ACCEPTED'
+
   return (
-    <div className="my-rides-joined-row">
+    <div
+      className={`my-rides-joined-row ${isDeclined ? 'my-rides-joined-row-declined' : ''}`}
+    >
       <div className="my-rides-joined-info">
         <strong>
           {ride.origin}{' '}
@@ -275,16 +284,33 @@ function JoinedRideRow({ ride, onWithdraw }) {
         <span className="my-rides-joined-driver">
           Driver: {ride.driverName}
         </span>
+        {isDeclined && (
+          <p className="my-rides-decline-note">
+            <i className="fa-solid fa-circle-info" aria-hidden="true" />{' '}
+            {ride.rejectionReason ? (
+              <>
+                <span className="my-rides-decline-note-label">
+                  {ride.driverName} said:
+                </span>{' '}
+                {ride.rejectionReason}
+              </>
+            ) : (
+              'The driver did not give a reason.'
+            )}
+          </p>
+        )}
       </div>
       <div className="my-rides-joined-actions">
-        <StatusBadge status={ride.requestStatus.toLowerCase()} />
-        <button
-          type="button"
-          className="my-rides-withdraw-button"
-          onClick={() => onWithdraw(ride)}
-        >
-          Withdraw request
-        </button>
+        <StatusBadge status={status.toLowerCase()} />
+        {canWithdraw && (
+          <button
+            type="button"
+            className="my-rides-withdraw-button"
+            onClick={() => onWithdraw(ride)}
+          >
+            Withdraw request
+          </button>
+        )}
       </div>
     </div>
   )
@@ -295,6 +321,185 @@ function JoinedRideRow({ ride, onWithdraw }) {
  * runs on open and tears down on close. aria-modal is only honest if focus
  * actually stays inside, hence the Tab wrap and the focus restore.
  */
+// Matches the backend rule: 1-500 characters after trimming.
+const DECLINE_REASON_MAX_LENGTH = 500
+
+/**
+ * Declining runs in two steps: confirm, then give a reason. The reason is
+ * optional, so the driver can decline without explaining, but the step exists
+ * because a passenger who is turned down deserves a chance at an explanation.
+ *
+ * Mounted only while a request is targeted, so the focus trap sets up and tears
+ * down with it.
+ */
+function DeclineRequestDialog({
+  request,
+  error,
+  isPending,
+  returnFocusTo,
+  onClose,
+  onConfirm,
+}) {
+  const [step, setStep] = useState('confirm')
+  const [reason, setReason] = useState('')
+  const dialogRef = useRef(null)
+  const initialFocusRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const previouslyFocused = returnFocusTo?.current ?? document.activeElement
+    initialFocusRef.current?.focus()
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onCloseRef.current?.()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = dialogRef.current?.querySelectorAll(
+        'button:not([disabled]), textarea:not([disabled])',
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Moving to the reason step should land the caret in the box.
+  useEffect(() => {
+    if (step === 'reason') initialFocusRef.current?.focus()
+  }, [step])
+
+  return (
+    <div className="my-rides-modal-backdrop">
+      <div
+        ref={dialogRef}
+        className="my-rides-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="decline-request-title"
+      >
+        <div className="my-rides-modal-icon my-rides-modal-icon-warning">
+          <i className="fa-solid fa-user-xmark" aria-hidden="true" />
+        </div>
+
+        {step === 'confirm' ? (
+          <>
+            <h2 id="decline-request-title">
+              Decline {request.name}&apos;s request?
+            </h2>
+            <p>
+              They will be told their request was turned down, and the seat
+              stays available for someone else.
+            </p>
+            {error && (
+              <p className="my-rides-modal-error" role="alert">
+                <i
+                  className="fa-solid fa-circle-exclamation"
+                  aria-hidden="true"
+                />{' '}
+                {error}
+              </p>
+            )}
+            <div className="my-rides-modal-actions">
+              <button
+                ref={initialFocusRef}
+                type="button"
+                className="my-rides-ghost-button"
+                onClick={onClose}
+              >
+                Keep request
+              </button>
+              <button
+                type="button"
+                className="my-rides-danger-button"
+                onClick={() => setStep('reason')}
+              >
+                Yes, decline
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 id="decline-request-title">Why are you declining?</h2>
+            <p>
+              This is optional, and {request.name} will see whatever you write.
+            </p>
+            <label className="my-rides-reason-label" htmlFor="decline-reason">
+              Reason
+            </label>
+            <textarea
+              ref={initialFocusRef}
+              id="decline-reason"
+              className="my-rides-reason-input"
+              rows={3}
+              maxLength={DECLINE_REASON_MAX_LENGTH}
+              value={reason}
+              placeholder="The car is full, or the route has changed..."
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <p className="my-rides-reason-count">
+              {reason.length}/{DECLINE_REASON_MAX_LENGTH}
+            </p>
+            {error && (
+              <p className="my-rides-modal-error" role="alert">
+                <i
+                  className="fa-solid fa-circle-exclamation"
+                  aria-hidden="true"
+                />{' '}
+                {error}
+              </p>
+            )}
+            <div className="my-rides-modal-actions">
+              <button
+                type="button"
+                className="my-rides-ghost-button"
+                disabled={isPending}
+                onClick={() => setStep('confirm')}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="my-rides-danger-button"
+                disabled={isPending || !reason.trim()}
+                onClick={() => onConfirm(reason)}
+              >
+                {error ? 'Try again' : 'Decline request'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DeclineRequestModal({ request, ...props }) {
+  if (!request) return null
+  return <DeclineRequestDialog key={request.id} request={request} {...props} />
+}
+
 function CancelRideDialog({
   error,
   isPending,
@@ -415,6 +620,9 @@ function MyRidesDashboard({
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
   const [cancelError, setCancelError] = useState('')
+  const [requestToDecline, setRequestToDecline] = useState(null)
+  const [declineError, setDeclineError] = useState('')
+  const declineTriggerRef = useRef(null)
   const cancelTriggerRef = useRef(null)
   const [toast, setToast] = useState(null)
   // Ref is the source of truth for the in-flight guard so two clicks in the
@@ -491,6 +699,10 @@ function MyRidesDashboard({
   )
   const approvedJoinedRides = joinedRides.filter(
     (ride) => ride.requestStatus === 'ACCEPTED',
+  )
+  // Without this the passenger's request simply disappears when refused.
+  const declinedJoinedRides = joinedRides.filter(
+    (ride) => ride.requestStatus === 'DECLINED',
   )
 
   useEffect(() => {
@@ -587,15 +799,24 @@ function MyRidesDashboard({
       }
     })
 
-  const declineRequest = (rideId, requestId) =>
-    runExclusive(`ride:${rideId}`, async () => {
-      const ride = rides.find((item) => item.id === rideId)
-      const request = ride?.pendingRequests.find(
-        (item) => item.id === requestId,
-      )
+  const openDeclineDialog = (rideId, requestId, trigger) => {
+    const ride = rides.find((item) => item.id === rideId)
+    const request = ride?.pendingRequests.find((item) => item.id === requestId)
+    if (!request) return
 
+    declineTriggerRef.current = trigger ?? null
+    setDeclineError('')
+    setRequestToDecline({ ...request, rideId })
+  }
+
+  const confirmDecline = (reason) => {
+    if (!requestToDecline) return undefined
+    const { rideId, id: requestId, name } = requestToDecline
+
+    return runExclusive(`ride:${rideId}`, async () => {
+      setDeclineError('')
       try {
-        await declinePassengerRequest(rideId, requestId)
+        await declinePassengerRequest(rideId, requestId, reason)
         setRides((currentRides) =>
           currentRides.map((r) =>
             r.id === rideId
@@ -608,16 +829,16 @@ function MyRidesDashboard({
               : r,
           ),
         )
-        if (request) {
-          showToast(`Declined request from ${request.name}.`)
-        }
+        setRequestToDecline(null)
+        showToast(`Declined request from ${name}.`)
       } catch (error) {
-        showToast(
+        // Keep the dialog open so the reason is not lost on a retry.
+        setDeclineError(
           error?.message || 'Failed to decline passenger request.',
-          'error',
         )
       }
     })
+  }
 
   const confirmCancel = () => {
     if (!rideToCancel) return undefined
@@ -759,7 +980,10 @@ function MyRidesDashboard({
                 className="my-rides-primary-button"
                 onClick={onFindRide}
               >
-                <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />{' '}
+                <i
+                  className="fa-solid fa-magnifying-glass"
+                  aria-hidden="true"
+                />{' '}
                 Find a Ride
               </button>
             </div>
@@ -784,6 +1008,20 @@ function MyRidesDashboard({
                   <h2 className="my-rides-section-label">Approved</h2>
                   <div className="my-rides-joined-list">
                     {approvedJoinedRides.map((ride) => (
+                      <JoinedRideRow
+                        key={ride.requestId}
+                        ride={ride}
+                        onWithdraw={handleWithdraw}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {declinedJoinedRides.length > 0 && (
+                <>
+                  <h2 className="my-rides-section-label">Declined</h2>
+                  <div className="my-rides-joined-list">
+                    {declinedJoinedRides.map((ride) => (
                       <JoinedRideRow
                         key={ride.requestId}
                         ride={ride}
@@ -854,7 +1092,7 @@ function MyRidesDashboard({
                     setMenuRideId(menuRideId === ride.id ? null : ride.id)
                   }
                   onAccept={acceptRequest}
-                  onDecline={declineRequest}
+                  onDecline={openDeclineDialog}
                   isBusy={isRideBusy(ride.id)}
                   onStatusChange={(status) => {
                     setMenuRideId(null)
@@ -937,6 +1175,21 @@ function MyRidesDashboard({
             {toast.message}
           </div>
         )}
+        <DeclineRequestModal
+          request={requestToDecline}
+          error={declineError}
+          isPending={
+            requestToDecline
+              ? pendingKeys.includes(`ride:${requestToDecline.rideId}`)
+              : false
+          }
+          returnFocusTo={declineTriggerRef}
+          onClose={() => {
+            setDeclineError('')
+            setRequestToDecline(null)
+          }}
+          onConfirm={confirmDecline}
+        />
         <CancelRideModal
           ride={rideToCancel}
           error={cancelError}
