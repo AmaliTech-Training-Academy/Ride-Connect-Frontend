@@ -628,6 +628,13 @@
 .my-rides-decline-note-label {
   font-weight: 600;
 }
+/* The row styles every span as a small grey block; the note reads as one line. */
+.my-rides-joined-info .my-rides-decline-note span {
+  display: inline;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
 .my-rides-modal-icon-warning {
   color: #b91c1c;
   background: #fef2f2;

@@ -124,11 +124,11 @@ function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
       {request.isRerequest && (
         <dl className="my-rides-rerequest-reasons">
           <div>
-            <dt>You declined because</dt>
+            <dt>Reasons for declining</dt>
             <dd>{request.rejectionReason || 'No reason was given.'}</dd>
           </div>
           <div>
-            <dt>{request.name} asks again because</dt>
+            <dt>Reasons {request.name} re-requested</dt>
             <dd>{request.rerequestReason || 'No reason was given.'}</dd>
           </div>
         </dl>
@@ -361,17 +361,19 @@ function JoinedRideRow({
         </span>
         {isDeclined && (
           <p className="my-rides-decline-note">
-            <i className="fa-solid fa-circle-info" aria-hidden="true" />{' '}
-            {ride.rejectionReason ? (
-              <>
-                <span className="my-rides-decline-note-label">
-                  {ride.driverName} said:
-                </span>{' '}
-                {ride.rejectionReason}
-              </>
-            ) : (
-              'The driver did not give a reason.'
-            )}
+            <i className="fa-solid fa-circle-info" aria-hidden="true" />
+            <span>
+              {ride.rejectionReason ? (
+                <>
+                  <span className="my-rides-decline-note-label">
+                    {ride.driverName} said:
+                  </span>{' '}
+                  {ride.rejectionReason}
+                </>
+              ) : (
+                'The driver did not give a reason.'
+              )}
+            </span>
           </p>
         )}
       </div>
@@ -1226,11 +1228,11 @@ function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
             </div>
           ) : (
             <>
-              {pendingJoinedRides.length > 0 && (
+              {approvedJoinedRides.length > 0 && (
                 <>
-                  <h2 className="my-rides-section-label">Pending</h2>
+                  <h2 className="my-rides-section-label">Approved</h2>
                   <div className="my-rides-joined-list">
-                    {pendingJoinedRides.map((ride) => (
+                    {approvedJoinedRides.map((ride) => (
                       <JoinedRideRow
                         key={ride.requestId}
                         ride={ride}
@@ -1241,11 +1243,11 @@ function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
                   </div>
                 </>
               )}
-              {approvedJoinedRides.length > 0 && (
+              {pendingJoinedRides.length > 0 && (
                 <>
-                  <h2 className="my-rides-section-label">Approved</h2>
+                  <h2 className="my-rides-section-label">Pending</h2>
                   <div className="my-rides-joined-list">
-                    {approvedJoinedRides.map((ride) => (
+                    {pendingJoinedRides.map((ride) => (
                       <JoinedRideRow
                         key={ride.requestId}
                         ride={ride}

@@ -132,10 +132,10 @@ describe('MyRidesDashboard - Ride Status Management', () => {
 
     expect(await screen.findByText('Re-request')).toBeInTheDocument()
     expect(fetchRideRequests).toHaveBeenCalledWith('driving-1')
-    expect(screen.getByText('You declined because')).toBeInTheDocument()
+    expect(screen.getByText('Reasons for declining')).toBeInTheDocument()
     expect(screen.getByText('Car is already full.')).toBeInTheDocument()
     expect(
-      screen.getByText('Nana Yeboah asks again because'),
+      screen.getByText('Reasons Nana Yeboah re-requested'),
     ).toBeInTheDocument()
     expect(
       screen.getByText('I can meet you at the junction instead.'),
@@ -309,6 +309,34 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
       expect(screen.getByText('Approved')).toBeInTheDocument()
       expect(screen.getByText('Driver: Kojo Mensah')).toBeInTheDocument()
+    })
+
+    it('lists approved rides first, then pending, then declined', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [
+        joinedRide({ requestStatus: 'PENDING' }),
+        joinedRide({
+          id: 'ride-11',
+          requestId: 'request-11',
+          requestStatus: 'DECLINED',
+        }),
+        joinedRide({
+          id: 'ride-12',
+          requestId: 'request-12',
+          requestStatus: 'ACCEPTED',
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      const sections = screen
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent)
+        .filter((text) => ['Approved', 'Pending', 'Declined'].includes(text))
+      expect(sections).toEqual(['Approved', 'Pending', 'Declined'])
     })
 
     it('shows the empty state when nothing has been requested', async () => {
