@@ -2,10 +2,13 @@ import { describe, expect, it } from '@jest/globals'
 import {
   DuplicateEmailError,
   InvalidCredentialsError,
+  changePassword,
+  changePasswordErrorMessage,
   getCurrentUser,
   loginUser,
   logoutUser,
   registerUser,
+  updateProfileImage,
 } from './auth'
 
 describe('auth backend configuration', () => {
@@ -34,6 +37,36 @@ describe('auth backend configuration', () => {
 
   it('is a no-op when no backend URL is configured', async () => {
     await expect(logoutUser()).resolves.toBeUndefined()
+  })
+
+  it('refuses a password change when no backend URL is configured', async () => {
+    await expect(
+      changePassword({ currentPassword: 'old-pass', newPassword: 'new-pass1' }),
+    ).rejects.toThrow('Authentication backend is not configured.')
+  })
+
+  it('refuses a picture change when no backend URL is configured', async () => {
+    await expect(
+      updateProfileImage('https://res.cloudinary.com/x/me.png'),
+    ).rejects.toThrow('Authentication backend is not configured.')
+  })
+})
+
+describe('changePasswordErrorMessage', () => {
+  it.each([
+    ['INVALID_PASSWORD', 'Your current password is incorrect.'],
+    ['PASSWORD_TOO_SHORT', 'Your new password must be at least 8 characters.'],
+  ])('explains %s', (code, message) => {
+    expect(changePasswordErrorMessage({ code })).toBe(message)
+  })
+
+  it("falls back to the backend's message, then a generic one", () => {
+    expect(changePasswordErrorMessage({ message: 'Rate limited' })).toBe(
+      'Rate limited',
+    )
+    expect(changePasswordErrorMessage(undefined)).toBe(
+      'Could not change your password. Please try again.',
+    )
   })
 })
 

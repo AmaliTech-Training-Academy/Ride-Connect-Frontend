@@ -1,3 +1,5 @@
+import UserAvatar from '../UserAvatar/UserAvatar'
+
 function formatDisplayDate(dateStr) {
   const [year, month, day] = dateStr.split('-').map(Number)
   const date = new Date(year, month - 1, day)
@@ -16,7 +18,14 @@ function formatDisplayTime(timeStr) {
   return `${displayHour}:${minute} ${period}`
 }
 
-function RidePreviewCard({ ride, isValid, showErrorState, isNew }) {
+function RidePreviewCard({
+  ride,
+  isValid,
+  showErrorState,
+  isNew,
+  driverImage,
+  driverInitials,
+}) {
   if (!isValid) {
     return (
       <div className="preview-placeholder">
@@ -37,7 +46,11 @@ function RidePreviewCard({ ride, isValid, showErrorState, isNew }) {
       {isNew && <span className="new-badge">NEW</span>}
 
       <div className="preview-header">
-        <div className="avatar">Y</div>
+        <UserAvatar
+          className="avatar"
+          imageUrl={driverImage}
+          initials={driverInitials || 'Y'}
+        />
         <div>
           <p className="driver-name">You</p>
           <span className="status-badge">Open</span>

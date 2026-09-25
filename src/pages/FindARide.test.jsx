@@ -530,4 +530,39 @@ describe('FindARide', () => {
       screen.getByText('Authentication required. Please log in.'),
     ).toBeInTheDocument()
   })
+
+  it("shows drivers' pictures, and the viewer's own on their own rides", async () => {
+    apiFetch.mockResolvedValue(
+      response([
+        ride({ id: 'own', driverId: 'user-1', driverName: 'Me Myself' }),
+        ride({
+          id: 'pictured',
+          driverId: 'driver-2',
+          driverName: 'Kwame Mensah',
+          driverImage: 'https://res.cloudinary.com/x/kwame.png',
+        }),
+        ride({ id: 'plain', driverId: 'driver-3', driverName: 'Esi Ofori' }),
+      ]),
+    )
+    render(
+      <FindARide
+        currentUserId="user-1"
+        userImage="https://res.cloudinary.com/x/me.png"
+        onOfferRide={jest.fn()}
+      />,
+    )
+
+    const card = async (name) => (await screen.findByText(name)).closest('article')
+    expect((await card('Me Myself')).querySelector('img')).toHaveAttribute(
+      'src',
+      'https://res.cloudinary.com/x/me.png',
+    )
+    expect((await card('Kwame Mensah')).querySelector('img')).toHaveAttribute(
+      'src',
+      'https://res.cloudinary.com/x/kwame.png',
+    )
+    const plain = await card('Esi Ofori')
+    expect(plain.querySelector('img')).toBeNull()
+    expect(plain).toHaveTextContent('EO')
+  })
 })

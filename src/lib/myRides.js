@@ -67,6 +67,7 @@ function normalisePerson(person) {
     passengerId: person.passengerId,
     name,
     initials: initialsFrom(name),
+    image: person.passengerImage ?? person.image,
   }
 }
 

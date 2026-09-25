@@ -40,6 +40,7 @@
   height: 38px;
   place-items: center;
   border-radius: 50%;
+  object-fit: cover;
   color: #246b2b;
   background: #d8efd9;
   font-size: 12px;

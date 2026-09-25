@@ -9,6 +9,7 @@ import {
   withdrawRideRequest,
 } from '../services/rides'
 import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
+import UserAvatar from '../components/UserAvatar/UserAvatar'
 import './MyRidesDashboard.css'
 
 function formatDate(dateString) {
@@ -50,9 +51,6 @@ function getRideStatus(ride) {
   return 'open'
 }
 
-function Avatar({ initials }) {
-  return <span className="my-rides-avatar">{initials}</span>
-}
 function StatusBadge({ status }) {
   const normalizedStatus = String(status || '').replace('_', '-')
   return (
@@ -91,6 +89,9 @@ async function addRerequestDetails(rides) {
             isRerequest: Boolean(request.isRerequest),
             rejectionReason: request.rejectionReason ?? '',
             rerequestReason: request.rerequestReason ?? '',
+            ...(request.passengerImage
+              ? { image: request.passengerImage }
+              : {}),
           },
         ]),
       ),
@@ -110,7 +111,11 @@ function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
         .filter(Boolean)
         .join(' ')}
     >
-      <Avatar initials={request.initials} />
+      <UserAvatar
+        className="my-rides-avatar"
+        initials={request.initials}
+        imageUrl={request.image}
+      />
       <div className="my-rides-person-info">
         <strong>
           {request.name}
@@ -164,7 +169,11 @@ function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
 function ConfirmedPassengerRow({ passenger }) {
   return (
     <div className="my-rides-person-row">
-      <Avatar initials={passenger.initials} />
+      <UserAvatar
+        className="my-rides-avatar"
+        initials={passenger.initials}
+        imageUrl={passenger.image}
+      />
       <div className="my-rides-person-info">
         <strong>{passenger.name}</strong>
       </div>

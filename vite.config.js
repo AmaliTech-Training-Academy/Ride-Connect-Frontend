@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       'globalThis.__VITE_API_BASE_URL__': JSON.stringify(env.VITE_API_BASE_URL),
+      'globalThis.__VITE_CLOUDINARY_CLOUD_NAME__': JSON.stringify(
+        env.VITE_CLOUDINARY_CLOUD_NAME ?? '',
+      ),
+      'globalThis.__VITE_CLOUDINARY_UPLOAD_PRESET__': JSON.stringify(
+        env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '',
+      ),
     },
     plugins: [react()],
     test: {
