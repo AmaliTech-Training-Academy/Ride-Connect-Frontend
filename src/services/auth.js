@@ -85,6 +85,56 @@ export async function getCurrentUser() {
 }
 
 /**
+ * Turns better-auth's change-password error codes into something a person
+ * can act on.
+ */
+export function changePasswordErrorMessage(error) {
+  if (error?.code === 'INVALID_PASSWORD') {
+    return 'Your current password is incorrect.'
+  }
+  if (error?.code === 'PASSWORD_TOO_SHORT') {
+    return 'Your new password must be at least 8 characters.'
+  }
+  return error?.message || 'Could not change your password. Please try again.'
+}
+
+/**
+ * Changes the signed-in user's password. Other sessions are signed out; this
+ * one stays signed in.
+ */
+export async function changePassword({ currentPassword, newPassword }) {
+  if (!authClient) {
+    throw new Error('Authentication backend is not configured.')
+  }
+
+  const { error } = await authClient.changePassword({
+    currentPassword,
+    newPassword,
+    revokeOtherSessions: true,
+  })
+
+  if (error) {
+    throw new Error(changePasswordErrorMessage(error))
+  }
+}
+
+/**
+ * Saves an already-uploaded picture URL as the user's profile image; it comes
+ * back as `user.image` from the session.
+ */
+export async function updateProfileImage(image) {
+  if (!authClient) {
+    throw new Error('Authentication backend is not configured.')
+  }
+
+  const { error } = await authClient.updateUser({ image })
+
+  if (error) {
+    throw new Error(error.message || 'Could not save your new picture.')
+  }
+}
+
+/**
  * Clears the session cookie server-side so the next getCurrentUser() call
  * (or sign-in as a different account) doesn't pick the old session back up.
  * Throws on failure so a caller doesn't clear local state and redirect while

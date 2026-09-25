@@ -5,6 +5,7 @@ import {
   requestToJoinRide,
   withdrawRideRequest,
 } from '../services/rides'
+import UserAvatar from '../components/UserAvatar/UserAvatar'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -97,12 +98,10 @@ function getFirstName(name) {
   return name?.trim().split(/\s+/)[0] || 'there'
 }
 
-function Avatar({ initials }) {
-  return <span className="find-ride-avatar">{initials}</span>
-}
 
 function RideCard({
   ride,
+  viewerImage,
   onRequest,
   onWithdraw,
   onManage,
@@ -169,7 +168,14 @@ function RideCard({
 
       <div className="find-ride-driver-row">
         <div className="find-ride-driver">
-          <Avatar initials={ride.driverInitials} />
+          <UserAvatar
+            className="find-ride-avatar"
+            initials={ride.driverInitials}
+            // The viewer's own session picture is fresher than the ride's copy.
+            imageUrl={
+              ride.isOwnRide ? viewerImage || ride.driverImage : ride.driverImage
+            }
+          />
           <strong>{ride.driverName}</strong>
         </div>
         <div
@@ -307,6 +313,7 @@ function FindARide({
   onOfferRide,
   onManageRide,
   userName,
+  userImage,
   currentUserId,
   highlightedRideId,
 }) {
@@ -609,6 +616,7 @@ function FindARide({
           <RideCard
             key={ride.id}
             ride={ride}
+            viewerImage={userImage}
             onRequest={handleRequest}
             onWithdraw={handleWithdraw}
             onManage={onManageRide}

@@ -119,6 +119,42 @@
   background: #e05252;
 }
 
+.site-header-toast {
+  position: fixed;
+  z-index: 4;
+  top: 92px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  padding: 14px 17px;
+  border: 1px solid #b8d9ba;
+  border-radius: 9px;
+  color: #2f6634;
+  background: #f0faf1;
+  box-shadow: 0 8px 24px rgba(35, 93, 39, 0.14);
+  font:
+    13px 'Poppins',
+    sans-serif;
+  text-align: left;
+}
+
+.site-header-toast i {
+  color: #3f9648;
+  font-size: 18px;
+}
+
+.site-header-toast-error {
+  border-color: #eab8b4;
+  color: #a33b35;
+  background: #fdf4f3;
+}
+
+.site-header-toast-error i {
+  color: #c4453e;
+}
+
 @media (max-width: 950px) {
   .site-header {
     gap: 22px;
@@ -155,5 +191,11 @@
   }
   .site-header-nav-link {
     flex: 1;
+  }
+  .site-header-toast {
+    top: 140px;
+    right: 14px;
+    left: 14px;
+    max-width: none;
   }
 }

@@ -3,6 +3,7 @@
 }
 
 .user-menu-trigger {
+  position: relative;
   display: inline-flex;
   border: none;
   margin: 0;
@@ -20,8 +21,8 @@
 .user-menu-avatar {
   display: inline-grid;
   flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border: 1.5px solid #ccd8cd;
   border-radius: 50%;
@@ -29,6 +30,30 @@
   background: #d8efd9;
   font-size: 12px;
   font-weight: 700;
+  box-sizing: border-box;
+  object-fit: cover;
+}
+
+.user-menu-avatar-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(20, 45, 24, 0.55);
+  font-size: 14px;
+}
+
+/* Present for the picker, but never seen or tabbed to. */
+.user-menu-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .user-menu-popover {
@@ -36,7 +61,7 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: 20;
-  min-width: 160px;
+  min-width: 220px;
   padding: 6px;
   border: 1px solid #e6e6e6;
   border-radius: 10px;
@@ -47,15 +72,36 @@
 .user-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   padding: 9px 10px;
   border-radius: 7px;
-  color: #b3261e;
+  color: #2d3a30;
   font-size: 14px;
   text-align: left;
+  white-space: nowrap;
 }
 
-.user-menu-item:hover {
+.user-menu-item i {
+  width: 16px;
+  color: #4d7a52;
+  text-align: center;
+}
+
+.user-menu-item:hover:not(:disabled) {
+  background: #eef5ee;
+}
+
+.user-menu-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.user-menu-item-danger,
+.user-menu-item-danger i {
+  color: #b3261e;
+}
+
+.user-menu-item-danger:hover:not(:disabled) {
   background: #fdecea;
 }

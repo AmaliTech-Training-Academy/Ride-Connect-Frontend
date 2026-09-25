@@ -153,6 +153,22 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     expect(screen.queryByText('Re-request')).not.toBeInTheDocument()
   })
 
+  it("shows passengers' pictures on their requests when they have one", async () => {
+    const payload = buildMyRidesResponse()
+    payload.data.driving[0].pendingRequests[0].passengerImage =
+      'https://res.cloudinary.com/x/nana.png'
+    fetchMyRides.mockResolvedValue(payload)
+    await renderDashboard()
+
+    const row = screen.getByText('Nana Yeboah').closest('.my-rides-person-row')
+    expect(row.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://res.cloudinary.com/x/nana.png',
+    )
+    const plain = screen.getByText('Kojo Mensah').closest('.my-rides-person-row')
+    expect(plain.querySelector('img')).toBeNull()
+  })
+
   it('handles error when accepting request fails', async () => {
     acceptPassengerRequest.mockRejectedValueOnce(
       new Error('Failed to accept passenger request.'),

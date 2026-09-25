@@ -117,7 +117,14 @@ function App() {
       <Route
         element={
           <RequireAuth user={user}>
-            <AppHeader userInitials={userInitials} onLogout={handleLogout} />
+            <AppHeader
+              userInitials={userInitials}
+              userImage={user?.image}
+              onLogout={handleLogout}
+              onUserUpdated={(changes) =>
+                setUser((current) => ({ ...current, ...changes }))
+              }
+            />
             <Outlet />
           </RequireAuth>
         }
@@ -126,6 +133,8 @@ function App() {
           path="/offer-a-ride"
           element={
             <PostRideForm
+              userImage={user?.image}
+              userInitials={userInitials}
               onFindRide={(rideId) =>
                 navigate(
                   rideId ? `/find-a-ride?ride=${rideId}` : '/find-a-ride',
@@ -143,6 +152,7 @@ function App() {
               currentUserId={user?.id}
               highlightedRideId={searchParams.get('ride')}
               userName={user?.name}
+              userImage={user?.image}
             />
           }
         />

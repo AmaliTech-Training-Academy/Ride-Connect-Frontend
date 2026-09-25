@@ -119,7 +119,7 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide }) {
+function PostRideForm({ onFindRide, userImage, userInitials }) {
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -441,6 +441,8 @@ function PostRideForm({ onFindRide }) {
 
         <aside className="post-ride-preview">
           <RidePreviewCard
+            driverImage={userImage}
+            driverInitials={userInitials}
             ride={values}
             isValid={isFormValid}
             showErrorState={hasAttemptedSubmit}
