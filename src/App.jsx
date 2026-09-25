@@ -153,15 +153,14 @@ function App() {
               onFindRide={() => navigate('/find-a-ride')}
               onOfferRide={() => navigate('/offer-a-ride')}
               managedRideId={searchParams.get('manage')}
+              initialTab={searchParams.get('tab')}
             />
           }
         />
       </Route>
       <Route
         path="/"
-        element={
-          <Navigate to={user ? '/find-a-ride' : '/register'} replace />
-        }
+        element={<Navigate to={user ? '/find-a-ride' : '/register'} replace />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

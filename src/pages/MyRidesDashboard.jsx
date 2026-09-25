@@ -323,13 +323,7 @@ function RideRow({
   )
 }
 
-function JoinedRideRow({
-  ride,
-  onWithdraw,
-  onRejoin,
-  isBusy,
-  isRejoinBusy,
-}) {
+function JoinedRideRow({ ride, onWithdraw, onRejoin, isBusy, isRejoinBusy }) {
   const status = String(ride.requestStatus ?? '').toUpperCase()
   const isDeclined = status === 'DECLINED'
   // Withdrawing applies to a request still standing, not one already refused.
@@ -769,10 +763,9 @@ function RejoinRideDialog({
         </div>
         <h2 id="rejoin-ride-title">Request to join again?</h2>
         <p>
-          Your last request for {ride.origin} <i
-            className="fa-solid fa-arrow-right-long"
-            aria-hidden="true"
-          /> {ride.destination} was declined. Let {ride.driverName} know why
+          Your last request for {ride.origin}{' '}
+          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
+          {ride.destination} was declined. Let {ride.driverName} know why
           you&apos;d like to join again.
         </p>
         <label className="my-rides-modal-field" htmlFor="rejoin-reason">
@@ -820,13 +813,22 @@ function RejoinRideModal({ ride, ...props }) {
   return <RejoinRideDialog key={ride.id} ride={ride} {...props} />
 }
 
-function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
+function MyRidesDashboard({
+  onFindRide,
+  onOfferRide,
+  managedRideId,
+  initialTab,
+}) {
   const [rides, setRides] = useState([])
   const [joinedRides, setJoinedRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
   const [reloadToken, setReloadToken] = useState(0)
-  const [activeTab, setActiveTab] = useState('driving')
+  // A notification names the tab its ride lives on, so a passenger does not
+  // land on the driving list and find nothing.
+  const [activeTab, setActiveTab] = useState(
+    initialTab === 'joined' ? 'joined' : 'driving',
+  )
   const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
@@ -1101,10 +1103,7 @@ function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
         )
         showToast('Your request has been withdrawn.')
       } catch (error) {
-        showToast(
-          error?.message || 'Failed to withdraw your request.',
-          'error',
-        )
+        showToast(error?.message || 'Failed to withdraw your request.', 'error')
       }
     })
 
@@ -1455,7 +1454,9 @@ function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
           error={rejoinError}
           returnFocusTo={rejoinTriggerRef}
           isPending={
-            rideToRejoin ? pendingKeys.includes(`rejoin:${rideToRejoin.id}`) : false
+            rideToRejoin
+              ? pendingKeys.includes(`rejoin:${rideToRejoin.id}`)
+              : false
           }
           onCancel={() => {
             setRejoinError('')

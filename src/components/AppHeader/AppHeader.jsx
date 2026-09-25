@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import NotificationsBell from '../NotificationsBell/NotificationsBell'
 import UserMenu from '../UserMenu/UserMenu'
 import './AppHeader.css'
 
@@ -45,20 +46,20 @@ function AppHeader({ userInitials, onLogout }) {
         <button
           type="button"
           className="site-header-offer"
-          aria-current={pathname.startsWith('/offer-a-ride') ? 'page' : undefined}
+          aria-current={
+            pathname.startsWith('/offer-a-ride') ? 'page' : undefined
+          }
           onClick={() => navigate('/offer-a-ride')}
         >
           <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
         </button>
         <div className="site-header-profile">
-          <button
-            type="button"
+          <NotificationsBell
             className="site-header-icon-button"
-            aria-label="Notifications"
-          >
-            <i className="fa-regular fa-bell" aria-hidden="true" />
-            <span className="site-header-unread-dot" />
-          </button>
+            onOpenRide={(rideId, audience) =>
+              navigate(`/my-rides?manage=${rideId}&tab=${audience}`)
+            }
+          />
           <UserMenu initials={userInitials || '?'} onLogout={onLogout} />
         </div>
       </div>
