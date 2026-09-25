@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import NotificationsBell from '../NotificationsBell/NotificationsBell'
 import UserMenu from '../UserMenu/UserMenu'
 import ChangePasswordPanel from '../ChangePasswordPanel/ChangePasswordPanel'
 import { uploadImage } from '../../services/cloudinary'
@@ -90,14 +91,12 @@ function AppHeader({ userInitials, userImage, onLogout, onUserUpdated }) {
             <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
           </button>
           <div className="site-header-profile">
-            <button
-              type="button"
+            <NotificationsBell
               className="site-header-icon-button"
-              aria-label="Notifications"
-            >
-              <i className="fa-regular fa-bell" aria-hidden="true" />
-              <span className="site-header-unread-dot" />
-            </button>
+              onOpenRide={(rideId, audience) =>
+                navigate(`/my-rides?manage=${rideId}&tab=${audience}`)
+              }
+            />
             <UserMenu
               initials={userInitials || '?'}
               imageUrl={userImage}
