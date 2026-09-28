@@ -840,13 +840,22 @@ function RejoinRideModal({ ride, ...props }) {
   return <RejoinRideDialog key={ride.id} ride={ride} {...props} />
 }
 
-function MyRidesDashboard({ onFindRide, onOfferRide, managedRideId }) {
+function MyRidesDashboard({
+  onFindRide,
+  onOfferRide,
+  managedRideId,
+  initialTab,
+}) {
   const [rides, setRides] = useState([])
   const [joinedRides, setJoinedRides] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
   const [reloadToken, setReloadToken] = useState(0)
-  const [activeTab, setActiveTab] = useState('driving')
+  // A notification names the tab its ride lives on, so a passenger does not
+  // land on the driving list and find nothing.
+  const [activeTab, setActiveTab] = useState(
+    initialTab === 'joined' ? 'joined' : 'driving',
+  )
   const [showPastJoinedRides, setShowPastJoinedRides] = useState(false)
   const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
