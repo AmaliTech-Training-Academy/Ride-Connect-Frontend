@@ -1684,4 +1684,49 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).not.toBeInTheDocument()
     })
   })
+
+  describe('editing a ride', () => {
+    const openMenu = async (user, name) =>
+      user.click(
+        screen.getByRole('button', { name: new RegExp(`Options for ${name}`) }),
+      )
+
+    it('offers Edit ride on an upcoming ride', async () => {
+      const user = userEvent.setup()
+      const onEditRide = jest.fn()
+      await renderDashboard({ onEditRide })
+
+      await openMenu(user, 'Adenta')
+      await user.click(screen.getByRole('button', { name: 'Edit ride' }))
+
+      expect(onEditRide).toHaveBeenCalledWith('driving-2')
+    })
+
+    it('still offers it on a ride that is full', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.driving[1].availableSeats = 0
+      fetchMyRides.mockResolvedValue(payload)
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await openMenu(user, 'Adenta')
+
+      // A driver may be editing precisely to free up a seat.
+      expect(
+        screen.getByRole('button', { name: 'Edit ride' }),
+      ).toBeInTheDocument()
+    })
+
+    it('closes the menu when Edit is chosen', async () => {
+      const user = userEvent.setup()
+      await renderDashboard({ onEditRide: jest.fn() })
+
+      await openMenu(user, 'Adenta')
+      await user.click(screen.getByRole('button', { name: 'Edit ride' }))
+
+      expect(
+        screen.queryByRole('button', { name: 'Cancel ride' }),
+      ).not.toBeInTheDocument()
+    })
+  })
 })

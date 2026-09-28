@@ -199,8 +199,16 @@ function ConfirmedPassengerRow({ passenger }) {
   )
 }
 
-function RideMenu({ ride, isBusy, onStatusChange, onRequestCancel }) {
+function RideMenu({ ride, isBusy, onStatusChange, onRequestCancel, onEdit }) {
   const isRideFull = getRideStatus(ride) === 'full'
+  /*
+   * A full ride is still editable - the driver may be adding a seat. A
+   * cancelled or departed one is not: there is nothing left to change.
+   */
+  const canEdit =
+    ride.status !== 'cancelled' &&
+    ride.status !== 'completed' &&
+    !hasDeparted(ride)
 
   return (
     <div
@@ -225,6 +233,11 @@ function RideMenu({ ride, isBusy, onStatusChange, onRequestCancel }) {
           Mark as Full
         </button>
       )}
+      {canEdit && (
+        <button type="button" disabled={isBusy} onClick={onEdit}>
+          Edit ride
+        </button>
+      )}
       <button type="button" onClick={onRequestCancel}>
         Cancel ride
       </button>
@@ -242,6 +255,7 @@ function RideRow({
   onDecline,
   onStatusChange,
   onRequestCancel,
+  onEdit,
   isBusy,
 }) {
   const menuButtonRef = useRef(null)
@@ -302,6 +316,7 @@ function RideRow({
             ride={ride}
             isBusy={isBusy}
             onStatusChange={onStatusChange}
+            onEdit={onEdit}
             onRequestCancel={() => onRequestCancel(menuButtonRef.current)}
           />
         )}
@@ -856,6 +871,7 @@ function RejoinRideModal({ ride, ...props }) {
 function MyRidesDashboard({
   onFindRide,
   onOfferRide,
+  onEditRide,
   managedRideId,
   initialTab,
 }) {
@@ -1437,6 +1453,10 @@ function MyRidesDashboard({
                   onAccept={acceptRequest}
                   onDecline={openDeclineDialog}
                   isBusy={isRideBusy(ride.id)}
+                  onEdit={() => {
+                    setMenuRideId(null)
+                    onEditRide?.(ride.id)
+                  }}
                   onStatusChange={(status) => {
                     setMenuRideId(null)
                     handleStatusChange(ride.id, status)

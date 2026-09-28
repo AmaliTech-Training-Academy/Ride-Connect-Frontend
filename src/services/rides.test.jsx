@@ -9,6 +9,7 @@ import {
 import {
   fetchMyRides,
   requestToJoinRide,
+  updateRide,
   updateRideStatus,
   acceptPassengerRequest,
   declinePassengerRequest,
@@ -81,6 +82,97 @@ describe('rides service', () => {
 
       await expect(fetchMyRides()).rejects.toThrow(
         'Failed to load your rides (503)',
+      )
+    })
+  })
+
+  describe('updateRide', () => {
+    const payload = {
+      origin: 'East Legon',
+      destination: 'AmaliTech Office',
+      departureDate: '2026-10-02',
+      departureTime: '07:15',
+      availableSeats: 4,
+    }
+
+    it('patches the ride and returns the updated record', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: { id: 'ride-1', ...payload },
+        }),
+      })
+
+      const result = await updateRide('ride-1', payload)
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/rides/ride-1'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }),
+      )
+      expect(result).toMatchObject({ id: 'ride-1' })
+    })
+
+    it('encodes the ride id', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: {} }),
+      })
+
+      await updateRide('a/b c', payload)
+
+      expect(globalThis.fetch.mock.calls[0][0]).toContain(
+        '/api/rides/a%2Fb%20c',
+      )
+    })
+
+    it('carries the field errors from a 400 so the form can show them', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          message: 'Validation failed',
+          data: {
+            fields: { availableSeats: ['Cannot be fewer than accepted seats'] },
+          },
+        }),
+      })
+
+      await expect(updateRide('ride-1', payload)).rejects.toMatchObject({
+        status: 400,
+        fields: { availableSeats: ['Cannot be fewer than accepted seats'] },
+      })
+    })
+
+    it('throws with the backend message on a 403', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => ({ message: 'This is not your ride.' }),
+      })
+
+      await expect(updateRide('ride-1', payload)).rejects.toThrow(
+        'This is not your ride.',
+      )
+    })
+
+    it('falls back to a generic message on a non-JSON failure', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('Not JSON')
+        },
+      })
+
+      await expect(updateRide('ride-1', payload)).rejects.toThrow(
+        'Failed to update this ride (500)',
       )
     })
   })

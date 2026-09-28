@@ -31,6 +31,36 @@ export async function fetchMyRides() {
 }
 
 /**
+ * Updates a ride the signed-in user is driving.
+ *
+ * Takes the same field names as `POST /api/rides`, so the offer form needs no
+ * translation between creating and editing.
+ *
+ * @param {string} rideId
+ * @param {{ origin: string, destination: string, departureDate: string,
+ *   departureTime: string, availableSeats: number, routeDescription?: string }} payload
+ */
+export async function updateRide(rideId, payload) {
+  const response = await apiFetch(`/api/rides/${encodeURIComponent(rideId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const message =
+      body?.message || `Failed to update this ride (${response.status})`
+    const error = new RideStatusError(message, response.status)
+    // A 400 names the offending fields; the form shows them beside the inputs.
+    error.fields = body?.data?.fields ?? null
+    throw error
+  }
+
+  return body?.data ?? body
+}
+
+/**
  * Asks to join a ride as a passenger.
  *
  * @param {string} rideId - UUID of the ride

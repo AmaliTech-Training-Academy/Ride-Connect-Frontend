@@ -533,3 +533,13 @@ textarea {
   font-size: 14px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
+
+.post-ride-loading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 20px;
+  color: #536257;
+  font-size: 14px;
+}
