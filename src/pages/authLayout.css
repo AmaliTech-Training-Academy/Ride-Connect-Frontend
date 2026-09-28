@@ -33,38 +33,14 @@
   z-index: -1;
   inset: 0;
   overflow: hidden;
-  background:
-    linear-gradient(
-      200deg,
-      transparent 58%,
-      #c8e6c9 58%,
-      #c8e6c9 71%,
-      transparent 71%
-    ),
-    linear-gradient(
-      160deg,
-      transparent 64%,
-      #2e7d32 64%,
-      #2e7d32 74%,
-      transparent 74%
-    ),
-    linear-gradient(180deg, #fff 0%, #f3f4f6 100%);
+  background: url('../assets/auth-backdrop.webp') center / cover no-repeat;
 }
 
 /*
- * The car is a cutout on transparency, so it is laid over the backdrop at its
- * own aspect ratio rather than used as a cover image, which would crop it.
- * WebP keeps the alpha channel at a fraction of the PNG's weight.
+ * No colour wash over the photo - it shows in its own colours. The wordmark
+ * carries a shadow instead, since it is the only text sitting directly on the
+ * image; the card and footnote have solid backgrounds of their own.
  */
-.auth-backdrop::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: min(48%, 460px);
-  background: url('../assets/car.webp') bottom center / contain no-repeat;
-}
 
 .auth-container {
   display: grid;
@@ -77,9 +53,13 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  color: #fff;
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.55),
+    0 2px 18px rgba(0, 0, 0, 0.45);
 }
 
 .auth-wordmark svg {
@@ -87,13 +67,13 @@
   height: 28px;
   padding: 9px;
   border-radius: 12px;
-  color: #fff;
-  background: #1b5e20;
+  color: #1b5e20;
+  background: #fff;
   box-sizing: content-box;
 }
 
 .auth-wordmark strong {
-  color: #2e7d32;
+  color: #c8e6c9;
   font-weight: 700;
 }
 
@@ -172,11 +152,6 @@
 }
 
 @media (max-width: 560px) {
-  .auth-backdrop::after {
-    height: min(32%, 240px);
-    opacity: 0.55;
-  }
-
   .auth-shell {
     padding: 20px 14px;
   }
@@ -187,12 +162,5 @@
 
   .auth-wordmark {
     font-size: 22px;
-  }
-}
-
-/* On a short viewport the car would sit behind the card, so it steps back. */
-@media (max-height: 760px) {
-  .auth-backdrop::after {
-    height: min(34%, 300px);
   }
 }
