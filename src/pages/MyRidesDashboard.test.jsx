@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import MyRidesDashboard from './MyRidesDashboard'
@@ -165,7 +165,9 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       'src',
       'https://res.cloudinary.com/x/nana.png',
     )
-    const plain = screen.getByText('Kojo Mensah').closest('.my-rides-person-row')
+    const plain = screen
+      .getByText('Kojo Mensah')
+      .closest('.my-rides-person-row')
     expect(plain.querySelector('img')).toBeNull()
   })
 
@@ -355,6 +357,33 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(sections).toEqual(['Approved', 'Pending', 'Declined'])
     })
 
+    it("shows each driver's picture on joined rides, or their initials", async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      payload.data.joined = [
+        joinedRide({ driverImage: 'https://res.cloudinary.com/x/ama.png' }),
+        joinedRide({
+          id: 'ride-11',
+          requestId: 'request-11',
+          driverName: 'Kojo Mensah',
+          driverImage: null,
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      const row = (name) =>
+        screen.getByText(`Driver: ${name}`).closest('.my-rides-joined-row')
+      expect(row('Ama Owusu').querySelector('img')).toHaveAttribute(
+        'src',
+        'https://res.cloudinary.com/x/ama.png',
+      )
+      expect(row('Kojo Mensah').querySelector('img')).toBeNull()
+      expect(row('Kojo Mensah')).toHaveTextContent('KM')
+    })
+
     it('shows the empty state when nothing has been requested', async () => {
       const user = userEvent.setup()
       await renderDashboard()
@@ -376,14 +405,9 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       await renderDashboard()
 
       await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
-      await user.click(
-        screen.getByRole('button', { name: 'Withdraw request' }),
-      )
+      await user.click(screen.getByRole('button', { name: 'Withdraw request' }))
 
-      expect(withdrawRideRequest).toHaveBeenCalledWith(
-        'ride-10',
-        'request-10',
-      )
+      expect(withdrawRideRequest).toHaveBeenCalledWith('ride-10', 'request-10')
       expect(
         await screen.findByText('Your request has been withdrawn.'),
       ).toBeInTheDocument()
@@ -471,14 +495,15 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       ).not.toBeInTheDocument()
     })
 
-    it.each([
-      ['the ride is no longer open', { status: 'FULL' }],
-      ['the ride has departed', { departureAt: '2020-01-01T08:00:00.000Z' }],
-    ])('hides "Request again" when %s', async (_, overrides) => {
+    it('hides "Request again" when the ride is no longer open', async () => {
       const user = userEvent.setup()
       const payload = buildMyRidesResponse()
-      payload.data.joinedPastAndCancelled = [
-        joinedRide({ requestStatus: 'DECLINED', rerequestCount: 0, ...overrides }),
+      payload.data.joined = [
+        joinedRide({
+          requestStatus: 'DECLINED',
+          rerequestCount: 0,
+          status: 'FULL',
+        }),
       ]
       fetchMyRides.mockResolvedValue(payload)
       await renderDashboard()
@@ -489,6 +514,184 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(
         screen.queryByRole('button', { name: 'Request again' }),
       ).not.toBeInTheDocument()
+    })
+
+    describe('past and cancelled rides', () => {
+      const PAST = '2020-01-01T08:00:00.000Z'
+      const openJoined = async (joined, joinedPastAndCancelled = []) => {
+        const user = userEvent.setup()
+        const payload = buildMyRidesResponse()
+        payload.data.joined = joined
+        payload.data.joinedPastAndCancelled = joinedPastAndCancelled
+        fetchMyRides.mockResolvedValue(payload)
+        await renderDashboard()
+        await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+        return user
+      }
+      // queryAll: with no upcoming rides there may be no headings at all.
+      const sectionLabels = () =>
+        screen
+          .queryAllByRole('heading', { level: 2 })
+          .map((heading) => heading.textContent)
+
+      it('moves a departed accepted ride out of Approved, keeping its status', async () => {
+        const user = await openJoined([
+          joinedRide({ requestStatus: 'ACCEPTED' }),
+          joinedRide({
+            id: 'ride-11',
+            requestId: 'request-11',
+            driverName: 'Kojo Mensah',
+            requestStatus: 'ACCEPTED',
+            departureAt: PAST,
+          }),
+        ])
+
+        expect(sectionLabels()).toContain('Approved')
+        expect(
+          screen.queryByText('Driver: Kojo Mensah'),
+        ).not.toBeInTheDocument()
+
+        await user.click(
+          screen.getByRole('button', { name: /Past & cancelled \(1\)/ }),
+        )
+
+        const row = screen
+          .getByText('Driver: Kojo Mensah')
+          .closest('.my-rides-joined-row')
+        expect(row).toHaveTextContent('accepted')
+        expect(row.querySelector('button')).toBeNull()
+        expect(
+          screen.getByText('No actions available on past or cancelled rides.'),
+        ).toBeInTheDocument()
+      })
+
+      it('files every departed request there, with no actions and a clear status', async () => {
+        const user = await openJoined(
+          [],
+          [
+            joinedRide({ requestStatus: 'PENDING', departureAt: PAST }),
+            joinedRide({
+              id: 'ride-11',
+              requestId: 'request-11',
+              driverName: 'Kojo Mensah',
+              requestStatus: 'DECLINED',
+              rerequestCount: 0,
+              departureAt: PAST,
+            }),
+          ],
+        )
+
+        expect(
+          screen.getByText("You have no upcoming rides you've joined."),
+        ).toBeInTheDocument()
+        expect(sectionLabels()).not.toContain('Pending')
+        expect(sectionLabels()).not.toContain('Declined')
+
+        await user.click(
+          screen.getByRole('button', { name: /Past & cancelled \(2\)/ }),
+        )
+
+        // Nobody answered before the ride left, so it no longer reads as pending.
+        expect(screen.getByText('no response')).toBeInTheDocument()
+        expect(screen.getByText('declined')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', {
+            name: /Withdraw request|Request again/,
+          }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('treats a cancelled ride as past even before its departure time', async () => {
+        const user = await openJoined([
+          joinedRide({ requestStatus: 'ACCEPTED', status: 'CANCELLED' }),
+        ])
+
+        await user.click(
+          screen.getByRole('button', { name: /Past & cancelled \(1\)/ }),
+        )
+
+        expect(screen.getByText('Driver: Ama Owusu')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: 'Withdraw request' }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('shows the empty state when the only requests were withdrawn', async () => {
+        await openJoined(
+          [joinedRide({ requestStatus: 'WITHDRAWN' })],
+          [
+            joinedRide({
+              id: 'ride-11',
+              requestId: 'request-11',
+              requestStatus: 'WITHDRAWN',
+              departureAt: PAST,
+            }),
+          ],
+        )
+
+        expect(
+          screen.getByRole('heading', {
+            name: "You haven't requested any rides yet.",
+          }),
+        ).toBeInTheDocument()
+      })
+
+      it('moves a ride to the past list when it departs while the page is open', async () => {
+        // A fake clock that still ticks, so the initial load resolves normally.
+        jest.useFakeTimers({
+          advanceTimers: true,
+          now: new Date(2030, 4, 1, 9, 0, 0),
+        })
+        try {
+          const payload = buildMyRidesResponse()
+          payload.data.joined = [
+            joinedRide({
+              requestStatus: 'ACCEPTED',
+              departureAt: new Date(2030, 4, 1, 9, 2, 0).toISOString(),
+            }),
+          ]
+          fetchMyRides.mockResolvedValue(payload)
+          await renderDashboard()
+          fireEvent.click(
+            screen.getByRole('tab', { name: /Rides I.ve joined/ }),
+          )
+
+          expect(screen.getByText('Approved')).toBeInTheDocument()
+          expect(
+            screen.queryByRole('button', { name: /Past & cancelled/ }),
+          ).not.toBeInTheDocument()
+
+          // Nobody touches the page; only time passes.
+          act(() => {
+            jest.advanceTimersByTime(3 * 60 * 1000)
+          })
+
+          expect(screen.queryByText('Approved')).not.toBeInTheDocument()
+          expect(
+            screen.getByRole('button', { name: /Past & cancelled \(1\)/ }),
+          ).toBeInTheDocument()
+        } finally {
+          jest.useRealTimers()
+        }
+      })
+
+      it('leaves withdrawn requests out of the past list', async () => {
+        await openJoined(
+          [joinedRide({ requestStatus: 'ACCEPTED' })],
+          [
+            joinedRide({
+              id: 'ride-11',
+              requestId: 'request-11',
+              requestStatus: 'WITHDRAWN',
+              departureAt: PAST,
+            }),
+          ],
+        )
+
+        expect(
+          screen.queryByRole('button', { name: /Past & cancelled/ }),
+        ).not.toBeInTheDocument()
+      })
     })
 
     it('closes the dialog and explains why on a 409', async () => {
@@ -535,9 +738,9 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       )
       await user.click(screen.getByRole('button', { name: 'Send request' }))
 
-      expect(
-        await screen.findByRole('alert'),
-      ).toHaveTextContent('Failed to send your request.')
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to send your request.',
+      )
       expect(
         screen.getByRole('button', { name: 'Try again' }),
       ).toBeInTheDocument()

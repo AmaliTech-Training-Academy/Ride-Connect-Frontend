@@ -8,7 +8,11 @@ import {
   updateRideStatus,
   withdrawRideRequest,
 } from '../services/rides'
-import { normaliseMyJoinedRides, normaliseMyRides } from '../lib/myRides'
+import {
+  initialsFrom,
+  normaliseMyJoinedRides,
+  normaliseMyRides,
+} from '../lib/myRides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
 import './MyRidesDashboard.css'
 
@@ -40,6 +44,19 @@ function isPastRide(ride) {
     hasDeparted(ride)
   )
 }
+
+// Browsers mishandle timeouts past ~24.8 days, and re-checking hourly is cheap.
+const MAX_DEPARTURE_WAIT_MS = 60 * 60 * 1000
+
+/** Milliseconds until the soonest still-upcoming ride departs, or null. */
+function msUntilNextDeparture(rides) {
+  const soonest = rides
+    .filter((ride) => !isPastRide(ride))
+    .map((ride) => new Date(`${ride.date}T${ride.time}`).getTime())
+    .filter((time) => !Number.isNaN(time))
+    .reduce((earliest, time) => Math.min(earliest, time), Infinity)
+  return Number.isFinite(soonest) ? Math.max(soonest - Date.now(), 0) : null
+}
 function getRideStatus(ride) {
   const normalized = String(ride.status || '').toLowerCase()
   if (normalized === 'cancelled') return 'cancelled'
@@ -51,11 +68,11 @@ function getRideStatus(ride) {
   return 'open'
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, label }) {
   const normalizedStatus = String(status || '').replace('_', '-')
   return (
     <span className={`my-rides-status my-rides-status-${normalizedStatus}`}>
-      {normalizedStatus}
+      {label ?? normalizedStatus}
     </span>
   )
 }
@@ -336,7 +353,10 @@ function JoinedRideRow({ ride, onWithdraw, onRejoin, isBusy, isRejoinBusy }) {
   const status = String(ride.requestStatus ?? '').toUpperCase()
   const isDeclined = status === 'DECLINED'
   // Withdrawing applies to a request still standing, not one already refused.
-  const canWithdraw = status === 'PENDING' || status === 'ACCEPTED'
+  const canWithdraw =
+    (status === 'PENDING' || status === 'ACCEPTED') && Boolean(onWithdraw)
+  // A request nobody answered before the ride left can't be accepted now.
+  const isUnanswered = status === 'PENDING' && isPastRide(ride)
   // One more ask after a decline, and only while the ride can still take it.
   const canRejoin =
     isDeclined &&
@@ -349,39 +369,50 @@ function JoinedRideRow({ ride, onWithdraw, onRejoin, isBusy, isRejoinBusy }) {
     <div
       className={`my-rides-joined-row ${isDeclined ? 'my-rides-joined-row-declined' : ''}`}
     >
-      <div className="my-rides-joined-info">
-        <strong>
-          {ride.origin}{' '}
-          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
-          {ride.destination}
-        </strong>
-        <span>
-          <i className="fa-regular fa-calendar" aria-hidden="true" />{' '}
-          {formatDate(ride.date)} · {formatTime(ride.time)}
-        </span>
-        <span className="my-rides-joined-driver">
-          Driver: {ride.driverName}
-        </span>
-        {isDeclined && (
-          <p className="my-rides-decline-note">
-            <i className="fa-solid fa-circle-info" aria-hidden="true" />
-            <span>
-              {ride.rejectionReason ? (
-                <>
-                  <span className="my-rides-decline-note-label">
-                    {ride.driverName} said:
-                  </span>{' '}
-                  {ride.rejectionReason}
-                </>
-              ) : (
-                'The driver did not give a reason.'
-              )}
-            </span>
-          </p>
-        )}
+      <div className="my-rides-joined-main">
+        <UserAvatar
+          className="my-rides-avatar"
+          initials={initialsFrom(ride.driverName)}
+          imageUrl={ride.driverImage}
+        />
+        <div className="my-rides-joined-info">
+          <strong>
+            {ride.origin}{' '}
+            <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
+            {ride.destination}
+          </strong>
+          <span>
+            <i className="fa-regular fa-calendar" aria-hidden="true" />{' '}
+            {formatDate(ride.date)} · {formatTime(ride.time)}
+          </span>
+          <span className="my-rides-joined-driver">
+            Driver: {ride.driverName}
+          </span>
+          {isDeclined && (
+            <p className="my-rides-decline-note">
+              <i className="fa-solid fa-circle-info" aria-hidden="true" />
+              <span>
+                {ride.rejectionReason ? (
+                  <>
+                    <span className="my-rides-decline-note-label">
+                      {ride.driverName} said:
+                    </span>{' '}
+                    {ride.rejectionReason}
+                  </>
+                ) : (
+                  'The driver did not give a reason.'
+                )}
+              </span>
+            </p>
+          )}
+        </div>
       </div>
       <div className="my-rides-joined-actions">
-        <StatusBadge status={status.toLowerCase()} />
+        {isUnanswered ? (
+          <StatusBadge status="no-response" label="no response" />
+        ) : (
+          <StatusBadge status={status.toLowerCase()} />
+        )}
         {canWithdraw && (
           <button
             type="button"
@@ -838,6 +869,9 @@ function MyRidesDashboard({
   const [activeTab, setActiveTab] = useState(
     initialTab === 'joined' ? 'joined' : 'driving',
   )
+  const [showPastJoinedRides, setShowPastJoinedRides] = useState(false)
+  // Bumped when a ride departs, only to re-run the past/upcoming split.
+  const [departureTick, setDepartureTick] = useState(0)
   const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
@@ -941,16 +975,43 @@ function MyRidesDashboard({
     (total, ride) => total + ride.pendingRequests.length,
     0,
   )
-  const pendingJoinedRides = joinedRides.filter(
+  // Only rides still to come get a section with actions; anything departed,
+  // cancelled or completed moves to the read-only past list.
+  const upcomingJoinedRides = joinedRides.filter((ride) => !isPastRide(ride))
+  const pendingJoinedRides = upcomingJoinedRides.filter(
     (ride) => ride.requestStatus === 'PENDING',
   )
-  const approvedJoinedRides = joinedRides.filter(
+  const approvedJoinedRides = upcomingJoinedRides.filter(
     (ride) => ride.requestStatus === 'ACCEPTED',
   )
   // Without this the passenger's request simply disappears when refused.
-  const declinedJoinedRides = joinedRides.filter(
+  const declinedJoinedRides = upcomingJoinedRides.filter(
     (ride) => ride.requestStatus === 'DECLINED',
   )
+  const pastJoinedRides = joinedRides.filter(
+    (ride) => isPastRide(ride) && ride.requestStatus !== 'WITHDRAWN',
+  )
+  const hasUpcomingJoinedRides =
+    approvedJoinedRides.length +
+      pendingJoinedRides.length +
+      declinedJoinedRides.length >
+    0
+  // Withdrawn requests are in joinedRides but never shown, so they must not
+  // count towards "has something to show".
+  const hasVisibleJoinedRides =
+    hasUpcomingJoinedRides || pastJoinedRides.length > 0
+
+  // isPastRide() reads the clock only while rendering, so re-render when the
+  // next upcoming ride departs; it then moves to the past list on its own.
+  useEffect(() => {
+    const wait = msUntilNextDeparture([...rides, ...joinedRides])
+    if (wait === null) return undefined
+    const timer = setTimeout(
+      () => setDepartureTick((tick) => tick + 1),
+      Math.min(wait + 1000, MAX_DEPARTURE_WAIT_MS),
+    )
+    return () => clearTimeout(timer)
+  }, [rides, joinedRides, departureTick])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -1215,7 +1276,7 @@ function MyRidesDashboard({
                 Try again
               </button>
             </div>
-          ) : joinedRides.length === 0 ? (
+          ) : !hasVisibleJoinedRides ? (
             <div className="my-rides-empty-state">
               <div className="my-rides-empty-icon">
                 <i className="fa-solid fa-route" aria-hidden="true" />
@@ -1281,6 +1342,37 @@ function MyRidesDashboard({
                     ))}
                   </div>
                 </>
+              )}
+              {!hasUpcomingJoinedRides && pastJoinedRides.length > 0 && (
+                <p className="my-rides-detail-empty">
+                  You have no upcoming rides you&apos;ve joined.
+                </p>
+              )}
+              {pastJoinedRides.length > 0 && (
+                <section className="my-rides-past-section">
+                  <button
+                    type="button"
+                    className="my-rides-past-toggle"
+                    aria-expanded={showPastJoinedRides}
+                    onClick={() => setShowPastJoinedRides((shown) => !shown)}
+                  >
+                    <i
+                      className={`fa-solid fa-chevron-${showPastJoinedRides ? 'down' : 'right'}`}
+                      aria-hidden="true"
+                    />{' '}
+                    Past &amp; cancelled ({pastJoinedRides.length})
+                  </button>
+                  {showPastJoinedRides && (
+                    <div className="my-rides-joined-list">
+                      {pastJoinedRides.map((ride) => (
+                        <JoinedRideRow key={ride.requestId} ride={ride} />
+                      ))}
+                      <p className="my-rides-past-note">
+                        No actions available on past or cancelled rides.
+                      </p>
+                    </div>
+                  )}
+                </section>
               )}
             </>
           )

@@ -225,6 +225,10 @@
   color: #b43d38;
   background: #fde9e7;
 }
+.my-rides-status-no-response {
+  color: #69736b;
+  background: #edf0ee;
+}
 .my-rides-request-pill {
   padding: 5px 9px;
   color: #a65325;
@@ -451,6 +455,12 @@
   gap: 18px;
   padding: 16px 8px;
   border-bottom: 1px solid #e8eee8;
+}
+.my-rides-joined-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
 }
 .my-rides-joined-info strong,
 .my-rides-joined-info span {
