@@ -44,6 +44,19 @@ function isPastRide(ride) {
     hasDeparted(ride)
   )
 }
+
+// Browsers mishandle timeouts past ~24.8 days, and re-checking hourly is cheap.
+const MAX_DEPARTURE_WAIT_MS = 60 * 60 * 1000
+
+/** Milliseconds until the soonest still-upcoming ride departs, or null. */
+function msUntilNextDeparture(rides) {
+  const soonest = rides
+    .filter((ride) => !isPastRide(ride))
+    .map((ride) => new Date(`${ride.date}T${ride.time}`).getTime())
+    .filter((time) => !Number.isNaN(time))
+    .reduce((earliest, time) => Math.min(earliest, time), Infinity)
+  return Number.isFinite(soonest) ? Math.max(soonest - Date.now(), 0) : null
+}
 function getRideStatus(ride) {
   const normalized = String(ride.status || '').toLowerCase()
   if (normalized === 'cancelled') return 'cancelled'
@@ -857,6 +870,8 @@ function MyRidesDashboard({
     initialTab === 'joined' ? 'joined' : 'driving',
   )
   const [showPastJoinedRides, setShowPastJoinedRides] = useState(false)
+  // Bumped when a ride departs, only to re-run the past/upcoming split.
+  const [departureTick, setDepartureTick] = useState(0)
   const [expandedRideId, setExpandedRideId] = useState(null)
   const [menuRideId, setMenuRideId] = useState(null)
   const [rideToCancel, setRideToCancel] = useState(null)
@@ -981,6 +996,22 @@ function MyRidesDashboard({
       pendingJoinedRides.length +
       declinedJoinedRides.length >
     0
+  // Withdrawn requests are in joinedRides but never shown, so they must not
+  // count towards "has something to show".
+  const hasVisibleJoinedRides =
+    hasUpcomingJoinedRides || pastJoinedRides.length > 0
+
+  // isPastRide() reads the clock only while rendering, so re-render when the
+  // next upcoming ride departs; it then moves to the past list on its own.
+  useEffect(() => {
+    const wait = msUntilNextDeparture([...rides, ...joinedRides])
+    if (wait === null) return undefined
+    const timer = setTimeout(
+      () => setDepartureTick((tick) => tick + 1),
+      Math.min(wait + 1000, MAX_DEPARTURE_WAIT_MS),
+    )
+    return () => clearTimeout(timer)
+  }, [rides, joinedRides, departureTick])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -1245,7 +1276,7 @@ function MyRidesDashboard({
                 Try again
               </button>
             </div>
-          ) : joinedRides.length === 0 ? (
+          ) : !hasVisibleJoinedRides ? (
             <div className="my-rides-empty-state">
               <div className="my-rides-empty-icon">
                 <i className="fa-solid fa-route" aria-hidden="true" />

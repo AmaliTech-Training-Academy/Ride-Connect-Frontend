@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import MyRidesDashboard from './MyRidesDashboard'
@@ -614,6 +614,65 @@ describe('MyRidesDashboard - Ride Status Management', () => {
         expect(
           screen.queryByRole('button', { name: 'Withdraw request' }),
         ).not.toBeInTheDocument()
+      })
+
+      it('shows the empty state when the only requests were withdrawn', async () => {
+        await openJoined(
+          [joinedRide({ requestStatus: 'WITHDRAWN' })],
+          [
+            joinedRide({
+              id: 'ride-11',
+              requestId: 'request-11',
+              requestStatus: 'WITHDRAWN',
+              departureAt: PAST,
+            }),
+          ],
+        )
+
+        expect(
+          screen.getByRole('heading', {
+            name: "You haven't requested any rides yet.",
+          }),
+        ).toBeInTheDocument()
+      })
+
+      it('moves a ride to the past list when it departs while the page is open', async () => {
+        // A fake clock that still ticks, so the initial load resolves normally.
+        jest.useFakeTimers({
+          advanceTimers: true,
+          now: new Date(2030, 4, 1, 9, 0, 0),
+        })
+        try {
+          const payload = buildMyRidesResponse()
+          payload.data.joined = [
+            joinedRide({
+              requestStatus: 'ACCEPTED',
+              departureAt: new Date(2030, 4, 1, 9, 2, 0).toISOString(),
+            }),
+          ]
+          fetchMyRides.mockResolvedValue(payload)
+          await renderDashboard()
+          fireEvent.click(
+            screen.getByRole('tab', { name: /Rides I.ve joined/ }),
+          )
+
+          expect(screen.getByText('Approved')).toBeInTheDocument()
+          expect(
+            screen.queryByRole('button', { name: /Past & cancelled/ }),
+          ).not.toBeInTheDocument()
+
+          // Nobody touches the page; only time passes.
+          act(() => {
+            jest.advanceTimersByTime(3 * 60 * 1000)
+          })
+
+          expect(screen.queryByText('Approved')).not.toBeInTheDocument()
+          expect(
+            screen.getByRole('button', { name: /Past & cancelled \(1\)/ }),
+          ).toBeInTheDocument()
+        } finally {
+          jest.useRealTimers()
+        }
       })
 
       it('leaves withdrawn requests out of the past list', async () => {
