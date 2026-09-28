@@ -127,6 +127,7 @@ export function normaliseJoinedRide(ride, { isPast = false } = {}) {
     id: ride.id,
     driverId: ride.driverId,
     driverName: ride.driverName,
+    driverImage: ride.driverImage,
     origin: ride.origin,
     destination: ride.destination,
     description: ride.routeDescription || '',
