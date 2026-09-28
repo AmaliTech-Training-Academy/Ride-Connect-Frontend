@@ -1,0 +1,222 @@
+/**
+ * Bell badge and dropdown. Colours follow the design tokens, all of which are
+ * already used elsewhere in the app except the info blue, which is new and is
+ * only used for the "requested to join" and "ride updated" icons.
+ */
+
+.notifications-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.notifications-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1.5px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  background: #dc2626;
+  box-sizing: border-box;
+  font:
+    700 10.5px/14px 'Poppins',
+    sans-serif;
+  text-align: center;
+}
+
+.notifications-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(380px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+
+.notifications-panel-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.notifications-panel-header h2 {
+  margin: 0;
+  color: #1a1a2e;
+  font:
+    700 15px 'Poppins',
+    sans-serif;
+}
+
+.notifications-mark-all {
+  padding: 0;
+  border: 0;
+  color: #1b5e20;
+  background: transparent;
+  cursor: pointer;
+  font:
+    600 12.5px 'Poppins',
+    sans-serif;
+}
+
+.notifications-mark-all:hover {
+  text-decoration: underline;
+}
+
+.notifications-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.notifications-item {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.notifications-item:last-child {
+  border-bottom: 0;
+}
+
+.notifications-item:hover {
+  background: #f9fafb;
+}
+
+.notifications-item-unread {
+  background: #e8f5e9;
+}
+
+.notifications-item-unread:hover {
+  background: #dcedde;
+}
+
+.notifications-unread-marker {
+  position: absolute;
+  top: 22px;
+  left: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1b5e20;
+}
+
+.notifications-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: 6px;
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+.notifications-icon-success {
+  color: #1b5e20;
+  background: #e8f5e9;
+}
+
+.notifications-icon-danger {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.notifications-icon-info {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.notifications-body {
+  display: grid;
+  gap: 4px;
+}
+
+.notifications-message {
+  color: #424242;
+  font:
+    400 13.5px/1.5 'Poppins',
+    sans-serif;
+}
+
+.notifications-item-unread .notifications-message {
+  color: #1a1a2e;
+}
+
+.notifications-age {
+  color: #757575;
+  font:
+    400 11.5px 'Poppins',
+    sans-serif;
+}
+
+.notifications-empty {
+  display: grid;
+  justify-items: center;
+  padding: 44px 24px;
+  text-align: center;
+}
+
+.notifications-empty i {
+  margin-bottom: 12px;
+  color: #d1d5db;
+  font-size: 26px;
+}
+
+.notifications-empty p {
+  margin: 0;
+  color: #757575;
+  font-size: 14px;
+}
+
+.notifications-status {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px 24px;
+  color: #757575;
+  font-size: 13px;
+  text-align: center;
+}
+
+.notifications-status p {
+  margin: 0;
+}
+
+.notifications-retry {
+  padding: 7px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #1b5e20;
+  background: #fff;
+  cursor: pointer;
+  font:
+    600 12.5px 'Poppins',
+    sans-serif;
+}
+
+.notifications-sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
