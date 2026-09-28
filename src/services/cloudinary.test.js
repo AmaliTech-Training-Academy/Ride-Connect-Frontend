@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals'
-import { ImageUploadError, MAX_IMAGE_BYTES, uploadImage } from './cloudinary'
+import {
+  DEFAULT_CLOUD_NAME,
+  DEFAULT_UPLOAD_PRESET,
+  MAX_IMAGE_BYTES,
+  uploadImage,
+} from './cloudinary'
 
 function imageFile({ type = 'image/png', size = 1024 } = {}) {
   const file = new File(['x'], 'me.png', { type })
@@ -55,14 +60,21 @@ describe('uploadImage', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 
-  it('reports missing configuration instead of calling Cloudinary', async () => {
+  it('uses the built-in account and preset when nothing is configured', async () => {
+    delete globalThis.__VITE_CLOUDINARY_CLOUD_NAME__
     delete globalThis.__VITE_CLOUDINARY_UPLOAD_PRESET__
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ secure_url: 'https://res.cloudinary.com/x/me.png' }),
+    })
 
-    const error = await uploadImage(imageFile()).catch((e) => e)
+    await uploadImage(imageFile())
 
-    expect(error).toBeInstanceOf(ImageUploadError)
-    expect(error.message).toBe('Picture uploads are not set up yet.')
-    expect(globalThis.fetch).not.toHaveBeenCalled()
+    const [url, options] = globalThis.fetch.mock.calls[0]
+    expect(url).toBe(
+      `https://api.cloudinary.com/v1_1/${DEFAULT_CLOUD_NAME}/image/upload`,
+    )
+    expect(options.body.get('upload_preset')).toBe(DEFAULT_UPLOAD_PRESET)
   })
 
   it("surfaces Cloudinary's own error message", async () => {

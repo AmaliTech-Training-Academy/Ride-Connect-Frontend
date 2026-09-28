@@ -8,18 +8,21 @@ export class ImageUploadError extends Error {
   }
 }
 
-// Read per call rather than at import, so a missing value is reported when
-// someone actually tries to upload.
+// Not secrets: an unsigned upload exposes both to every browser anyway. They
+// ship as defaults so uploads work without setup; `.env` can still override.
+export const DEFAULT_CLOUD_NAME = 'mauricious'
+export const DEFAULT_UPLOAD_PRESET = 'rideConnect profile pictures'
+
 function cloudinaryConfig() {
   return {
     cloudName:
       globalThis.__VITE_CLOUDINARY_CLOUD_NAME__ ||
       globalThis.process?.env?.VITE_CLOUDINARY_CLOUD_NAME ||
-      '',
+      DEFAULT_CLOUD_NAME,
     uploadPreset:
       globalThis.__VITE_CLOUDINARY_UPLOAD_PRESET__ ||
       globalThis.process?.env?.VITE_CLOUDINARY_UPLOAD_PRESET ||
-      '',
+      DEFAULT_UPLOAD_PRESET,
   }
 }
 
@@ -40,9 +43,6 @@ export async function uploadImage(file) {
   }
 
   const { cloudName, uploadPreset } = cloudinaryConfig()
-  if (!cloudName || !uploadPreset) {
-    throw new ImageUploadError('Picture uploads are not set up yet.')
-  }
 
   const form = new FormData()
   form.append('file', file)
