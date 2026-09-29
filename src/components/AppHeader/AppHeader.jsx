@@ -15,12 +15,9 @@ const NAV_ITEMS = [
 function AppHeader({ userInitials, userImage, onLogout, onUserUpdated }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  /*
-   * Find a Ride puts a photo behind the header, so there it floats over the
-   * image as a rounded bar. Every other screen has a plain background, where
-   * a detached pill would look stranded rather than deliberate.
-   */
-  const isFloating = pathname.startsWith('/find-a-ride')
+  // Every signed-in screen now carries a photo hero, so the header floats
+  // over the image on all of them.
+  const isFloating = true
   const [isPasswordPanelOpen, setPasswordPanelOpen] = useState(false)
   const [isUploadingImage, setUploadingImage] = useState(false)
   const [toast, setToast] = useState(null)

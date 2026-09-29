@@ -350,252 +350,268 @@ function PostRideForm({
 
   return (
     <div className="post-ride-page">
-      {status === 'error' && (
-        <div className="error-banner">
-          <span>
-            <i
-              className="fa-solid fa-triangle-exclamation"
-              aria-hidden="true"
-            />
+      <section className="post-ride-hero">
+        <div className="post-ride-hero-inner">
+          <p className="post-ride-hero-eyebrow">
+            {isEditing ? 'Update your ride' : 'Colleague carpool'}
+          </p>
+          <h1 className="post-ride-hero-heading">
+            {isEditing ? 'Edit your ride' : 'Offer a ride'}
+          </h1>
+          <p className="post-ride-hero-subtitle">
             {isEditing
-              ? 'Something went wrong updating your ride. Please try again.'
-              : 'Something went wrong posting your ride. Please try again.'}
-          </span>
-          <button
-            type="button"
-            className="error-banner-dismiss"
-            onClick={() => setStatus('idle')}
-            aria-label="Dismiss error"
-          >
-            <i className="fa-solid fa-xmark" aria-hidden="true" />
-          </button>
+              ? 'Change the details and your passengers will be told.'
+              : 'Post your commute and let colleagues share the journey.'}
+          </p>
         </div>
-      )}
+      </section>
 
-      <div className="post-ride-layout">
-        <form className="post-ride-form" onSubmit={handleSubmit} noValidate>
-          <h1>{isEditing ? 'Edit your ride' : 'Offer a ride'}</h1>
-
-          <div className="form-section">
-            <span className="section-label">Route</span>
-            <div className="origin-destination-row">
-              <div className="form-field">
-                <label htmlFor="origin">Origin</label>
-                <input
-                  id="origin"
-                  type="text"
-                  value={values.origin}
-                  onChange={(event) =>
-                    updateField('origin', event.target.value)
-                  }
-                  disabled={isSubmitting}
-                  className={
-                    showFieldErrors && getFieldError('origin')
-                      ? 'input-error'
-                      : ''
-                  }
-                  placeholder="Starting point"
-                />
-                <FieldError
-                  message={showFieldErrors ? getFieldError('origin') : null}
-                />
-              </div>
-
-              <div className="swap-btn-wrap">
-                <button
-                  type="button"
-                  className="swap-btn"
-                  onClick={handleSwap}
-                  disabled={isSubmitting}
-                  aria-label="Swap origin and destination"
-                >
-                  <i className="fa-solid fa-right-left" aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="destination">Destination</label>
-                <input
-                  id="destination"
-                  type="text"
-                  value={values.destination}
-                  onChange={(event) =>
-                    updateField('destination', event.target.value)
-                  }
-                  disabled={isSubmitting}
-                  className={
-                    showFieldErrors && getFieldError('destination')
-                      ? 'input-error'
-                      : ''
-                  }
-                  placeholder="Drop-off point"
-                />
-                <FieldError
-                  message={
-                    showFieldErrors ? getFieldError('destination') : null
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="description">
-              Route description{' '}
-              <span className="optional-label">(optional)</span>
-            </label>
-            <textarea
-              id="description"
-              value={values.description}
-              onChange={(event) =>
-                updateField(
-                  'description',
-                  event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
-                )
-              }
-              disabled={isSubmitting}
-              maxLength={DESCRIPTION_MAX_LENGTH}
-              placeholder="Mention roads you'll take or where you can pick people up."
-              rows={3}
-            />
-            <span className="char-counter">
-              {values.description.length} / {DESCRIPTION_MAX_LENGTH}
+      <div className="post-ride-content">
+        {status === 'error' && (
+          <div className="error-banner">
+            <span>
+              <i
+                className="fa-solid fa-triangle-exclamation"
+                aria-hidden="true"
+              />
+              {isEditing
+                ? 'Something went wrong updating your ride. Please try again.'
+                : 'Something went wrong posting your ride. Please try again.'}
             </span>
-            <FieldError
-              message={showFieldErrors ? getFieldError('description') : null}
-            />
-          </div>
-
-          <div className="form-section">
-            <span className="section-label">When</span>
-            <div className="form-row">
-              <div className="form-field">
-                <label htmlFor="date">Departure date</label>
-                <div
-                  className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() =>
-                    !isSubmitting && dateInputRef.current?.showPicker?.()
-                  }
-                >
-                  <span className={values.date ? '' : 'placeholder'}>
-                    {values.date
-                      ? formatDisplayDate(values.date)
-                      : 'Select a date'}
-                  </span>
-                  <i className="fa-regular fa-calendar" aria-hidden="true" />
-                  <input
-                    ref={dateInputRef}
-                    id="date"
-                    type="date"
-                    className="styled-date-field-native"
-                    value={values.date}
-                    min={todayISODate}
-                    onChange={(event) =>
-                      updateField('date', event.target.value)
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <FieldError
-                  message={showFieldErrors ? getFieldError('date') : null}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="time">Departure time</label>
-                <div
-                  className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() =>
-                    !isSubmitting && timeInputRef.current?.showPicker?.()
-                  }
-                >
-                  <span className={values.time ? '' : 'placeholder'}>
-                    {values.time
-                      ? formatDisplayTime(values.time)
-                      : 'Select a time'}
-                  </span>
-                  <i className="fa-regular fa-clock" aria-hidden="true" />
-                  <input
-                    ref={timeInputRef}
-                    id="time"
-                    type="time"
-                    className="styled-date-field-native"
-                    value={values.time}
-                    onChange={(event) =>
-                      updateField('time', event.target.value)
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <FieldError
-                  message={showFieldErrors ? getFieldError('time') : null}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <span className="section-label">Seats</span>
-            <SeatStepper
-              minSeats={seatsTaken}
-              value={values.seats}
-              onChange={(seats) => updateField('seats', seats)}
-              disabled={isSubmitting}
-            />
-            <FieldError
-              message={showFieldErrors ? getFieldError('seats') : null}
-            />
-          </div>
-
-          <div className="form-actions">
             <button
               type="button"
-              className="btn-secondary"
-              onClick={handleCancel}
-              disabled={isSubmitting}
+              className="error-banner-dismiss"
+              onClick={() => setStatus('idle')}
+              aria-label="Dismiss error"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <i
-                    className="fa-solid fa-spinner fa-spin"
-                    aria-hidden="true"
-                  />
-                  {isEditing ? 'Saving…' : 'Posting…'}
-                </>
-              ) : isEditing ? (
-                'Save changes'
-              ) : (
-                'Post Ride'
-              )}
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
             </button>
           </div>
-        </form>
+        )}
 
-        <aside className="post-ride-preview">
-          <RidePreviewCard
-            driverImage={userImage}
-            driverInitials={userInitials}
-            ride={values}
-            isValid={isFormValid}
-            showErrorState={hasAttemptedSubmit}
-            isNew={status === 'success'}
-          />
-        </aside>
-      </div>
+        <div className="post-ride-layout">
+          <form className="post-ride-form" onSubmit={handleSubmit} noValidate>
+            <div className="form-section">
+              <span className="section-label">Route</span>
+              <div className="origin-destination-row">
+                <div className="form-field">
+                  <label htmlFor="origin">Origin</label>
+                  <input
+                    id="origin"
+                    type="text"
+                    value={values.origin}
+                    onChange={(event) =>
+                      updateField('origin', event.target.value)
+                    }
+                    disabled={isSubmitting}
+                    className={
+                      showFieldErrors && getFieldError('origin')
+                        ? 'input-error'
+                        : ''
+                    }
+                    placeholder="Starting point"
+                  />
+                  <FieldError
+                    message={showFieldErrors ? getFieldError('origin') : null}
+                  />
+                </div>
 
-      {toastMessage && (
-        <div className="toast">
-          <i className="fa-solid fa-circle-check" aria-hidden="true" />
-          {toastMessage}
+                <div className="swap-btn-wrap">
+                  <button
+                    type="button"
+                    className="swap-btn"
+                    onClick={handleSwap}
+                    disabled={isSubmitting}
+                    aria-label="Swap origin and destination"
+                  >
+                    <i className="fa-solid fa-right-left" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="destination">Destination</label>
+                  <input
+                    id="destination"
+                    type="text"
+                    value={values.destination}
+                    onChange={(event) =>
+                      updateField('destination', event.target.value)
+                    }
+                    disabled={isSubmitting}
+                    className={
+                      showFieldErrors && getFieldError('destination')
+                        ? 'input-error'
+                        : ''
+                    }
+                    placeholder="Drop-off point"
+                  />
+                  <FieldError
+                    message={
+                      showFieldErrors ? getFieldError('destination') : null
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="description">
+                Route description{' '}
+                <span className="optional-label">(optional)</span>
+              </label>
+              <textarea
+                id="description"
+                value={values.description}
+                onChange={(event) =>
+                  updateField(
+                    'description',
+                    event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
+                  )
+                }
+                disabled={isSubmitting}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                placeholder="Mention roads you'll take or where you can pick people up."
+                rows={3}
+              />
+              <span className="char-counter">
+                {values.description.length} / {DESCRIPTION_MAX_LENGTH}
+              </span>
+              <FieldError
+                message={showFieldErrors ? getFieldError('description') : null}
+              />
+            </div>
+
+            <div className="form-section">
+              <span className="section-label">When</span>
+              <div className="form-row">
+                <div className="form-field">
+                  <label htmlFor="date">Departure date</label>
+                  <div
+                    className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                    onClick={() =>
+                      !isSubmitting && dateInputRef.current?.showPicker?.()
+                    }
+                  >
+                    <span className={values.date ? '' : 'placeholder'}>
+                      {values.date
+                        ? formatDisplayDate(values.date)
+                        : 'Select a date'}
+                    </span>
+                    <i className="fa-regular fa-calendar" aria-hidden="true" />
+                    <input
+                      ref={dateInputRef}
+                      id="date"
+                      type="date"
+                      className="styled-date-field-native"
+                      value={values.date}
+                      min={todayISODate}
+                      onChange={(event) =>
+                        updateField('date', event.target.value)
+                      }
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <FieldError
+                    message={showFieldErrors ? getFieldError('date') : null}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="time">Departure time</label>
+                  <div
+                    className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
+                    onClick={() =>
+                      !isSubmitting && timeInputRef.current?.showPicker?.()
+                    }
+                  >
+                    <span className={values.time ? '' : 'placeholder'}>
+                      {values.time
+                        ? formatDisplayTime(values.time)
+                        : 'Select a time'}
+                    </span>
+                    <i className="fa-regular fa-clock" aria-hidden="true" />
+                    <input
+                      ref={timeInputRef}
+                      id="time"
+                      type="time"
+                      className="styled-date-field-native"
+                      value={values.time}
+                      onChange={(event) =>
+                        updateField('time', event.target.value)
+                      }
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <FieldError
+                    message={showFieldErrors ? getFieldError('time') : null}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-section">
+              <span className="section-label">Seats</span>
+              <SeatStepper
+                minSeats={seatsTaken}
+                value={values.seats}
+                onChange={(seats) => updateField('seats', seats)}
+                disabled={isSubmitting}
+              />
+              <FieldError
+                message={showFieldErrors ? getFieldError('seats') : null}
+              />
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleCancel}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <i
+                      className="fa-solid fa-spinner fa-spin"
+                      aria-hidden="true"
+                    />
+                    {isEditing ? 'Saving…' : 'Posting…'}
+                  </>
+                ) : isEditing ? (
+                  'Save changes'
+                ) : (
+                  'Post Ride'
+                )}
+              </button>
+            </div>
+          </form>
+
+          <aside className="post-ride-preview">
+            <RidePreviewCard
+              driverImage={userImage}
+              driverInitials={userInitials}
+              ride={values}
+              isValid={isFormValid}
+              showErrorState={hasAttemptedSubmit}
+              isNew={status === 'success'}
+            />
+          </aside>
         </div>
-      )}
+
+        {toastMessage && (
+          <div className="toast">
+            <i className="fa-solid fa-circle-check" aria-hidden="true" />
+            {toastMessage}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

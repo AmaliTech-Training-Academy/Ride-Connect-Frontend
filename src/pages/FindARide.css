@@ -54,19 +54,31 @@
    * carries only enough bottom padding to hold their top half. The rest of
    * their height is pulled out with a negative margin further down.
    */
-  padding: 140px 5vw 0;
+  padding: clamp(112px, 9vw, 140px) 5vw 0;
   color: #fff;
   background:
+    /*
+     * The wash deepens from top to bottom: light over the sky so the photo
+     * still reads, heaviest where the stat cards meet the page below so the
+     * join between image and background is soft rather than a hard line.
+     */
     linear-gradient(
-      100deg,
-      rgba(12, 28, 14, 0.78) 0%,
-      rgba(12, 28, 14, 0.45) 42%,
-      rgba(12, 28, 14, 0.15) 70%
+      180deg,
+      rgba(12, 28, 14, 0.08) 0%,
+      rgba(12, 28, 14, 0.26) 38%,
+      rgba(12, 28, 14, 0.44) 72%,
+      rgba(12, 28, 14, 0.56) 100%
     ),
-    url('../assets/find-ride-hero.webp') center 38% / cover no-repeat;
+    url('../assets/find-ride-hero.webp') center 52% / cover no-repeat;
 }
 .find-ride-hero-inner {
-  width: min(1220px, calc(100% - 48px));
+  /*
+   * flow-root keeps the stat cards' negative bottom margin inside this box.
+   * Without it the margin collapses straight out through the hero and simply
+   * pulls the page up, leaving the photo covering the cards in full.
+   */
+  display: flow-root;
+  width: min(1156px, calc(100% - 48px));
   margin: 0 auto;
 }
 .find-ride-hero-eyebrow {
@@ -80,7 +92,7 @@
 .find-ride-hero-heading {
   margin: 0 0 8px;
   color: #fff;
-  font-size: 32px;
+  font-size: clamp(24px, 2.4vw, 32px);
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -93,7 +105,7 @@
 .find-ride-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
   /*
    * The cards overhang the photo onto the page below. A negative bottom
    * margin pulls the hero's own height up by the overhang, so there is no
@@ -102,7 +114,7 @@
   position: relative;
   z-index: 1;
   margin-top: 34px;
-  margin-bottom: -58px;
+  margin-bottom: -38px;
 }
 .find-ride-stat-card {
   padding: 20px 22px;
@@ -124,10 +136,9 @@
 }
 
 .find-ride-content {
-  width: min(1220px, calc(100% - 48px));
+  width: min(1156px, calc(100% - 48px));
   margin: 0 auto;
-  /* 58px clears the overhanging stat cards, then the usual 48px of space. */
-  padding: 106px 0 80px;
+  padding: 79px 0 80px;
 }
 .find-ride-title-row {
   display: flex;
@@ -610,8 +621,8 @@
   }
   .find-ride-content {
     width: min(100% - 32px, 760px);
-    /* 58px of overhang plus the usual spacing. */
-    padding-top: 92px;
+    /* 38px of overhang plus the usual spacing. */
+    padding-top: 72px;
   }
   .find-ride-hero {
     padding-inline: 24px;

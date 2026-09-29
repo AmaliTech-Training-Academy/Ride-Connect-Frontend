@@ -37,6 +37,22 @@
 }
 
 /*
+ * A wash in the brand green over the photo. Without it the wordmark and the
+ * card's edges wash out against the paler stretches of the image.
+ */
+.auth-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(13, 59, 18, 0.74) 0%,
+    rgba(13, 59, 18, 0.56) 45%,
+    rgba(13, 59, 18, 0.74) 100%
+  );
+}
+
+/*
  * No colour wash over the photo - it shows in its own colours. The wordmark
  * carries a shadow instead, since it is the only text sitting directly on the
  * image; the card and footnote have solid backgrounds of their own.

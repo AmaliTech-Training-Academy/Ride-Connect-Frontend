@@ -1,10 +1,53 @@
 .post-ride-page {
   font-family: 'Poppins', sans-serif;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 24px 20px 80px;
   color: #2b2b2b;
   text-align: left;
+}
+
+/* Matches the Find a Ride and My Rides heroes: same photo, wash and metrics. */
+.post-ride-hero {
+  position: relative;
+  padding: clamp(112px, 9vw, 140px) 5vw clamp(64px, 7vw, 99px);
+  color: #fff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 28, 14, 0.08) 0%,
+      rgba(12, 28, 14, 0.26) 38%,
+      rgba(12, 28, 14, 0.44) 72%,
+      rgba(12, 28, 14, 0.56) 100%
+    ),
+    url('../../assets/find-ride-hero.webp') center 52% / cover no-repeat;
+}
+.post-ride-hero-inner {
+  width: min(1156px, calc(100% - 48px));
+  margin: 0 auto;
+}
+.post-ride-hero-eyebrow {
+  margin: 0 0 8px;
+  color: #cfe9d0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.post-ride-hero-heading {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 700;
+}
+.post-ride-hero-subtitle {
+  max-width: 520px;
+  margin: 0;
+  color: #dcefdd;
+  font-size: 14px;
+}
+
+.post-ride-content {
+  width: min(1156px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 48px 0 80px;
 }
 
 .error-banner {
@@ -579,4 +622,20 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
+}
+
+@media (max-width: 680px) {
+  .post-ride-hero {
+    /* The header wraps to two rows here, so the heading needs more room. */
+    padding: 168px 16px 52px;
+  }
+  .post-ride-hero-inner {
+    width: calc(100% - 28px);
+  }
+}
+@media (max-width: 680px) {
+  .post-ride-content {
+    width: calc(100% - 28px);
+    padding-top: 32px;
+  }
 }
