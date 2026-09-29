@@ -74,10 +74,11 @@ describe('FindARide', () => {
     ).toHaveLength(6)
   })
 
-  it('renders the filtered empty state using the response message', async () => {
-    apiFetch.mockResolvedValue(response([], 'No rides found for this route.'))
+  it('words the filtered empty state from the active filters, not the API copy', async () => {
+    // Deliberately unrelated wording: the heading must not depend on it.
+    apiFetch.mockResolvedValue(response([], 'Nothing matched your query.'))
     render(<FindARide onOfferRide={jest.fn()} />)
-    await screen.findByText('No rides found for this route')
+    await screen.findByRole('heading', { name: 'No rides found' })
 
     const search = screen.getByRole('searchbox')
     await userEvent.setup().type(search, 'Kumasi')
@@ -91,6 +92,34 @@ describe('FindARide', () => {
       screen.getByText(
         'Try a different date or route, or offer a ride yourself.',
       ),
+    ).toBeInTheDocument()
+  })
+
+  it('puts date before search before office, like the API', async () => {
+    apiFetch.mockResolvedValue(response([]))
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByRole('heading', { name: 'No rides found' })
+
+    await user.selectOptions(screen.getByLabelText('Filter by office'), 'ACCRA')
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No rides found for this office',
+      }),
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox'), 'Adum')
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No rides found for this route',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Tomorrow' }))
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No rides found for this date',
+      }),
     ).toBeInTheDocument()
   })
 

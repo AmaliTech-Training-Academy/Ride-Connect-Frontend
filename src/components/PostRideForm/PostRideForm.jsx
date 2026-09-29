@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
-import { OFFICES, officeLabel } from '../../lib/offices'
+import { OFFICES, matchesOffice, officeLabel } from '../../lib/offices'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
@@ -75,11 +75,7 @@ function validate(values, now) {
     errors.place = isToOffice
       ? 'Please enter an origin'
       : 'Please enter a destination'
-  } else if (
-    values.office &&
-    values.place.trim().toLowerCase() ===
-      officeLabel(values.office).toLowerCase()
-  ) {
+  } else if (matchesOffice(values.place, values.office)) {
     errors.place = 'Origin and destination must be different'
   }
 

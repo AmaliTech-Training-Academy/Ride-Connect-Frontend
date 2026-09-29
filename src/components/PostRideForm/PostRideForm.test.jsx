@@ -106,19 +106,42 @@ describe('PostRideForm', () => {
     expect(apiFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects a starting point that is the office itself, whatever the case', async () => {
+  it.each([
+    'amalitech ACCRA',
+    'Accra',
+    'accra office',
+    'AmaliTech Accra Office.',
+  ])(
+    'rejects "%s" as the start when heading to the Accra office',
+    async (typed) => {
+      const user = userEvent.setup()
+      render(<PostRideForm />)
+
+      await user.type(screen.getByLabelText('Origin'), typed)
+      await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+      fillWhen()
+      await postRide(user)
+
+      expect(
+        screen.getByText('Origin and destination must be different'),
+      ).toBeInTheDocument()
+      expect(apiFetch).not.toHaveBeenCalled()
+    },
+  )
+
+  it('still allows a real place in the same city as the office', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'amalitech ACCRA')
+    await user.type(screen.getByLabelText('Origin'), 'Accra Mall')
     await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
     fillWhen()
     await postRide(user)
 
+    expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
     expect(
-      screen.getByText('Origin and destination must be different'),
-    ).toBeInTheDocument()
-    expect(apiFetch).not.toHaveBeenCalled()
+      screen.queryByText('Origin and destination must be different'),
+    ).not.toBeInTheDocument()
   })
 
   it('posts a ride to an office and shows the success state', async () => {

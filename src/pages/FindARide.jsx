@@ -256,7 +256,7 @@ function FilterChip({ children, onRemove }) {
   )
 }
 
-function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
+function EmptyState({ hasFilters, title, onClear, onOfferRide }) {
   return (
     <div className="find-ride-empty-state">
       <div className="find-ride-empty-icon">
@@ -265,10 +265,7 @@ function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
           aria-hidden="true"
         />
       </div>
-      <h2>
-        {emptyMessage ||
-          (hasFilters ? 'No rides found for this date' : 'No rides posted yet')}
-      </h2>
+      <h2>{title}</h2>
       <p>
         {hasFilters
           ? 'Try a different date or route, or offer a ride yourself.'
@@ -296,15 +293,16 @@ function EmptyState({ hasFilters, emptyMessage, onClear, onOfferRide }) {
   )
 }
 
-function getEmptyMessage(message, hasFilters) {
-  if (message?.toLowerCase().includes('date'))
-    return 'No rides found for this date'
-  if (message?.toLowerCase().includes('route'))
-    return 'No rides found for this route'
-  if (message?.toLowerCase().includes('office'))
-    return 'No rides found for this office'
-  if (message) return 'No rides found'
-  return hasFilters ? 'No rides found for this date' : undefined
+/**
+ * Worded from the filters we sent, not the backend's message text, so a copy
+ * change on the server can't break it. Same priority as the API: date, then
+ * search (route), then office.
+ */
+function getEmptyMessage({ date, search, office }) {
+  if (date) return 'No rides found for this date'
+  if (search) return 'No rides found for this route'
+  if (office) return 'No rides found for this office'
+  return 'No rides found'
 }
 
 async function readResponseBody(response) {
@@ -329,7 +327,6 @@ function FindARide({
   const [selectedOffice, setSelectedOffice] = useState('')
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
-  const [emptyMessage, setEmptyMessage] = useState('')
   const [toast, setToast] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
   // rideId -> 'sending' | 'requested' | 'withdrawing'
@@ -379,7 +376,6 @@ function FindARide({
         setRides(
           (body?.data || []).map((ride) => normaliseRide(ride, currentUserId)),
         )
-        setEmptyMessage(body?.message || '')
         setLoadError('')
         setLoadState('loaded')
       })
@@ -607,7 +603,11 @@ function FindARide({
       return (
         <EmptyState
           hasFilters={hasFilters}
-          emptyMessage={getEmptyMessage(emptyMessage, hasFilters)}
+          title={getEmptyMessage({
+            date: selectedDate,
+            search: search.trim(),
+            office: selectedOffice,
+          })}
           onClear={clearFilters}
           onOfferRide={onOfferRide}
         />
@@ -618,7 +618,7 @@ function FindARide({
       return (
         <EmptyState
           hasFilters={false}
-          emptyMessage={getEmptyMessage(emptyMessage, false)}
+          title={getEmptyMessage({})}
           onOfferRide={onOfferRide}
         />
       )
