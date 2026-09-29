@@ -28,6 +28,7 @@ function RegisterScreen({
   const [registeredUser, setRegisteredUser] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isConfirmTouched, setIsConfirmTouched] = useState(false)
 
   // Hold on the success state briefly so the confirmation is readable, then
   // hand off to whatever renders the ride listing.
@@ -43,6 +44,7 @@ function RegisterScreen({
   function updateField(field) {
     return (event) => {
       setForm((current) => ({ ...current, [field]: event.target.value }))
+      if (field === 'confirmPassword') setIsConfirmTouched(true)
     }
   }
 
@@ -80,6 +82,13 @@ function RegisterScreen({
 
   const strength = passwordStrength(form.password)
   const isSubmitting = status === 'submitting'
+  // Checked live once the user has typed a confirmation (or a submit has
+  // flagged it), so a mismatch shows while typing and clears as soon as the
+  // two passwords agree, whichever one they edit.
+  const confirmError =
+    isConfirmTouched || errors.confirmPassword
+      ? validateRegistration(form).confirmPassword
+      : undefined
 
   return (
     <main className="auth-shell">
@@ -249,7 +258,7 @@ function RegisterScreen({
 
               <label htmlFor="confirmPassword">Confirm password</label>
               <div
-                className={`register-password ${errors.confirmPassword ? 'has-error' : ''}`}
+                className={`register-password ${confirmError ? 'has-error' : ''}`}
               >
                 <input
                   id="confirmPassword"
@@ -258,10 +267,8 @@ function RegisterScreen({
                   onChange={updateField('confirmPassword')}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  aria-invalid={Boolean(errors.confirmPassword)}
-                  aria-describedby={
-                    errors.confirmPassword ? 'confirm-error' : undefined
-                  }
+                  aria-invalid={Boolean(confirmError)}
+                  aria-describedby={confirmError ? 'confirm-error' : undefined}
                 />
                 <button
                   type="button"
@@ -279,13 +286,13 @@ function RegisterScreen({
                   <EyeIcon hidden={showConfirmPassword} />
                 </button>
               </div>
-              {errors.confirmPassword && (
+              {confirmError && (
                 <p
                   className="register-field-error"
                   id="confirm-error"
                   role="alert"
                 >
-                  {errors.confirmPassword}
+                  {confirmError}
                 </p>
               )}
 

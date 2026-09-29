@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
+import DatePickerField from '../PickerFields/DatePickerField'
+import TimePickerField from '../PickerFields/TimePickerField'
 import { OFFICES, matchesOffice, officeLabel } from '../../lib/offices'
 import './PostRideForm.css'
 
@@ -145,9 +147,6 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
   const [toastMessage, setToastMessage] = useState(null)
   const [serverErrors, setServerErrors] = useState({})
-
-  const dateInputRef = useRef(null)
-  const timeInputRef = useRef(null)
 
   const now = new Date()
   const todayISODate = toISODate(now)
@@ -394,31 +393,15 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
             <div className="form-row">
               <div className="form-field">
                 <label htmlFor="date">Departure date</label>
-                <div
-                  className={`styled-date-field ${showFieldErrors && getFieldError('date') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() =>
-                    !isSubmitting && dateInputRef.current?.showPicker?.()
-                  }
-                >
-                  <span className={values.date ? '' : 'placeholder'}>
-                    {values.date
-                      ? formatDisplayDate(values.date)
-                      : 'Select a date'}
-                  </span>
-                  <i className="fa-regular fa-calendar" aria-hidden="true" />
-                  <input
-                    ref={dateInputRef}
-                    id="date"
-                    type="date"
-                    className="styled-date-field-native"
-                    value={values.date}
-                    min={todayISODate}
-                    onChange={(event) =>
-                      updateField('date', event.target.value)
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
+                <DatePickerField
+                  id="date"
+                  value={values.date}
+                  min={todayISODate}
+                  onChange={(date) => updateField('date', date)}
+                  disabled={isSubmitting}
+                  hasError={Boolean(showFieldErrors && getFieldError('date'))}
+                  formatValue={formatDisplayDate}
+                />
                 <FieldError
                   message={showFieldErrors ? getFieldError('date') : null}
                 />
@@ -426,30 +409,14 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
 
               <div className="form-field">
                 <label htmlFor="time">Departure time</label>
-                <div
-                  className={`styled-date-field ${showFieldErrors && getFieldError('time') ? 'input-error' : ''} ${isSubmitting ? 'is-disabled' : ''}`}
-                  onClick={() =>
-                    !isSubmitting && timeInputRef.current?.showPicker?.()
-                  }
-                >
-                  <span className={values.time ? '' : 'placeholder'}>
-                    {values.time
-                      ? formatDisplayTime(values.time)
-                      : 'Select a time'}
-                  </span>
-                  <i className="fa-regular fa-clock" aria-hidden="true" />
-                  <input
-                    ref={timeInputRef}
-                    id="time"
-                    type="time"
-                    className="styled-date-field-native"
-                    value={values.time}
-                    onChange={(event) =>
-                      updateField('time', event.target.value)
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
+                <TimePickerField
+                  id="time"
+                  value={values.time}
+                  onChange={(time) => updateField('time', time)}
+                  disabled={isSubmitting}
+                  hasError={Boolean(showFieldErrors && getFieldError('time'))}
+                  formatValue={formatDisplayTime}
+                />
                 <FieldError
                   message={showFieldErrors ? getFieldError('time') : null}
                 />

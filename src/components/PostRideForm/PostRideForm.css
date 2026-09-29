@@ -353,23 +353,6 @@ textarea {
   border-color: #d32f2f;
 }
 
-.styled-date-field.is-disabled {
-  background: #f7f7f7;
-  color: #999;
-  cursor: not-allowed;
-}
-
-.styled-date-field-native {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: none;
-  opacity: 0;
-  cursor: pointer;
-}
-
 /* Seat stepper */
 
 .seat-stepper {

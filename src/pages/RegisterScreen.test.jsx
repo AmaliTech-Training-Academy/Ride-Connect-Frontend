@@ -114,6 +114,38 @@ describe('RegisterScreen', () => {
       expect(register).not.toHaveBeenCalled()
     })
 
+    it('flags a mismatched confirmation while typing, before submitting', async () => {
+      const { register, user } = setup()
+
+      await fillField(user, 'Password', VALID.password)
+      await fillField(user, /confirm password/i, 'Sup3r')
+
+      expect(screen.getByText("Passwords don't match")).toBeInTheDocument()
+      expect(screen.getByLabelText(/confirm password/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+
+      await user.type(screen.getByLabelText(/confirm password/i), 'Secret!')
+      expect(
+        screen.queryByText("Passwords don't match"),
+      ).not.toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('rechecks the confirmation when the first password is edited', async () => {
+      const { user } = setup()
+
+      await fillField(user, 'Password', VALID.password)
+      await fillField(user, /confirm password/i, VALID.password)
+      expect(
+        screen.queryByText("Passwords don't match"),
+      ).not.toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Password'), '2')
+      expect(screen.getByText("Passwords don't match")).toBeInTheDocument()
+    })
+
     it('shows every validation error at once', async () => {
       const { user } = setup()
 

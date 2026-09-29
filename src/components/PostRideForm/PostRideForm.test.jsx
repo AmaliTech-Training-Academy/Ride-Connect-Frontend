@@ -1,37 +1,24 @@
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { jest } from '@jest/globals'
 import { apiFetch } from '../../lib/api'
 import PostRideForm from './PostRideForm'
+import { futureISODate, pickDate, pickTime } from '../../test/pickers'
 
 jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
 }))
 
-function toISODate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-function futureISODate(daysAhead) {
-  const date = new Date()
-  date.setDate(date.getDate() + daysAhead)
-  return toISODate(date)
-}
-
-function fillWhen() {
-  fireEvent.change(screen.getByLabelText('Departure date'), {
-    target: { value: futureISODate(3) },
-  })
-  fireEvent.change(screen.getByLabelText('Departure time'), {
-    target: { value: '08:30' },
-  })
+async function fillWhen(user) {
+  await pickDate(user, futureISODate(3))
+  await pickTime(user, '08:30')
 }
 
 /** Fills a valid "to the office" ride: Kasoa -> the Accra office. */
 async function fillValidRide(user) {
   await user.type(screen.getByLabelText('Origin'), 'Kasoa')
   await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
-  fillWhen()
+  await fillWhen(user)
 }
 
 const postRide = (user) =>
@@ -119,7 +106,7 @@ describe('PostRideForm', () => {
 
       await user.type(screen.getByLabelText('Origin'), typed)
       await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
-      fillWhen()
+      await fillWhen(user)
       await postRide(user)
 
       expect(
@@ -135,7 +122,7 @@ describe('PostRideForm', () => {
 
     await user.type(screen.getByLabelText('Origin'), 'Accra Mall')
     await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
-    fillWhen()
+    await fillWhen(user)
     await postRide(user)
 
     expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
@@ -172,7 +159,7 @@ describe('PostRideForm', () => {
     // The office dropdown has moved to the origin side.
     await user.selectOptions(screen.getByLabelText('Origin'), 'TAKORADI')
     await user.type(screen.getByLabelText('Destination'), 'Anaji')
-    fillWhen()
+    await fillWhen(user)
     await postRide(user)
 
     await screen.findByText('Your ride is live!')
