@@ -135,11 +135,13 @@ function App() {
             <PostRideForm
               userImage={user?.image}
               userInitials={userInitials}
+              editRideId={searchParams.get('edit')}
               onFindRide={(rideId) =>
                 navigate(
                   rideId ? `/find-a-ride?ride=${rideId}` : '/find-a-ride',
                 )
               }
+              onMyRides={() => navigate('/my-rides')}
             />
           }
         />
@@ -163,6 +165,7 @@ function App() {
               onFindRide={() => navigate('/find-a-ride')}
               onOfferRide={() => navigate('/offer-a-ride')}
               managedRideId={searchParams.get('manage')}
+              onEditRide={(rideId) => navigate(`/offer-a-ride?edit=${rideId}`)}
               initialTab={searchParams.get('tab')}
             />
           }

@@ -533,3 +533,50 @@ textarea {
   font-size: 14px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 }
+
+.post-ride-loading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 20px;
+  color: #536257;
+  font-size: 14px;
+}
+
+.post-ride-load-error {
+  display: grid;
+  justify-items: center;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 72px 20px;
+  text-align: center;
+}
+.post-ride-load-error-icon {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 24px;
+}
+.post-ride-load-error h1 {
+  margin: 0 0 8px;
+  color: #1a1a2e;
+  font-size: 22px;
+  font-weight: 700;
+}
+.post-ride-load-error p {
+  margin: 0 0 24px;
+  color: #536257;
+  font-size: 14px;
+}
+.post-ride-load-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
