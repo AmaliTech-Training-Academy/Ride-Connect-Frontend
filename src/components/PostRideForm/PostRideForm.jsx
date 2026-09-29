@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { fetchMyRides, updateRide } from '../../services/rides'
+import { normaliseMyRides } from '../../lib/myRides'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
 import DatePickerField from '../PickerFields/DatePickerField'
@@ -141,12 +143,65 @@ function mapServerFieldErrors(fields = {}, direction) {
   }
 }
 
-function PostRideForm({ onFindRide, userImage, userInitials }) {
+function PostRideForm({
+  onFindRide,
+  onMyRides,
+  userImage,
+  userInitials,
+  editRideId,
+}) {
+  const isEditing = Boolean(editRideId)
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
   const [toastMessage, setToastMessage] = useState(null)
   const [serverErrors, setServerErrors] = useState({})
+  // Only meaningful while editing: the ride being changed, and the seats
+  // already given away, which the stepper must not drop below.
+  const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
+  const [loadError, setLoadError] = useState('')
+  const [seatsTaken, setSeatsTaken] = useState(0)
+
+  useEffect(() => {
+    if (!editRideId) return undefined
+    let ignore = false
+
+    // The ride is read from the driver's own list rather than passed through
+    // the router, so a refresh or a pasted URL still fills the form.
+    fetchMyRides()
+      .then((payload) => {
+        if (ignore) return
+        const ride = normaliseMyRides(payload).find(
+          (item) => item.id === editRideId,
+        )
+        if (!ride) {
+          setLoadError('That ride could not be found.')
+          setLoadState('error')
+          return
+        }
+        setValues({
+          origin: ride.origin ?? '',
+          destination: ride.destination ?? '',
+          description: ride.description ?? '',
+          date: ride.date ?? '',
+          time: ride.time ?? '',
+          seats: ride.seatsTotal ?? 1,
+        })
+        setSeatsTaken(
+          Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
+        )
+        setLoadState('ready')
+      })
+      .catch((error) => {
+        if (ignore) return
+        setLoadError(error?.message || 'Could not load that ride.')
+        setLoadState('error')
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [editRideId])
 
   const now = new Date()
   const todayISODate = toISODate(now)
@@ -202,6 +257,36 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
       const routeDescription = values.description.trim()
       if (routeDescription) {
         payload.routeDescription = routeDescription
+      }
+
+      if (isEditing) {
+        // The edit endpoint takes totalSeats, not availableSeats, and ignores
+        // the latter outright. It is also a partial update, so an empty
+        // description must be sent as "" to actually clear it.
+        const editPayload = {
+          origin: payload.origin,
+          destination: payload.destination,
+          departureDate: payload.departureDate,
+          departureTime: payload.departureTime,
+          totalSeats: Number(values.seats),
+          routeDescription: values.description.trim(),
+        }
+
+        try {
+          const updated = await updateRide(editRideId, editPayload)
+          setStatus('success')
+          setToastMessage('Your ride has been updated.')
+          onFindRide?.(updated?.id ?? editRideId)
+        } catch (error) {
+          if (error?.fields) {
+            setServerErrors(mapServerFieldErrors(error.fields))
+            setStatus('idle')
+          } else {
+            setStatus('error')
+            setToastMessage(error?.message || 'Could not update this ride.')
+          }
+        }
+        return
       }
 
       const response = await apiFetch('/api/rides', {
@@ -275,6 +360,55 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
   const originField = isToOffice ? 'place' : 'office'
   const destinationField = isToOffice ? 'office' : 'place'
 
+  if (loadState === 'loading') {
+    return (
+      <div className="post-ride-page">
+        <p className="post-ride-loading" role="status">
+          <i className="fa-solid fa-spinner fa-spin" aria-hidden="true" />{' '}
+          Loading your ride...
+        </p>
+      </div>
+    )
+  }
+
+  if (loadState === 'error') {
+    /*
+     * A deleted or mistyped ride id lands here. Without a way out the driver
+     * is stranded on a page with nothing on it, so this offers both routes
+     * back rather than only reporting the problem.
+     */
+    return (
+      <div className="post-ride-page">
+        <div className="post-ride-load-error" role="alert">
+          <span className="post-ride-load-error-icon">
+            <i
+              className="fa-solid fa-triangle-exclamation"
+              aria-hidden="true"
+            />
+          </span>
+          <h1>We couldn&apos;t open that ride</h1>
+          <p>{loadError}</p>
+          <div className="post-ride-load-error-actions">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onMyRides?.()}
+            >
+              Back to My Rides
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => onFindRide?.()}
+            >
+              Find a ride
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="post-ride-page">
       {status === 'error' && (
@@ -284,7 +418,9 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
               className="fa-solid fa-triangle-exclamation"
               aria-hidden="true"
             />
-            Something went wrong posting your ride. Please try again.
+            {isEditing
+              ? 'Something went wrong updating your ride. Please try again.'
+              : 'Something went wrong posting your ride. Please try again.'}
           </span>
           <button
             type="button"
@@ -299,7 +435,7 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
 
       <div className="post-ride-layout">
         <form className="post-ride-form" onSubmit={handleSubmit} noValidate>
-          <h1>Offer a ride</h1>
+          <h1>{isEditing ? 'Edit your ride' : 'Offer a ride'}</h1>
 
           <div className="form-section">
             <span className="section-label">Route</span>
@@ -427,6 +563,7 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
           <div className="form-section">
             <span className="section-label">Seats</span>
             <SeatStepper
+              minSeats={seatsTaken}
               value={values.seats}
               onChange={(seats) => updateField('seats', seats)}
               disabled={isSubmitting}
@@ -456,8 +593,10 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
                     className="fa-solid fa-spinner fa-spin"
                     aria-hidden="true"
                   />
-                  Posting…
+                  {isEditing ? 'Saving…' : 'Posting…'}
                 </>
+              ) : isEditing ? (
+                'Save changes'
               ) : (
                 'Post Ride'
               )}

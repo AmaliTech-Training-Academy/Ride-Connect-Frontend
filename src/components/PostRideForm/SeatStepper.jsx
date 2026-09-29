@@ -1,9 +1,13 @@
 const MIN_SEATS = 1
 const MAX_SEATS = 8
 
-function SeatStepper({ value, onChange, disabled }) {
+function SeatStepper({ value, onChange, disabled, minSeats = MIN_SEATS }) {
+  // While editing, the floor is the number of seats already taken: dropping
+  // below it would strand a passenger who has already been accepted.
+  const floor = Math.max(MIN_SEATS, minSeats)
+
   const decrement = () => {
-    if (value > MIN_SEATS) onChange(value - 1)
+    if (value > floor) onChange(value - 1)
   }
 
   const increment = () => {
@@ -17,7 +21,7 @@ function SeatStepper({ value, onChange, disabled }) {
           type="button"
           className="seat-stepper-btn"
           onClick={decrement}
-          disabled={disabled || value <= MIN_SEATS}
+          disabled={disabled || value <= floor}
           aria-label="Decrease seats"
         >
           −
