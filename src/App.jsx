@@ -141,6 +141,7 @@ function App() {
                   rideId ? `/find-a-ride?ride=${rideId}` : '/find-a-ride',
                 )
               }
+              onMyRides={() => navigate('/my-rides')}
             />
           }
         />

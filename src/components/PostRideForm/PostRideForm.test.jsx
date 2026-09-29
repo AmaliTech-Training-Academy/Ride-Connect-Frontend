@@ -378,6 +378,43 @@ describe('PostRideForm - editing an existing ride', () => {
     expect(
       await screen.findByText('That ride could not be found.'),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: "We couldn't open that ride" }),
+    ).toBeInTheDocument()
+  })
+
+  it('offers a way out of the error rather than stranding the driver', async () => {
+    const user = userEvent.setup()
+    const onMyRides = jest.fn()
+    const onFindRide = jest.fn()
+    fetchMyRides.mockResolvedValue({ data: { driving: [] } })
+
+    render(
+      <PostRideForm
+        editRideId="missing"
+        onMyRides={onMyRides}
+        onFindRide={onFindRide}
+      />,
+    )
+    await screen.findByRole('heading', { name: "We couldn't open that ride" })
+
+    await user.click(screen.getByRole('button', { name: 'Back to My Rides' }))
+    expect(onMyRides).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Find a ride' }))
+    expect(onFindRide).toHaveBeenCalledTimes(1)
+  })
+
+  it('survives a load failure with no navigation handlers', async () => {
+    const user = userEvent.setup()
+    fetchMyRides.mockRejectedValue(new Error('Network down'))
+
+    render(<PostRideForm editRideId="ride-1" />)
+    await screen.findByRole('heading', { name: "We couldn't open that ride" })
+
+    // The buttons are optional callbacks; clicking must not throw.
+    await user.click(screen.getByRole('button', { name: 'Back to My Rides' }))
+    expect(screen.getByText('Network down')).toBeInTheDocument()
   })
 
   it('leaves the create flow untouched', async () => {

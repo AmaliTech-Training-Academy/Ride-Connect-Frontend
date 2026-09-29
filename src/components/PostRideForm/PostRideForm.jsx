@@ -121,7 +121,13 @@ function mapServerFieldErrors(fields = {}) {
   }
 }
 
-function PostRideForm({ onFindRide, userImage, userInitials, editRideId }) {
+function PostRideForm({
+  onFindRide,
+  onMyRides,
+  userImage,
+  userInitials,
+  editRideId,
+}) {
   const isEditing = Boolean(editRideId)
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
@@ -305,16 +311,38 @@ function PostRideForm({ onFindRide, userImage, userInitials, editRideId }) {
   }
 
   if (loadState === 'error') {
+    /*
+     * A deleted or mistyped ride id lands here. Without a way out the driver
+     * is stranded on a page with nothing on it, so this offers both routes
+     * back rather than only reporting the problem.
+     */
     return (
       <div className="post-ride-page">
-        <div className="error-banner" role="alert">
-          <span>
+        <div className="post-ride-load-error" role="alert">
+          <span className="post-ride-load-error-icon">
             <i
               className="fa-solid fa-triangle-exclamation"
               aria-hidden="true"
             />
-            {loadError}
           </span>
+          <h1>We couldn&apos;t open that ride</h1>
+          <p>{loadError}</p>
+          <div className="post-ride-load-error-actions">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onMyRides?.()}
+            >
+              Back to My Rides
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => onFindRide?.()}
+            >
+              Find a ride
+            </button>
+          </div>
         </div>
       </div>
     )
