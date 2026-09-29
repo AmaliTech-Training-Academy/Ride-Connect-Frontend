@@ -220,3 +220,27 @@
   height: 1px;
   white-space: nowrap;
 }
+
+/*
+ * On a phone the panel is wider than the space to the left of the bell, so
+ * anchoring it to the bell pushes it off the left edge.
+ *
+ * Making the wrapper static hands the containing block to .site-header, which
+ * is sticky and therefore positioned. The panel then spans the header and sits
+ * below it, and because it is measured from the header rather than a fixed
+ * offset it still lands correctly when the header wraps to two rows.
+ */
+@media (max-width: 680px) {
+  .notifications-root {
+    position: static;
+  }
+  .notifications-panel {
+    top: calc(100% + 8px);
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+  .notifications-list {
+    max-height: 65vh;
+  }
+}

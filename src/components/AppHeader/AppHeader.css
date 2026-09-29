@@ -16,6 +16,24 @@
   text-align: left;
 }
 
+/*
+ * Floating variant: lifted out of the flow so the page's hero image runs to
+ * the top of the window behind it, and rounded into a bar.
+ */
+.site-header-floating {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  left: 50%;
+  /* Capped and centred so it lines up with the page content below rather
+     than stretching the full width of a large screen. */
+  width: min(1220px, calc(100% - 48px));
+  transform: translateX(-50%);
+  border-bottom: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(15, 40, 18, 0.18);
+}
+
 :where(.site-header) button {
   border: 0;
   background: transparent;
