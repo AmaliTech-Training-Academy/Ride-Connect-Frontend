@@ -493,7 +493,8 @@ describe('App', () => {
     )
     await screen.findByRole('heading', { name: /offer a ride/i })
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    await user.type(screen.getByLabelText('Origin'), 'Kasoa')
+    await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
     fireEvent.change(screen.getByLabelText('Departure date'), {
       target: { value: futureISODate(3) },
     })

@@ -186,9 +186,13 @@ describe('FindARide', () => {
     )
 
     await screen.findByText('Your ride')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Manage' }))
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Manage' }))
 
-    expect(onManageRide).toHaveBeenCalledWith(expect.objectContaining({ id: 'own' }))
+    expect(onManageRide).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'own' }),
+    )
   })
 
   it('normalizes user and driver ID formatting when identifying own rides', async () => {
@@ -361,7 +365,11 @@ describe('FindARide', () => {
       .mockResolvedValue({
         data: {
           joined: [
-            { id: 'ride-1', requestId: 'req-existing', requestStatus: 'PENDING' },
+            {
+              id: 'ride-1',
+              requestId: 'req-existing',
+              requestStatus: 'PENDING',
+            },
           ],
         },
       })
@@ -552,7 +560,8 @@ describe('FindARide', () => {
       />,
     )
 
-    const card = async (name) => (await screen.findByText(name)).closest('article')
+    const card = async (name) =>
+      (await screen.findByText(name)).closest('article')
     expect((await card('Me Myself')).querySelector('img')).toHaveAttribute(
       'src',
       'https://res.cloudinary.com/x/me.png',
@@ -564,5 +573,87 @@ describe('FindARide', () => {
     const plain = await card('Esi Ofori')
     expect(plain.querySelector('img')).toBeNull()
     expect(plain).toHaveTextContent('EO')
+  })
+
+  it('filters by office and combines it with the other filters', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.selectOptions(
+      screen.getByLabelText('Filter by office'),
+      'KUMASI',
+    )
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/rides?office=KUMASI',
+        expect.anything(),
+      ),
+    )
+
+    await user.type(screen.getByRole('searchbox'), 'Adum')
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/rides?search=Adum&office=KUMASI',
+        expect.anything(),
+      ),
+    )
+    expect(
+      screen.getByRole('button', { name: /Kumasi office/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('removes the office filter from its chip', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.selectOptions(screen.getByLabelText('Filter by office'), 'ACCRA')
+    await user.click(
+      await screen.findByRole('button', { name: /Accra office/ }),
+    )
+
+    expect(screen.getByLabelText('Filter by office')).toHaveValue('')
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenLastCalledWith(
+        '/api/rides?',
+        expect.anything(),
+      ),
+    )
+  })
+
+  it("shows the backend's office empty state", async () => {
+    apiFetch
+      .mockResolvedValueOnce(response([], 'No rides found.'))
+      .mockResolvedValue(response([], 'No rides found for this office.'))
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByRole('heading', { name: 'No rides found' })
+
+    await user.selectOptions(
+      screen.getByLabelText('Filter by office'),
+      'TAKORADI',
+    )
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No rides found for this office',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('tags each ride with its office', async () => {
+    apiFetch.mockResolvedValue(
+      response([
+        ride({ office: 'TAKORADI' }),
+        ride({ id: 'ride-2', driverName: 'Kofi Boateng' }),
+      ]),
+    )
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    const tagged = (await screen.findByText('Ama Owusu')).closest('article')
+    expect(tagged).toHaveTextContent('Takoradi office')
+    const untagged = screen.getByText('Kofi Boateng').closest('article')
+    expect(untagged.querySelector('.find-ride-office-tag')).toBeNull()
   })
 })

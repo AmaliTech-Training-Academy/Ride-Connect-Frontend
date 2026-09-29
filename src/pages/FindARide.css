@@ -163,7 +163,7 @@
 
 .find-ride-filters {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 190px auto;
+  grid-template-columns: minmax(240px, 1fr) 180px 170px auto;
   gap: 12px;
   margin-bottom: 15px;
 }
@@ -290,6 +290,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.find-ride-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.find-ride-office-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid #d8e3d9;
+  border-radius: 10px;
+  color: #4d6352;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+.find-ride-office-tag i {
+  color: #6da272;
+  font-size: 9px;
 }
 .find-ride-status {
   display: inline-block;
@@ -583,6 +605,13 @@
 @media (max-width: 950px) {
   .find-ride-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .find-ride-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .find-ride-search,
+  .find-ride-quick-filters {
+    grid-column: 1 / -1;
   }
   .find-ride-content {
     width: min(100% - 32px, 760px);

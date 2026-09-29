@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { jest } from '@jest/globals'
 import { apiFetch } from '../../lib/api'
@@ -18,6 +18,27 @@ function futureISODate(daysAhead) {
   return toISODate(date)
 }
 
+function fillWhen() {
+  fireEvent.change(screen.getByLabelText('Departure date'), {
+    target: { value: futureISODate(3) },
+  })
+  fireEvent.change(screen.getByLabelText('Departure time'), {
+    target: { value: '08:30' },
+  })
+}
+
+/** Fills a valid "to the office" ride: Kasoa -> the Accra office. */
+async function fillValidRide(user) {
+  await user.type(screen.getByLabelText('Origin'), 'Kasoa')
+  await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+  fillWhen()
+}
+
+const postRide = (user) =>
+  user.click(screen.getByRole('button', { name: 'Post Ride' }))
+
+const sentBody = () => JSON.parse(apiFetch.mock.calls[0][1].body)
+
 describe('PostRideForm', () => {
   beforeEach(() => {
     // Calls accumulated across tests, so assertions on mock.calls[0] read
@@ -36,8 +57,10 @@ describe('PostRideForm', () => {
     expect(
       screen.getByRole('heading', { name: 'Offer a ride' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
     expect(screen.getByLabelText('Origin')).toHaveValue('')
-    expect(screen.getByLabelText('Destination')).toHaveValue('AmaliTech Office')
+    // No office is picked for the driver: they must choose one.
+    expect(screen.getByLabelText('Destination')).toHaveValue('')
     expect(screen.getByText('Select a date')).toBeInTheDocument()
     expect(screen.getByText('Select a time')).toBeInTheDocument()
     expect(
@@ -48,13 +71,29 @@ describe('PostRideForm', () => {
     ).toBeInTheDocument()
   })
 
+  it('offers exactly the three offices', () => {
+    render(<PostRideForm />)
+
+    const options = within(screen.getByLabelText('Destination'))
+      .getAllByRole('option')
+      .filter((option) => !option.disabled)
+      .map((option) => option.textContent)
+
+    expect(options).toEqual([
+      'Accra office',
+      'Kumasi office',
+      'Takoradi office',
+    ])
+  })
+
   it('shows validation errors when required fields are submitted empty', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await postRide(user)
 
     expect(screen.getByText('Please enter an origin')).toBeInTheDocument()
+    expect(screen.getByText('Please choose an office')).toBeInTheDocument()
     expect(
       screen.getByText('Please enter a departure date'),
     ).toBeInTheDocument()
@@ -64,17 +103,17 @@ describe('PostRideForm', () => {
     expect(
       screen.getByText('Fix the errors to preview your ride card.'),
     ).toBeInTheDocument()
+    expect(apiFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects an origin and destination that differ only by case', async () => {
+  it('rejects a starting point that is the office itself, whatever the case', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.clear(screen.getByLabelText('Destination'))
-    await user.type(screen.getByLabelText('Origin'), 'AmaliTech office')
-    await user.type(screen.getByLabelText('Destination'), 'amalitech OFFICE')
-
-    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await user.type(screen.getByLabelText('Origin'), 'amalitech ACCRA')
+    await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+    fillWhen()
+    await postRide(user)
 
     expect(
       screen.getByText('Origin and destination must be different'),
@@ -82,86 +121,157 @@ describe('PostRideForm', () => {
     expect(apiFetch).not.toHaveBeenCalled()
   })
 
-  it('allows submission with valid data and shows the success state', async () => {
+  it('posts a ride to an office and shows the success state', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
-    fireEvent.change(screen.getByLabelText('Departure date'), {
-      target: { value: futureISODate(3) },
-    })
-    fireEvent.change(screen.getByLabelText('Departure time'), {
-      target: { value: '08:30' },
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await fillValidRide(user)
+    await postRide(user)
 
     expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
     expect(screen.getByText('NEW')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Request to Join' }),
     ).toBeDisabled()
+    expect(sentBody()).toMatchObject({
+      origin: 'Kasoa',
+      destination: 'AmaliTech Accra',
+      departureTime: '08:30',
+      office: 'ACCRA',
+    })
+  })
+
+  it('posts a ride leaving an office, with the office as the origin', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await user.click(screen.getByRole('radio', { name: 'From the office' }))
+    // The office dropdown has moved to the origin side.
+    await user.selectOptions(screen.getByLabelText('Origin'), 'TAKORADI')
+    await user.type(screen.getByLabelText('Destination'), 'Anaji')
+    fillWhen()
+    await postRide(user)
+
+    await screen.findByText('Your ride is live!')
+    expect(sentBody()).toMatchObject({
+      origin: 'AmaliTech Takoradi',
+      destination: 'Anaji',
+      office: 'TAKORADI',
+    })
+  })
+
+  it('asks for a destination when leaving the office without one', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await user.click(screen.getByRole('radio', { name: 'From the office' }))
+    await postRide(user)
+
+    expect(screen.getByText('Please enter a destination')).toBeInTheDocument()
+    expect(screen.getByText('Please choose an office')).toBeInTheDocument()
+  })
+
+  it('shows the office on the preview card', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await fillValidRide(user)
+
+    const preview = document.querySelector('.preview-card')
+    expect(preview).toHaveTextContent('Kasoa')
+    expect(preview).toHaveTextContent('AmaliTech Accra')
   })
 
   it('omits routeDescription entirely when the optional field is blank', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
-    fireEvent.change(screen.getByLabelText('Departure date'), {
-      target: { value: futureISODate(3) },
-    })
-    fireEvent.change(screen.getByLabelText('Departure time'), {
-      target: { value: '08:30' },
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await fillValidRide(user)
+    await postRide(user)
     await screen.findByText('Your ride is live!')
 
-    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
     // Sending null here is what the backend schema rejects.
-    expect(body).not.toHaveProperty('routeDescription')
-    expect(body).toMatchObject({
-      origin: 'Kumasi',
-      destination: 'AmaliTech Office',
-      departureTime: '08:30',
-    })
+    expect(sentBody()).not.toHaveProperty('routeDescription')
   })
 
   it('sends routeDescription when the optional field is filled in', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    await fillValidRide(user)
     await user.type(
       screen.getByLabelText(/Route description/),
       '  Via the N1  ',
     )
-    fireEvent.change(screen.getByLabelText('Departure date'), {
-      target: { value: futureISODate(3) },
-    })
-    fireEvent.change(screen.getByLabelText('Departure time'), {
-      target: { value: '08:30' },
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+    await postRide(user)
     await screen.findByText('Your ride is live!')
 
-    const body = JSON.parse(apiFetch.mock.calls[0][1].body)
-    expect(body.routeDescription).toBe('Via the N1')
+    expect(sentBody().routeDescription).toBe('Via the N1')
   })
 
-  it('swaps origin and destination when the swap button is clicked', async () => {
+  it('swaps the trip direction, keeping the office and the place', async () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    await user.type(screen.getByLabelText('Origin'), 'Kasoa')
+    await user.selectOptions(screen.getByLabelText('Destination'), 'KUMASI')
     await user.click(
       screen.getByRole('button', { name: 'Swap origin and destination' }),
     )
 
-    expect(screen.getByLabelText('Origin')).toHaveValue('AmaliTech Office')
-    expect(screen.getByLabelText('Destination')).toHaveValue('Kumasi')
+    expect(screen.getByRole('radio', { name: 'From the office' })).toBeChecked()
+    expect(screen.getByLabelText('Origin')).toHaveValue('KUMASI')
+    expect(screen.getByLabelText('Destination')).toHaveValue('Kasoa')
+  })
+
+  it("shows the backend's office error under the office dropdown", async () => {
+    apiFetch.mockResolvedValueOnce({
+      status: 400,
+      ok: false,
+      json: async () => ({
+        success: false,
+        message: 'The request is invalid',
+        data: {
+          fields: {
+            office: ['Office must be one of KUMASI, ACCRA, or TAKORADI.'],
+          },
+        },
+      }),
+    })
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await fillValidRide(user)
+    await postRide(user)
+
+    const officeField = screen
+      .getByLabelText('Destination')
+      .closest('.form-field')
+    expect(
+      await within(officeField).findByText(
+        'Office must be one of KUMASI, ACCRA, or TAKORADI.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a backend error for the typed place on its own side', async () => {
+    apiFetch.mockResolvedValueOnce({
+      status: 400,
+      ok: false,
+      json: async () => ({
+        data: { fields: { origin: ['Origin is required.'] } },
+      }),
+    })
+    const user = userEvent.setup()
+    render(<PostRideForm />)
+
+    await fillValidRide(user)
+    await postRide(user)
+
+    const placeField = screen.getByLabelText('Origin').closest('.form-field')
+    expect(
+      await within(placeField).findByText('Origin is required.'),
+    ).toBeInTheDocument()
   })
 
   it('increments and decrements seats within the 1-8 bounds', async () => {
@@ -200,10 +310,13 @@ describe('PostRideForm', () => {
     const user = userEvent.setup()
     render(<PostRideForm />)
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
+    await user.click(screen.getByRole('radio', { name: 'From the office' }))
+    await user.selectOptions(screen.getByLabelText('Origin'), 'ACCRA')
+    await user.type(screen.getByLabelText('Destination'), 'Kasoa')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
+    expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
     expect(screen.getByLabelText('Origin')).toHaveValue('')
-    expect(screen.getByLabelText('Destination')).toHaveValue('AmaliTech Office')
+    expect(screen.getByLabelText('Destination')).toHaveValue('')
   })
 })

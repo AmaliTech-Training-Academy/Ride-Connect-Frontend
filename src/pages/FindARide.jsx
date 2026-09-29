@@ -6,6 +6,7 @@ import {
   withdrawRideRequest,
 } from '../services/rides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
+import { OFFICES, officeName } from '../lib/offices'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -98,7 +99,6 @@ function getFirstName(name) {
   return name?.trim().split(/\s+/)[0] || 'there'
 }
 
-
 function RideCard({
   ride,
   viewerImage,
@@ -124,11 +124,19 @@ function RideCard({
   return (
     <article className={cardClassName}>
       <div className="find-ride-card-header">
-        <span
-          className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
-        >
-          {ride.isOwnRide ? 'Your ride' : 'Open'}
-        </span>
+        <div className="find-ride-card-tags">
+          <span
+            className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
+          >
+            {ride.isOwnRide ? 'Your ride' : 'Open'}
+          </span>
+          {officeName(ride.office) && (
+            <span className="find-ride-office-tag">
+              <i className="fa-solid fa-building" aria-hidden="true" />
+              {officeName(ride.office)} office
+            </span>
+          )}
+        </div>
         {typeof ride.price === 'number' && (
           <span className="find-ride-price">
             GHS {ride.price}
@@ -173,7 +181,9 @@ function RideCard({
             initials={ride.driverInitials}
             // The viewer's own session picture is fresher than the ride's copy.
             imageUrl={
-              ride.isOwnRide ? viewerImage || ride.driverImage : ride.driverImage
+              ride.isOwnRide
+                ? viewerImage || ride.driverImage
+                : ride.driverImage
             }
           />
           <strong>{ride.driverName}</strong>
@@ -207,21 +217,15 @@ function RideCard({
             type="button"
             className={`find-ride-button ${isRequested ? 'find-ride-button-requested' : ''}`}
             disabled={isSending || isWithdrawing}
-            onClick={() =>
-              isRequested ? onWithdraw(ride) : onRequest(ride)
-            }
+            onClick={() => (isRequested ? onWithdraw(ride) : onRequest(ride))}
           >
-            {isRequested ? (
-              isWithdrawing ? (
-                'Withdrawing...'
-              ) : (
-                'Withdraw request'
-              )
-            ) : isSending ? (
-              'Sending...'
-            ) : (
-              'Request to Join'
-            )}
+            {isRequested
+              ? isWithdrawing
+                ? 'Withdrawing...'
+                : 'Withdraw request'
+              : isSending
+                ? 'Sending...'
+                : 'Request to Join'}
           </button>
         )}
       </div>
@@ -297,6 +301,8 @@ function getEmptyMessage(message, hasFilters) {
     return 'No rides found for this date'
   if (message?.toLowerCase().includes('route'))
     return 'No rides found for this route'
+  if (message?.toLowerCase().includes('office'))
+    return 'No rides found for this office'
   if (message) return 'No rides found'
   return hasFilters ? 'No rides found for this date' : undefined
 }
@@ -320,6 +326,7 @@ function FindARide({
   const [rides, setRides] = useState([])
   const [search, setSearch] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
+  const [selectedOffice, setSelectedOffice] = useState('')
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
   const [emptyMessage, setEmptyMessage] = useState('')
@@ -335,7 +342,7 @@ function FindARide({
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
   const weekFromNow = getDateOffset(6)
-  const hasFilters = Boolean(search.trim() || selectedDate)
+  const hasFilters = Boolean(search.trim() || selectedDate || selectedOffice)
   const filteredRides = rides
   const ridesTodayCount = rides.filter((ride) => ride.date === today).length
   const openSeatsCount = rides.reduce(
@@ -359,6 +366,7 @@ function FindARide({
     const params = new URLSearchParams()
     if (selectedDate) params.set('date', selectedDate)
     if (search.trim()) params.set('search', search.trim())
+    if (selectedOffice) params.set('office', selectedOffice)
 
     apiFetch(`/api/rides?${params.toString()}`, { signal: controller.signal })
       .then(async (response) => {
@@ -384,7 +392,7 @@ function FindARide({
       })
 
     return () => controller.abort()
-  }, [search, selectedDate, currentUserId, reloadToken])
+  }, [search, selectedDate, selectedOffice, currentUserId, reloadToken])
 
   useEffect(() => {
     let ignore = false
@@ -427,6 +435,7 @@ function FindARide({
     startLoading()
     setSearch('')
     setSelectedDate('')
+    setSelectedOffice('')
   }
 
   const retryLoad = () => {
@@ -442,6 +451,11 @@ function FindARide({
   const handleDateChange = (event) => {
     startLoading()
     setSelectedDate(event.target.value)
+  }
+
+  const handleOfficeChange = (event) => {
+    startLoading()
+    setSelectedOffice(event.target.value)
   }
 
   const handleQuickDateChange = (date) => {
@@ -635,7 +649,9 @@ function FindARide({
           <p className="find-ride-hero-eyebrow">
             {getGreeting()}, {getFirstName(userName)}
           </p>
-          <h2 className="find-ride-hero-heading">Where are you headed today?</h2>
+          <h2 className="find-ride-hero-heading">
+            Where are you headed today?
+          </h2>
           <p className="find-ride-hero-subtitle">
             Find a colleague heading your way and share the ride.
           </p>
@@ -677,10 +693,12 @@ function FindARide({
         <div className="find-ride-filters">
           <label className="find-ride-search">
             <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-            <span className="sr-only">Search by origin or destination</span>
+            <span className="sr-only">
+              Search by origin, destination or office
+            </span>
             <input
               type="search"
-              placeholder="Search by origin or destination (e.g. Madina)"
+              placeholder="Search by place or office (e.g. Madina, Kumasi)"
               value={search}
               onChange={handleSearchChange}
             />
@@ -698,6 +716,18 @@ function FindARide({
               <option value={getDateOffset(4)}>
                 {formatDate(getDateOffset(4))}
               </option>
+            </select>
+          </label>
+          <label className="find-ride-date-select">
+            <span className="sr-only">Filter by office</span>
+            <i className="fa-solid fa-building" aria-hidden="true" />
+            <select value={selectedOffice} onChange={handleOfficeChange}>
+              <option value="">All offices</option>
+              {OFFICES.map((office) => (
+                <option key={office.id} value={office.id}>
+                  {office.name}
+                </option>
+              ))}
             </select>
           </label>
           <div
@@ -732,6 +762,11 @@ function FindARide({
             {selectedDate && (
               <FilterChip onRemove={() => setSelectedDate('')}>
                 {getActiveDateLabel(selectedDate)}
+              </FilterChip>
+            )}
+            {selectedOffice && (
+              <FilterChip onRemove={() => setSelectedOffice('')}>
+                {officeName(selectedOffice)} office
               </FilterChip>
             )}
             <button

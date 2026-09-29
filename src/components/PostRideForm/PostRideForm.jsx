@@ -2,14 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
+import { OFFICES, officeLabel } from '../../lib/offices'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
 
+const DIRECTIONS = [
+  { value: 'to-office', label: 'To the office', icon: 'fa-building' },
+  { value: 'from-office', label: 'From the office', icon: 'fa-house' },
+]
+
 function getInitialValues() {
   return {
-    origin: '',
-    destination: 'AmaliTech Office',
+    // Every ride starts or ends at an office: the office side is a dropdown,
+    // the other side (`place`) is free text.
+    direction: 'to-office',
+    office: '',
+    place: '',
     description: '',
     date: '',
     time: '',
@@ -44,25 +53,34 @@ function formatDisplayTime(timeStr) {
   return `${displayHour}:${minute} ${period}`
 }
 
+/** The origin and destination strings the ride is posted with. */
+function toRoute({ direction, office, place }) {
+  const officeName = officeLabel(office)
+  const placeName = place.trim()
+  return direction === 'to-office'
+    ? { origin: placeName, destination: officeName }
+    : { origin: officeName, destination: placeName }
+}
+
 function validate(values, now) {
   const errors = {}
   const todayISODate = toISODate(now)
+  const isToOffice = values.direction === 'to-office'
 
-  if (!values.origin.trim()) {
-    errors.origin = 'Please enter an origin'
+  if (!values.office) {
+    errors.office = 'Please choose an office'
   }
 
-  if (!values.destination.trim()) {
-    errors.destination = 'Please enter a destination'
-  }
-
-  if (
-    values.origin.trim() &&
-    values.destination.trim() &&
-    values.origin.trim().toLowerCase() ===
-      values.destination.trim().toLowerCase()
+  if (!values.place.trim()) {
+    errors.place = isToOffice
+      ? 'Please enter an origin'
+      : 'Please enter a destination'
+  } else if (
+    values.office &&
+    values.place.trim().toLowerCase() ===
+      officeLabel(values.office).toLowerCase()
   ) {
-    errors.destination = 'Origin and destination must be different'
+    errors.place = 'Origin and destination must be different'
   }
 
   if (!values.date) {
@@ -108,14 +126,20 @@ async function readResponseBody(response) {
   }
 }
 
-function mapServerFieldErrors(fields = {}) {
+// The backend sends each field's errors as a list; show the first.
+const firstMessage = (value) => (Array.isArray(value) ? value[0] : value)
+
+function mapServerFieldErrors(fields = {}, direction) {
+  const isToOffice = direction === 'to-office'
+  const officeSide = isToOffice ? fields.destination : fields.origin
   return {
-    origin: fields.origin,
-    destination: fields.destination,
-    date: fields.departureDate,
-    time: fields.departureTime,
-    seats: fields.availableSeats,
-    description: fields.routeDescription,
+    place: firstMessage(isToOffice ? fields.origin : fields.destination),
+    // `office` itself (the enum) and the office-side text share one dropdown.
+    office: firstMessage(fields.office ?? officeSide),
+    date: firstMessage(fields.departureDate),
+    time: firstMessage(fields.departureTime),
+    seats: firstMessage(fields.availableSeats),
+    description: firstMessage(fields.routeDescription),
   }
 }
 
@@ -133,6 +157,8 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
   const todayISODate = toISODate(now)
   const isSubmitting = status === 'submitting'
   const errors = validate(values, now)
+  const isToOffice = values.direction === 'to-office'
+  const route = toRoute(values)
 
   useEffect(() => {
     if (!toastMessage) return
@@ -146,11 +172,12 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
     if (status === 'success' || status === 'error') setStatus('idle')
   }
 
+  // The office has to stay a dropdown, so swapping flips the trip direction
+  // (and with it which side the office is on) rather than the values.
   const handleSwap = () => {
     setValues((prev) => ({
       ...prev,
-      origin: prev.destination,
-      destination: prev.origin,
+      direction: prev.direction === 'to-office' ? 'from-office' : 'to-office',
     }))
     setServerErrors({})
     if (status === 'success' || status === 'error') setStatus('idle')
@@ -167,11 +194,12 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
 
     try {
       const payload = {
-        origin: values.origin.trim(),
-        destination: values.destination.trim(),
+        origin: route.origin,
+        destination: route.destination,
         departureDate: values.date,
         departureTime: values.time,
         availableSeats: Number(values.seats),
+        office: values.office,
       }
 
       // Route description is optional. Omit the key when it is blank rather
@@ -192,7 +220,9 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
         setToastMessage('Your ride is live!')
         onFindRide?.(body?.data?.id ?? body?.data?.ride?.id ?? body?.id)
       } else if (response.status === 400) {
-        setServerErrors(mapServerFieldErrors(body?.data?.fields))
+        setServerErrors(
+          mapServerFieldErrors(body?.data?.fields, values.direction),
+        )
         setStatus('idle')
       } else {
         setStatus('error')
@@ -213,6 +243,42 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
   const isFormValid = Object.keys(errors).length === 0
   const showFieldErrors = hasAttemptedSubmit && status !== 'submitting'
   const getFieldError = (field) => serverErrors[field] || errors[field]
+  const errorClass = (field) =>
+    showFieldErrors && getFieldError(field) ? 'input-error' : ''
+
+  const placeInput = (id) => (
+    <input
+      id={id}
+      type="text"
+      value={values.place}
+      onChange={(event) => updateField('place', event.target.value)}
+      disabled={isSubmitting}
+      className={errorClass('place')}
+      placeholder={isToOffice ? 'Starting point' : 'Drop-off point'}
+    />
+  )
+
+  const officeSelect = (id) => (
+    <select
+      id={id}
+      value={values.office}
+      onChange={(event) => updateField('office', event.target.value)}
+      disabled={isSubmitting}
+      className={`office-select ${values.office ? '' : 'is-empty'} ${errorClass('office')}`}
+    >
+      <option value="" disabled>
+        Select an office
+      </option>
+      {OFFICES.map((office) => (
+        <option key={office.id} value={office.id}>
+          {office.name} office
+        </option>
+      ))}
+    </select>
+  )
+
+  const originField = isToOffice ? 'place' : 'office'
+  const destinationField = isToOffice ? 'office' : 'place'
 
   return (
     <div className="post-ride-page">
@@ -242,26 +308,35 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
 
           <div className="form-section">
             <span className="section-label">Route</span>
+            <div
+              className="direction-toggle"
+              role="radiogroup"
+              aria-label="Trip direction"
+            >
+              {DIRECTIONS.map(({ value, label, icon }) => (
+                <label
+                  key={value}
+                  className={`direction-option ${values.direction === value ? 'is-selected' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="direction"
+                    value={value}
+                    checked={values.direction === value}
+                    onChange={() => updateField('direction', value)}
+                    disabled={isSubmitting}
+                  />
+                  <i className={`fa-solid ${icon}`} aria-hidden="true" />
+                  {label}
+                </label>
+              ))}
+            </div>
             <div className="origin-destination-row">
               <div className="form-field">
                 <label htmlFor="origin">Origin</label>
-                <input
-                  id="origin"
-                  type="text"
-                  value={values.origin}
-                  onChange={(event) =>
-                    updateField('origin', event.target.value)
-                  }
-                  disabled={isSubmitting}
-                  className={
-                    showFieldErrors && getFieldError('origin')
-                      ? 'input-error'
-                      : ''
-                  }
-                  placeholder="Starting point"
-                />
+                {isToOffice ? placeInput('origin') : officeSelect('origin')}
                 <FieldError
-                  message={showFieldErrors ? getFieldError('origin') : null}
+                  message={showFieldErrors ? getFieldError(originField) : null}
                 />
               </div>
 
@@ -279,24 +354,12 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
 
               <div className="form-field">
                 <label htmlFor="destination">Destination</label>
-                <input
-                  id="destination"
-                  type="text"
-                  value={values.destination}
-                  onChange={(event) =>
-                    updateField('destination', event.target.value)
-                  }
-                  disabled={isSubmitting}
-                  className={
-                    showFieldErrors && getFieldError('destination')
-                      ? 'input-error'
-                      : ''
-                  }
-                  placeholder="Drop-off point"
-                />
+                {isToOffice
+                  ? officeSelect('destination')
+                  : placeInput('destination')}
                 <FieldError
                   message={
-                    showFieldErrors ? getFieldError('destination') : null
+                    showFieldErrors ? getFieldError(destinationField) : null
                   }
                 />
               </div>
@@ -443,7 +506,7 @@ function PostRideForm({ onFindRide, userImage, userInitials }) {
           <RidePreviewCard
             driverImage={userImage}
             driverInitials={userInitials}
-            ride={values}
+            ride={{ ...values, ...route }}
             isValid={isFormValid}
             showErrorState={hasAttemptedSubmit}
             isNew={status === 'success'}
