@@ -21,14 +21,14 @@ function RegisterScreen({
   redirectDelay = 1500,
 }) {
   const [form, setForm] = useState(EMPTY_FORM)
-  const [errors, setErrors] = useState({})
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  const [dirtyFields, setDirtyFields] = useState({})
   const [duplicateEmail, setDuplicateEmail] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [status, setStatus] = useState('idle')
   const [registeredUser, setRegisteredUser] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isConfirmTouched, setIsConfirmTouched] = useState(false)
 
   // Hold on the success state briefly so the confirmation is readable, then
   // hand off to whatever renders the ride listing.
@@ -44,7 +44,9 @@ function RegisterScreen({
   function updateField(field) {
     return (event) => {
       setForm((current) => ({ ...current, [field]: event.target.value }))
-      if (field === 'confirmPassword') setIsConfirmTouched(true)
+      setDirtyFields((current) =>
+        current[field] ? current : { ...current, [field]: true },
+      )
     }
   }
 
@@ -52,7 +54,7 @@ function RegisterScreen({
     event.preventDefault()
 
     const nextErrors = validateRegistration(form)
-    setErrors(nextErrors)
+    setHasAttemptedSubmit(true)
     setDuplicateEmail(false)
     setSubmitError('')
 
@@ -82,13 +84,16 @@ function RegisterScreen({
 
   const strength = passwordStrength(form.password)
   const isSubmitting = status === 'submitting'
-  // Checked live once the user has typed a confirmation (or a submit has
-  // flagged it), so a mismatch shows while typing and clears as soon as the
-  // two passwords agree, whichever one they edit.
-  const confirmError =
-    isConfirmTouched || errors.confirmPassword
-      ? validateRegistration(form).confirmPassword
-      : undefined
+  // Every field is checked live once the user has typed in it (or after a
+  // submit), so errors appear while typing and clear as soon as they are
+  // fixed. Untouched fields stay quiet until the first submit.
+  const liveErrors = validateRegistration(form)
+  const errors = Object.fromEntries(
+    Object.entries(liveErrors).filter(
+      ([field]) => hasAttemptedSubmit || dirtyFields[field],
+    ),
+  )
+  const confirmError = errors.confirmPassword
 
   return (
     <main className="auth-shell">

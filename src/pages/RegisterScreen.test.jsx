@@ -16,7 +16,9 @@ function setup(props = {}) {
   const utils = render(
     <RegisterScreen register={register} redirectDelay={0} {...props} />,
   )
-  return { ...utils, register, user: userEvent.setup() }
+  // delay: null types without waiting a tick between keystrokes, which keeps
+  // these form-heavy tests fast under full-suite load.
+  return { ...utils, register, user: userEvent.setup({ delay: null }) }
 }
 
 async function fillField(user, label, value) {
@@ -133,6 +135,56 @@ describe('RegisterScreen', () => {
       expect(register).not.toHaveBeenCalled()
     })
 
+    it('shows each field error while typing, before submitting', async () => {
+      const { register, user } = setup()
+
+      await fillField(user, /work email/i, 'kwame@gmail.com')
+      await fillField(user, 'Password', 'short')
+
+      expect(
+        screen.getByText('Please use your @amalitech.com work email'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Password must be at least 8 characters'),
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText(/work email/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+      // Fields the user has not reached yet stay quiet.
+      expect(
+        screen.queryByText('Please enter your full name'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('Please confirm your password'),
+      ).not.toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('clears a field error as soon as it is fixed', async () => {
+      const { user } = setup()
+
+      await fillField(user, /work email/i, 'kwame@gmail.com')
+      expect(
+        screen.getByText('Please use your @amalitech.com work email'),
+      ).toBeInTheDocument()
+
+      await fillField(user, /work email/i, VALID.email)
+      expect(
+        screen.queryByText('Please use your @amalitech.com work email'),
+      ).not.toBeInTheDocument()
+      expect(screen.getByText('Must be your @amalitech.com email')).toBeVisible()
+    })
+
+    it('asks for a name again when it is typed and then cleared', async () => {
+      const { user } = setup()
+
+      await user.type(screen.getByLabelText(/full name/i), 'K')
+      await user.clear(screen.getByLabelText(/full name/i))
+
+      expect(screen.getByText('Please enter your full name')).toBeInTheDocument()
+    })
+
     it('rechecks the confirmation when the first password is edited', async () => {
       const { user } = setup()
 
@@ -217,7 +269,9 @@ describe('RegisterScreen', () => {
         await screen.findByText('An account with this email already exists.'),
       ).toBeInTheDocument()
 
-      await fillForm(user, { email: 'new@amalitech.com' })
+      // Only the email needs changing; retyping the whole form is slow enough
+      // to hit the 5s timeout when the full suite runs in parallel.
+      await fillField(user, /work email/i, 'new@amalitech.com')
       await submit(user)
 
       await waitFor(() =>
