@@ -37,19 +37,15 @@
 }
 
 /*
- * A wash in the brand green over the photo. Without it the wordmark and the
- * card's edges wash out against the paler stretches of the image.
+ * A flat 50% black over the photo, measured from the design. Not a tint and
+ * not a gradient: it darkens the image evenly so the white card and the
+ * wordmark hold, while the roads and greenery still read through.
  */
 .auth-backdrop::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(13, 59, 18, 0.74) 0%,
-    rgba(13, 59, 18, 0.56) 45%,
-    rgba(13, 59, 18, 0.74) 100%
-  );
+  background: rgba(0, 0, 0, 0.5);
 }
 
 /*
