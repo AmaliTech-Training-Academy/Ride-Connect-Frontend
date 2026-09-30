@@ -47,49 +47,6 @@
   font-size: 12px;
   font-weight: 700;
 }
-/*
- * Matches the Find a Ride hero: same photo, same wash, same measurements. The
- * bottom padding stands in for the stat cards that page carries, so both bands
- * end up the same height.
- */
-.my-rides-hero {
-  position: relative;
-  padding: clamp(112px, 9vw, 140px) 5vw clamp(64px, 7vw, 99px);
-  color: #fff;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(12, 28, 14, 0.08) 0%,
-      rgba(12, 28, 14, 0.26) 38%,
-      rgba(12, 28, 14, 0.44) 72%,
-      rgba(12, 28, 14, 0.56) 100%
-    ),
-    url('../assets/find-ride-hero.webp') center 52% / cover no-repeat;
-}
-.my-rides-hero-inner {
-  width: min(1156px, calc(100% - 48px));
-  margin: 0 auto;
-}
-.my-rides-hero-eyebrow {
-  margin: 0 0 8px;
-  color: #cfe9d0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-}
-.my-rides-hero-heading {
-  margin: 0 0 8px;
-  color: #fff;
-  font-size: clamp(24px, 2.4vw, 32px);
-  font-weight: 700;
-}
-.my-rides-hero-subtitle {
-  max-width: 520px;
-  margin: 0;
-  color: #dcefdd;
-  font-size: 14px;
-}
 
 .my-rides-content {
   width: min(1156px, calc(100% - 48px));
@@ -890,13 +847,6 @@
 }
 
 @media (max-width: 680px) {
-  .my-rides-hero {
-    /* The header wraps to two rows here, so the heading needs more room. */
-    padding: 168px 16px 52px;
-  }
-  .my-rides-hero-inner {
-    width: calc(100% - 28px);
-  }
 }
 @media (max-width: 680px) {
   .my-rides-content {

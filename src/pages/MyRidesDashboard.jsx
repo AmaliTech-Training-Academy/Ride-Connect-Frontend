@@ -14,6 +14,7 @@ import {
   normaliseMyRides,
 } from '../lib/myRides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
+import '../styles/pageHero.css'
 import './MyRidesDashboard.css'
 
 function formatDate(dateString) {
@@ -1229,11 +1230,11 @@ function MyRidesDashboard({
 
   return (
     <main className="my-rides-page" onClick={() => setMenuRideId(null)}>
-      <section className="my-rides-hero">
-        <div className="my-rides-hero-inner">
-          <p className="my-rides-hero-eyebrow">YOUR JOURNEY</p>
-          <h1 className="my-rides-hero-heading">My rides</h1>
-          <p className="my-rides-hero-subtitle">
+      <section className="page-hero">
+        <div className="page-hero-inner">
+          <p className="page-hero-eyebrow">YOUR JOURNEY</p>
+          <h1 className="page-hero-heading">My rides</h1>
+          <p className="page-hero-subtitle">
             Manage rides you&apos;re driving and rides you&apos;ve joined.
           </p>
         </div>

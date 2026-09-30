@@ -4,46 +4,6 @@
   text-align: left;
 }
 
-/* Matches the Find a Ride and My Rides heroes: same photo, wash and metrics. */
-.post-ride-hero {
-  position: relative;
-  padding: clamp(112px, 9vw, 140px) 5vw clamp(64px, 7vw, 99px);
-  color: #fff;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(12, 28, 14, 0.08) 0%,
-      rgba(12, 28, 14, 0.26) 38%,
-      rgba(12, 28, 14, 0.44) 72%,
-      rgba(12, 28, 14, 0.56) 100%
-    ),
-    url('../../assets/find-ride-hero.webp') center 52% / cover no-repeat;
-}
-.post-ride-hero-inner {
-  width: min(1156px, calc(100% - 48px));
-  margin: 0 auto;
-}
-.post-ride-hero-eyebrow {
-  margin: 0 0 8px;
-  color: #cfe9d0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-}
-.post-ride-hero-heading {
-  margin: 0 0 8px;
-  color: #fff;
-  font-size: clamp(24px, 2.4vw, 32px);
-  font-weight: 700;
-}
-.post-ride-hero-subtitle {
-  max-width: 520px;
-  margin: 0;
-  color: #dcefdd;
-  font-size: 14px;
-}
-
 .post-ride-content {
   width: min(1156px, calc(100% - 48px));
   margin: 0 auto;
@@ -200,7 +160,101 @@ textarea {
   margin: 0;
 }
 
+/* LoginScreen.css gives the same global class a "!" badge; this form already
+   renders its own icon, so drop the second one. */
+.post-ride-form .field-error::before {
+  content: none;
+}
+
 /* Origin / destination swap row */
+
+.direction-toggle {
+  display: inline-flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 4px;
+  border-radius: 12px;
+  background: #eef5ee;
+}
+
+.direction-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  color: #5e6c61;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.direction-option.is-selected {
+  color: #246b2b;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(46, 91, 49, 0.12);
+  font-weight: 600;
+}
+
+/* The native radio stays for keyboard and screen-reader use, just unseen. */
+.direction-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.direction-option:has(input:focus-visible) {
+  outline: 2px solid #4caf50;
+  outline-offset: 2px;
+}
+
+.direction-option:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.office-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 40px 10px 14px;
+  border: 1.5px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  color: #1b1b1b;
+  background: #fff
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%232e7d32' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  font-family: inherit;
+  font-size: 15px;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.office-select:focus {
+  border-color: #4caf50;
+}
+
+/* Grey like the other placeholders until an office is picked. */
+.office-select.is-empty {
+  color: #999;
+}
+
+.office-select option {
+  color: #1b1b1b;
+}
+
+.office-select.input-error {
+  border-color: #d32f2f;
+}
+
+.office-select:disabled {
+  background-color: #f7f7f7;
+  color: #999;
+  cursor: not-allowed;
+}
 
 .origin-destination-row {
   display: flex;
@@ -244,6 +298,20 @@ textarea {
 }
 
 @media (max-width: 480px) {
+  .direction-toggle {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .direction-option {
+    flex: 1;
+    justify-content: center;
+    padding-inline: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
   .origin-destination-row {
     flex-direction: column;
     align-items: stretch;
@@ -286,23 +354,6 @@ textarea {
 
 .styled-date-field.input-error {
   border-color: #d32f2f;
-}
-
-.styled-date-field.is-disabled {
-  background: #f7f7f7;
-  color: #999;
-  cursor: not-allowed;
-}
-
-.styled-date-field-native {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: none;
-  opacity: 0;
-  cursor: pointer;
 }
 
 /* Seat stepper */
@@ -625,13 +676,6 @@ textarea {
 }
 
 @media (max-width: 680px) {
-  .post-ride-hero {
-    /* The header wraps to two rows here, so the heading needs more room. */
-    padding: 168px 16px 52px;
-  }
-  .post-ride-hero-inner {
-    width: calc(100% - 28px);
-  }
 }
 @media (max-width: 680px) {
   .post-ride-content {

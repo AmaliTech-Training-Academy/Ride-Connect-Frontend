@@ -16,6 +16,13 @@ export default defineConfig(({ mode }) => {
       ),
     },
     plugins: [react()],
+    server: {
+      // The backend's auth only trusts http://localhost:5173. Without this,
+      // a busy port makes Vite quietly move to 5174, where every login,
+      // password change and picture save fails with 403 "Invalid origin".
+      port: 5173,
+      strictPort: true,
+    },
     test: {
       environment: 'jsdom',
       globals: true,

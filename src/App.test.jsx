@@ -1,15 +1,10 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
+import { futureISODate, pickDate, pickTime } from './test/pickers'
 import { DuplicateEmailError } from './services/auth'
 import {
   getCurrentUser,
@@ -57,12 +52,6 @@ const TAKEN = { email: 'kwame.mensah@amalitech.com', password: 'Sup3rSecret!' }
 
 function freshEmail() {
   return `new-${Date.now()}-${Math.random().toString(36).slice(2)}@amalitech.com`
-}
-
-function futureISODate(daysAhead) {
-  const date = new Date()
-  date.setDate(date.getDate() + daysAhead)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 async function fillForm(user, { name, email, password }) {
@@ -488,18 +477,13 @@ describe('App', () => {
       { timeout: 5000 },
     )
 
-    await user.click(
-      screen.getAllByRole('button', { name: 'Offer a Ride' })[0],
-    )
+    await user.click(screen.getAllByRole('button', { name: 'Offer a Ride' })[0])
     await screen.findByRole('heading', { name: /offer a ride/i })
 
-    await user.type(screen.getByLabelText('Origin'), 'Kumasi')
-    fireEvent.change(screen.getByLabelText('Departure date'), {
-      target: { value: futureISODate(3) },
-    })
-    fireEvent.change(screen.getByLabelText('Departure time'), {
-      target: { value: '08:30' },
-    })
+    await user.type(screen.getByLabelText('Origin'), 'Kasoa')
+    await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+    await pickDate(user, futureISODate(3))
+    await pickTime(user, '08:30')
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
     expect(

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import ChangePasswordPanel from './ChangePasswordPanel'
@@ -18,7 +18,8 @@ function renderPanel(props = {}) {
 }
 
 async function fill(user, { current, next, confirm = next }) {
-  if (current) await user.type(screen.getByLabelText('Current password'), current)
+  if (current)
+    await user.type(screen.getByLabelText('Current password'), current)
   if (next) await user.type(screen.getByLabelText('New password'), next)
   if (confirm)
     await user.type(screen.getByLabelText('Confirm new password'), confirm)
@@ -130,8 +131,14 @@ describe('ChangePasswordPanel', () => {
   })
 
   it.each([
-    ['Cancel', (user) => user.click(screen.getByRole('button', { name: 'Cancel' }))],
-    ['the close button', (user) => user.click(screen.getByRole('button', { name: 'Close' }))],
+    [
+      'Cancel',
+      (user) => user.click(screen.getByRole('button', { name: 'Cancel' })),
+    ],
+    [
+      'the close button',
+      (user) => user.click(screen.getByRole('button', { name: 'Close' })),
+    ],
     ['Escape', (user) => user.keyboard('{Escape}')],
   ])('closes with %s', async (_, close) => {
     const user = userEvent.setup()
@@ -203,7 +210,10 @@ describe('ChangePasswordPanel', () => {
     document.body.appendChild(opener)
     const onClose = jest.fn()
     const { unmount } = render(
-      <ChangePasswordPanel onClose={onClose} returnFocusTo={{ current: opener }} />,
+      <ChangePasswordPanel
+        onClose={onClose}
+        returnFocusTo={{ current: opener }}
+      />,
     )
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -211,5 +221,86 @@ describe('ChangePasswordPanel', () => {
 
     expect(opener).toHaveFocus()
     opener.remove()
+  })
+
+  describe('live feedback while typing', () => {
+    it("shows each field's error as soon as the user types, before any submit", async () => {
+      const user = userEvent.setup()
+      renderPanel()
+
+      await user.type(screen.getByLabelText('New password'), 'short')
+
+      expect(screen.getByText('Use at least 8 characters.')).toBeInTheDocument()
+      expect(screen.getByLabelText('New password')).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+      // Untouched fields stay quiet until they are used or submitted.
+      expect(
+        screen.queryByText('Enter your current password.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('flags a mismatched confirmation while typing and clears it once they match', async () => {
+      const user = userEvent.setup()
+      renderPanel()
+
+      await user.type(screen.getByLabelText('New password'), 'NewPass456')
+      await user.type(screen.getByLabelText('Confirm new password'), 'NewPass4')
+
+      expect(
+        screen.getByText('This does not match your new password.'),
+      ).toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Confirm new password'), '56')
+      expect(
+        screen.queryByText('This does not match your new password.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('asks for the confirmation when it is cleared', async () => {
+      const user = userEvent.setup()
+      renderPanel()
+
+      await user.type(screen.getByLabelText('New password'), 'NewPass456')
+      await user.type(screen.getByLabelText('Confirm new password'), 'N')
+      await user.clear(screen.getByLabelText('Confirm new password'))
+
+      expect(screen.getByText('Confirm your new password.')).toBeInTheDocument()
+    })
+  })
+
+  describe('copy protection', () => {
+    it('blocks pasting into the confirmation and explains why', async () => {
+      const user = userEvent.setup()
+      renderPanel()
+
+      await user.click(screen.getByLabelText('Confirm new password'))
+      await user.paste('NewPass456')
+
+      expect(screen.getByLabelText('Confirm new password')).toHaveValue('')
+      expect(
+        screen.getByText('Please type your new password again to confirm it.'),
+      ).toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Confirm new password'), 'N')
+      expect(
+        screen.queryByText(
+          'Please type your new password again to confirm it.',
+        ),
+      ).not.toBeInTheDocument()
+    })
+
+    it('blocks copying a password out only while passwords are shown', () => {
+      renderPanel()
+      const field = screen.getByLabelText('New password')
+
+      // fireEvent returns false when the handler called preventDefault().
+      expect(fireEvent.copy(field)).toBe(true)
+
+      fireEvent.click(screen.getByLabelText('Show passwords'))
+      expect(fireEvent.copy(field)).toBe(false)
+      expect(fireEvent.cut(field)).toBe(false)
+    })
   })
 })

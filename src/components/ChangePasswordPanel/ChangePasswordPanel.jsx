@@ -31,7 +31,9 @@ function validate({ currentPassword, newPassword, confirmPassword }) {
   } else if (newPassword === currentPassword) {
     errors.newPassword = 'Choose a password different from your current one.'
   }
-  if (confirmPassword !== newPassword) {
+  if (!confirmPassword) {
+    if (newPassword) errors.confirmPassword = 'Confirm your new password.'
+  } else if (confirmPassword !== newPassword) {
     errors.confirmPassword = 'This does not match your new password.'
   }
   return errors
@@ -48,6 +50,9 @@ function ChangePasswordPanel({ onClose, onChanged, returnFocusTo }) {
     confirmPassword: '',
   })
   const [showPasswords, setShowPasswords] = useState(false)
+  // Fields the user has typed in: their errors show live from then on.
+  const [dirtyFields, setDirtyFields] = useState({})
+  const [confirmHint, setConfirmHint] = useState('')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [serverError, setServerError] = useState('')
@@ -96,11 +101,26 @@ function ChangePasswordPanel({ onClose, onChanged, returnFocusTo }) {
   }, [])
 
   const errors = validate(values)
-  const showErrors = hasAttemptedSubmit
+  const shouldShowError = (name) => hasAttemptedSubmit || dirtyFields[name]
 
   const updateField = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }))
+    setDirtyFields((current) =>
+      current[name] ? current : { ...current, [name]: true },
+    )
     setServerError('')
+    if (name === 'confirmPassword') setConfirmHint('')
+  }
+
+  // Visible passwords must not be copied out, or confirming them proves
+  // nothing; hidden ones the browser already refuses to copy.
+  const blockCopyWhenShown = (event) => {
+    if (showPasswords) event.preventDefault()
+  }
+
+  const blockPasteIntoConfirm = (event) => {
+    event.preventDefault()
+    setConfirmHint('Please type your new password again to confirm it.')
   }
 
   const handleSubmit = async (event) => {
@@ -157,10 +177,17 @@ function ChangePasswordPanel({ onClose, onChanged, returnFocusTo }) {
           in here, and your other devices will be signed out.
         </p>
 
-        <form className="password-panel-form" onSubmit={handleSubmit} noValidate>
+        <form
+          className="password-panel-form"
+          onSubmit={handleSubmit}
+          noValidate
+        >
           {FIELDS.map(({ name, label, autoComplete }, index) => {
-            const error = showErrors ? errors[name] : ''
+            const error = shouldShowError(name) ? errors[name] : ''
             const errorId = `${name}-error`
+            const isConfirm = name === 'confirmPassword'
+            const hint = isConfirm && !error ? confirmHint : ''
+            const hintId = `${name}-hint`
             return (
               <div className="password-panel-field" key={name}>
                 <label htmlFor={name}>{label}</label>
@@ -173,12 +200,21 @@ function ChangePasswordPanel({ onClose, onChanged, returnFocusTo }) {
                   value={values[name]}
                   disabled={isSaving}
                   aria-invalid={Boolean(error)}
-                  aria-describedby={error ? errorId : undefined}
+                  aria-describedby={error ? errorId : hint ? hintId : undefined}
                   onChange={(event) => updateField(name, event.target.value)}
+                  onCopy={blockCopyWhenShown}
+                  onCut={blockCopyWhenShown}
+                  onPaste={isConfirm ? blockPasteIntoConfirm : undefined}
+                  onDrop={isConfirm ? blockPasteIntoConfirm : undefined}
                 />
                 {error && (
                   <p id={errorId} className="password-panel-field-error">
                     {error}
+                  </p>
+                )}
+                {hint && (
+                  <p id={hintId} className="password-panel-field-hint">
+                    {hint}
                   </p>
                 )}
               </div>
@@ -196,7 +232,10 @@ function ChangePasswordPanel({ onClose, onChanged, returnFocusTo }) {
 
           {serverError && (
             <p className="password-panel-error" role="alert">
-              <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
+              <i
+                className="fa-solid fa-circle-exclamation"
+                aria-hidden="true"
+              />
               {serverError}
             </p>
           )}
