@@ -7,6 +7,8 @@ import RidePreviewCard from './RidePreviewCard'
 import DatePickerField from '../PickerFields/DatePickerField'
 import TimePickerField from '../PickerFields/TimePickerField'
 import { OFFICES, matchesOffice, officeLabel } from '../../lib/offices'
+
+import '../../styles/pageHero.css'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
@@ -179,9 +181,23 @@ function PostRideForm({
           setLoadState('error')
           return
         }
+        /*
+         * A saved ride stores plain origin and destination text, but the form
+         * works in terms of an office and the other end. Whichever side names
+         * an office decides the direction; the other side is the free text.
+         */
+        const originOffice = OFFICES.find((office) =>
+          matchesOffice(ride.origin, office.id),
+        )
+        const destinationOffice = OFFICES.find((office) =>
+          matchesOffice(ride.destination, office.id),
+        )
+        const leavesOffice = Boolean(originOffice) && !destinationOffice
+
         setValues({
-          origin: ride.origin ?? '',
-          destination: ride.destination ?? '',
+          direction: leavesOffice ? 'from-office' : 'to-office',
+          office: (leavesOffice ? originOffice : destinationOffice)?.id ?? '',
+          place: leavesOffice ? (ride.destination ?? '') : (ride.origin ?? ''),
           description: ride.description ?? '',
           date: ride.date ?? '',
           time: ride.time ?? '',
@@ -266,6 +282,7 @@ function PostRideForm({
         const editPayload = {
           origin: payload.origin,
           destination: payload.destination,
+          office: values.office,
           departureDate: payload.departureDate,
           departureTime: payload.departureTime,
           totalSeats: Number(values.seats),
@@ -411,209 +428,227 @@ function PostRideForm({
 
   return (
     <div className="post-ride-page">
-      {status === 'error' && (
-        <div className="error-banner">
-          <span>
-            <i
-              className="fa-solid fa-triangle-exclamation"
-              aria-hidden="true"
-            />
+      <section className="page-hero">
+        <div className="page-hero-inner">
+          <p className="page-hero-eyebrow">
+            {isEditing ? 'Update your ride' : 'Colleague carpool'}
+          </p>
+          <h1 className="page-hero-heading">
+            {isEditing ? 'Edit your ride' : 'Offer a ride'}
+          </h1>
+          <p className="page-hero-subtitle">
             {isEditing
-              ? 'Something went wrong updating your ride. Please try again.'
-              : 'Something went wrong posting your ride. Please try again.'}
-          </span>
-          <button
-            type="button"
-            className="error-banner-dismiss"
-            onClick={() => setStatus('idle')}
-            aria-label="Dismiss error"
-          >
-            <i className="fa-solid fa-xmark" aria-hidden="true" />
-          </button>
+              ? 'Change the details and your passengers will be told.'
+              : 'Post your commute and let colleagues share the journey.'}
+          </p>
         </div>
-      )}
+      </section>
 
-      <div className="post-ride-layout">
-        <form className="post-ride-form" onSubmit={handleSubmit} noValidate>
-          <h1>{isEditing ? 'Edit your ride' : 'Offer a ride'}</h1>
-
-          <div className="form-section">
-            <span className="section-label">Route</span>
-            <div
-              className="direction-toggle"
-              role="radiogroup"
-              aria-label="Trip direction"
-            >
-              {DIRECTIONS.map(({ value, label, icon }) => (
-                <label
-                  key={value}
-                  className={`direction-option ${values.direction === value ? 'is-selected' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="direction"
-                    value={value}
-                    checked={values.direction === value}
-                    onChange={() => updateField('direction', value)}
-                    disabled={isSubmitting}
-                  />
-                  <i className={`fa-solid ${icon}`} aria-hidden="true" />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <div className="origin-destination-row">
-              <div className="form-field">
-                <label htmlFor="origin">Origin</label>
-                {isToOffice ? placeInput('origin') : officeSelect('origin')}
-                <FieldError
-                  message={showFieldErrors ? getFieldError(originField) : null}
-                />
-              </div>
-
-              <div className="swap-btn-wrap">
-                <button
-                  type="button"
-                  className="swap-btn"
-                  onClick={handleSwap}
-                  disabled={isSubmitting}
-                  aria-label="Swap origin and destination"
-                >
-                  <i className="fa-solid fa-right-left" aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="destination">Destination</label>
-                {isToOffice
-                  ? officeSelect('destination')
-                  : placeInput('destination')}
-                <FieldError
-                  message={
-                    showFieldErrors ? getFieldError(destinationField) : null
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="description">
-              Route description{' '}
-              <span className="optional-label">(optional)</span>
-            </label>
-            <textarea
-              id="description"
-              value={values.description}
-              onChange={(event) =>
-                updateField(
-                  'description',
-                  event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
-                )
-              }
-              disabled={isSubmitting}
-              maxLength={DESCRIPTION_MAX_LENGTH}
-              placeholder="Mention roads you'll take or where you can pick people up."
-              rows={3}
-            />
-            <span className="char-counter">
-              {values.description.length} / {DESCRIPTION_MAX_LENGTH}
+      <div className="post-ride-content">
+        {status === 'error' && (
+          <div className="error-banner">
+            <span>
+              <i
+                className="fa-solid fa-triangle-exclamation"
+                aria-hidden="true"
+              />
+              {isEditing
+                ? 'Something went wrong updating your ride. Please try again.'
+                : 'Something went wrong posting your ride. Please try again.'}
             </span>
-            <FieldError
-              message={showFieldErrors ? getFieldError('description') : null}
-            />
-          </div>
-
-          <div className="form-section">
-            <span className="section-label">When</span>
-            <div className="form-row">
-              <div className="form-field">
-                <label htmlFor="date">Departure date</label>
-                <DatePickerField
-                  id="date"
-                  value={values.date}
-                  min={todayISODate}
-                  onChange={(date) => updateField('date', date)}
-                  disabled={isSubmitting}
-                  hasError={Boolean(showFieldErrors && getFieldError('date'))}
-                  formatValue={formatDisplayDate}
-                />
-                <FieldError
-                  message={showFieldErrors ? getFieldError('date') : null}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="time">Departure time</label>
-                <TimePickerField
-                  id="time"
-                  value={values.time}
-                  onChange={(time) => updateField('time', time)}
-                  disabled={isSubmitting}
-                  hasError={Boolean(showFieldErrors && getFieldError('time'))}
-                  formatValue={formatDisplayTime}
-                />
-                <FieldError
-                  message={showFieldErrors ? getFieldError('time') : null}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <span className="section-label">Seats</span>
-            <SeatStepper
-              minSeats={seatsTaken}
-              value={values.seats}
-              onChange={(seats) => updateField('seats', seats)}
-              disabled={isSubmitting}
-            />
-            <FieldError
-              message={showFieldErrors ? getFieldError('seats') : null}
-            />
-          </div>
-
-          <div className="form-actions">
             <button
               type="button"
-              className="btn-secondary"
-              onClick={handleCancel}
-              disabled={isSubmitting}
+              className="error-banner-dismiss"
+              onClick={() => setStatus('idle')}
+              aria-label="Dismiss error"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <i
-                    className="fa-solid fa-spinner fa-spin"
-                    aria-hidden="true"
-                  />
-                  {isEditing ? 'Saving…' : 'Posting…'}
-                </>
-              ) : isEditing ? (
-                'Save changes'
-              ) : (
-                'Post Ride'
-              )}
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
             </button>
           </div>
-        </form>
+        )}
 
-        <aside className="post-ride-preview">
-          <RidePreviewCard
-            driverImage={userImage}
-            driverInitials={userInitials}
-            ride={{ ...values, ...route }}
-            isValid={isFormValid}
-            showErrorState={hasAttemptedSubmit}
-            isNew={status === 'success'}
-          />
-        </aside>
+        <div className="post-ride-layout">
+          <form className="post-ride-form" onSubmit={handleSubmit} noValidate>
+            <div className="form-section">
+              <span className="section-label">Route</span>
+              <div
+                className="direction-toggle"
+                role="radiogroup"
+                aria-label="Trip direction"
+              >
+                {DIRECTIONS.map(({ value, label, icon }) => (
+                  <label
+                    key={value}
+                    className={`direction-option ${values.direction === value ? 'is-selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="direction"
+                      value={value}
+                      checked={values.direction === value}
+                      onChange={() => updateField('direction', value)}
+                      disabled={isSubmitting}
+                    />
+                    <i className={`fa-solid ${icon}`} aria-hidden="true" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <div className="origin-destination-row">
+                <div className="form-field">
+                  <label htmlFor="origin">Origin</label>
+                  {isToOffice ? placeInput('origin') : officeSelect('origin')}
+                  <FieldError
+                    message={
+                      showFieldErrors ? getFieldError(originField) : null
+                    }
+                  />
+                </div>
+
+                <div className="swap-btn-wrap">
+                  <button
+                    type="button"
+                    className="swap-btn"
+                    onClick={handleSwap}
+                    disabled={isSubmitting}
+                    aria-label="Swap origin and destination"
+                  >
+                    <i className="fa-solid fa-right-left" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="destination">Destination</label>
+                  {isToOffice
+                    ? officeSelect('destination')
+                    : placeInput('destination')}
+                  <FieldError
+                    message={
+                      showFieldErrors ? getFieldError(destinationField) : null
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="description">
+                Route description{' '}
+                <span className="optional-label">(optional)</span>
+              </label>
+              <textarea
+                id="description"
+                value={values.description}
+                onChange={(event) =>
+                  updateField(
+                    'description',
+                    event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
+                  )
+                }
+                disabled={isSubmitting}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                placeholder="Mention roads you'll take or where you can pick people up."
+                rows={3}
+              />
+              <span className="char-counter">
+                {values.description.length} / {DESCRIPTION_MAX_LENGTH}
+              </span>
+              <FieldError
+                message={showFieldErrors ? getFieldError('description') : null}
+              />
+            </div>
+
+            <div className="form-section">
+              <span className="section-label">When</span>
+              <div className="form-row">
+                <div className="form-field">
+                  <label htmlFor="date">Departure date</label>
+                  <DatePickerField
+                    id="date"
+                    value={values.date}
+                    min={todayISODate}
+                    onChange={(date) => updateField('date', date)}
+                    disabled={isSubmitting}
+                    hasError={Boolean(showFieldErrors && getFieldError('date'))}
+                    formatValue={formatDisplayDate}
+                  />
+                  <FieldError
+                    message={showFieldErrors ? getFieldError('date') : null}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="time">Departure time</label>
+                  <TimePickerField
+                    id="time"
+                    value={values.time}
+                    onChange={(time) => updateField('time', time)}
+                    disabled={isSubmitting}
+                    hasError={Boolean(showFieldErrors && getFieldError('time'))}
+                    formatValue={formatDisplayTime}
+                  />
+                  <FieldError
+                    message={showFieldErrors ? getFieldError('time') : null}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-section">
+              <span className="section-label">Seats</span>
+              <SeatStepper
+                minSeats={seatsTaken}
+                value={values.seats}
+                onChange={(seats) => updateField('seats', seats)}
+                disabled={isSubmitting}
+              />
+              <FieldError
+                message={showFieldErrors ? getFieldError('seats') : null}
+              />
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleCancel}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <i
+                      className="fa-solid fa-spinner fa-spin"
+                      aria-hidden="true"
+                    />
+                    {isEditing ? 'Saving…' : 'Posting…'}
+                  </>
+                ) : isEditing ? (
+                  'Save changes'
+                ) : (
+                  'Post Ride'
+                )}
+              </button>
+            </div>
+          </form>
+
+          <aside className="post-ride-preview">
+            <RidePreviewCard
+              driverImage={userImage}
+              driverInitials={userInitials}
+              ride={{ ...values, ...route }}
+              isValid={isFormValid}
+              showErrorState={hasAttemptedSubmit}
+              isNew={status === 'success'}
+            />
+          </aside>
+        </div>
       </div>
 
       {toastMessage && (

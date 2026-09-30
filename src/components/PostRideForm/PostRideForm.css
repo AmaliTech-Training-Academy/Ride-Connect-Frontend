@@ -1,10 +1,13 @@
 .post-ride-page {
   font-family: 'Poppins', sans-serif;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 24px 20px 80px;
   color: #2b2b2b;
   text-align: left;
+}
+
+.post-ride-content {
+  width: min(1156px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 48px 0 80px;
 }
 
 .error-banner {
@@ -670,4 +673,13 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
+}
+
+@media (max-width: 680px) {
+}
+@media (max-width: 680px) {
+  .post-ride-content {
+    width: calc(100% - 28px);
+    padding-top: 32px;
+  }
 }

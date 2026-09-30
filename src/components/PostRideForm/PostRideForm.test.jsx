@@ -10,9 +10,6 @@ jest.mock('../../lib/api', () => ({
   apiFetch: jest.fn(),
 }))
 
-async function fillWhen(user) {
-  await pickDate(user, futureISODate(3))
-  await pickTime(user, '08:30')
 // The service is mocked directly: jest.mock on '../../lib/api' does not reach
 // a service module's own import of it under this ESM setup.
 jest.mock('../../services/rides', () => ({
@@ -20,8 +17,9 @@ jest.mock('../../services/rides', () => ({
   updateRide: jest.fn(),
 }))
 
-function toISODate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+async function fillWhen(user) {
+  await pickDate(user, futureISODate(3))
+  await pickTime(user, '08:30')
 }
 
 /** Fills a valid "to the office" ride: Kasoa -> the Accra office. */
@@ -300,17 +298,21 @@ describe('PostRideForm', () => {
 
     const decreaseBtn = screen.getByRole('button', { name: 'Decrease seats' })
     const increaseBtn = screen.getByRole('button', { name: 'Increase seats' })
+    // Scoped to the stepper: a bare getByText('8') also matches a day in the
+    // date picker, which makes the query ambiguous depending on what is open.
+    const seatCount = () =>
+      document.querySelector('.seat-count').textContent.trim()
 
     expect(decreaseBtn).toBeDisabled()
 
     for (let i = 0; i < 7; i += 1) {
       await user.click(increaseBtn)
     }
-    expect(screen.getByText('8')).toBeInTheDocument()
+    expect(seatCount()).toBe('8')
     expect(increaseBtn).toBeDisabled()
 
     await user.click(decreaseBtn)
-    expect(screen.getByText('7')).toBeInTheDocument()
+    expect(seatCount()).toBe('7')
     expect(increaseBtn).not.toBeDisabled()
   })
 
@@ -355,7 +357,7 @@ describe('PostRideForm - editing an existing ride', () => {
         {
           id: 'ride-1',
           origin: 'East Legon',
-          destination: 'AmaliTech Office',
+          destination: 'AmaliTech Accra',
           routeDescription: 'Via the N1',
           departureAt: futureDeparture(),
           totalSeats: 4,
@@ -382,7 +384,8 @@ describe('PostRideForm - editing an existing ride', () => {
     render(<PostRideForm editRideId="ride-1" />)
 
     expect(await screen.findByLabelText('Origin')).toHaveValue('East Legon')
-    expect(screen.getByLabelText('Destination')).toHaveValue('AmaliTech Office')
+    // The office end is a dropdown now; the ride's office is selected.
+    expect(screen.getByLabelText('Destination')).toHaveValue('ACCRA')
     expect(screen.getByLabelText(/Route description/)).toHaveValue('Via the N1')
   })
 
@@ -413,7 +416,8 @@ describe('PostRideForm - editing an existing ride', () => {
     // The edit endpoint takes totalSeats and ignores availableSeats.
     expect(updateRide).toHaveBeenCalledWith('ride-1', {
       origin: 'Adenta',
-      destination: 'AmaliTech Office',
+      destination: 'AmaliTech Accra',
+      office: 'ACCRA',
       departureDate: expect.any(String),
       departureTime: expect.any(String),
       totalSeats: 4,
