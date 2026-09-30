@@ -1,3 +1,8 @@
+.find-ride-hero {
+  /* The stat cards supply the bottom spacing on this page. */
+  padding-bottom: 0;
+}
+
 .find-ride-page {
   min-height: 100svh;
   background: #f7faf7;
@@ -47,53 +52,10 @@
   font-weight: 700;
 }
 
-.find-ride-hero {
-  position: relative;
-  /*
-   * The stat cards hang off the bottom edge onto the page below, so the hero
-   * carries only enough bottom padding to hold their top half. The rest of
-   * their height is pulled out with a negative margin further down.
-   */
-  padding: 140px 5vw 0;
-  color: #fff;
-  background:
-    linear-gradient(
-      100deg,
-      rgba(12, 28, 14, 0.78) 0%,
-      rgba(12, 28, 14, 0.45) 42%,
-      rgba(12, 28, 14, 0.15) 70%
-    ),
-    url('../assets/find-ride-hero.webp') center 38% / cover no-repeat;
-}
-.find-ride-hero-inner {
-  width: min(1220px, calc(100% - 48px));
-  margin: 0 auto;
-}
-.find-ride-hero-eyebrow {
-  margin: 0 0 8px;
-  color: #cfe9d0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-}
-.find-ride-hero-heading {
-  margin: 0 0 8px;
-  color: #fff;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-.find-ride-hero-subtitle {
-  max-width: 520px;
-  margin: 0 0 28px;
-  color: #dcefdd;
-  font-size: 14px;
-}
 .find-ride-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
   /*
    * The cards overhang the photo onto the page below. A negative bottom
    * margin pulls the hero's own height up by the overhang, so there is no
@@ -102,7 +64,7 @@
   position: relative;
   z-index: 1;
   margin-top: 34px;
-  margin-bottom: -58px;
+  margin-bottom: -38px;
 }
 .find-ride-stat-card {
   padding: 20px 22px;
@@ -124,10 +86,9 @@
 }
 
 .find-ride-content {
-  width: min(1220px, calc(100% - 48px));
+  width: min(1156px, calc(100% - 48px));
   margin: 0 auto;
-  /* 58px clears the overhanging stat cards, then the usual 48px of space. */
-  padding: 106px 0 80px;
+  padding: 79px 0 80px;
 }
 .find-ride-title-row {
   display: flex;
@@ -639,14 +600,8 @@
   }
   .find-ride-content {
     width: min(100% - 32px, 760px);
-    /* 58px of overhang plus the usual spacing. */
-    padding-top: 92px;
-  }
-  .find-ride-hero {
-    padding-inline: 24px;
-  }
-  .find-ride-hero-inner {
-    width: min(100% - 32px, 760px);
+    /* 38px of overhang plus the usual spacing. */
+    padding-top: 72px;
   }
   .find-ride-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -659,19 +614,12 @@
     padding-top: 28px;
   }
   .find-ride-hero {
-    /* The header wraps to two rows here, so the greeting needs more room. */
-    padding: 168px 16px 28px;
+    padding-bottom: 28px;
   }
   /* Stacked cards overhanging would read as a mistake, so they sit inside. */
   .find-ride-stats {
     margin-top: 26px;
     margin-bottom: 0;
-  }
-  .find-ride-hero-inner {
-    width: 100%;
-  }
-  .find-ride-hero-heading {
-    font-size: 26px;
   }
   .find-ride-stats {
     grid-template-columns: 1fr;

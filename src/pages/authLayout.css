@@ -37,6 +37,18 @@
 }
 
 /*
+ * A flat 50% black over the photo, measured from the design. Not a tint and
+ * not a gradient: it darkens the image evenly so the white card and the
+ * wordmark hold, while the roads and greenery still read through.
+ */
+.auth-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/*
  * No colour wash over the photo - it shows in its own colours. The wordmark
  * carries a shadow instead, since it is the only text sitting directly on the
  * image; the card and footnote have solid backgrounds of their own.

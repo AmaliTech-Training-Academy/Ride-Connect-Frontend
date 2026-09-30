@@ -7,6 +7,7 @@ import {
 } from '../services/rides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
 import { OFFICES, officeName } from '../lib/offices'
+import '../styles/pageHero.css'
 import './FindARide.css'
 
 function toISODate(date) {
@@ -644,15 +645,13 @@ function FindARide({
 
   return (
     <main className="find-ride-page">
-      <section className="find-ride-hero">
-        <div className="find-ride-hero-inner">
-          <p className="find-ride-hero-eyebrow">
+      <section className="page-hero find-ride-hero">
+        <div className="page-hero-inner">
+          <p className="page-hero-eyebrow">
             {getGreeting()}, {getFirstName(userName)}
           </p>
-          <h2 className="find-ride-hero-heading">
-            Where are you headed today?
-          </h2>
-          <p className="find-ride-hero-subtitle">
+          <h2 className="page-hero-heading">Where are you headed today?</h2>
+          <p className="page-hero-subtitle">
             Find a colleague heading your way and share the ride.
           </p>
           <div className="find-ride-stats">

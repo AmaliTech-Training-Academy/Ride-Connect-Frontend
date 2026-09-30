@@ -1147,7 +1147,11 @@ describe('MyRidesDashboard - Ride Status Management', () => {
         <MyRidesDashboard onFindRide={jest.fn()} onOfferRide={jest.fn()} />,
       )
 
-      expect(screen.getByText('Loading your rides...')).toBeInTheDocument()
+      // findBy rather than getBy: the fetch is kicked off in an effect, so the
+      // loading state may not be painted on the very first tick.
+      expect(
+        await screen.findByText('Loading your rides...'),
+      ).toBeInTheDocument()
       expect(screen.queryByText('Upcoming')).not.toBeInTheDocument()
 
       release(buildMyRidesResponse())

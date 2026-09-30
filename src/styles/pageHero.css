@@ -1,0 +1,76 @@
+/**
+ * The photo hero shared by Find a Ride, My Rides and Offer a Ride.
+ *
+ * Every signed-in screen uses the same image, wash, measurements and
+ * typography, so they live here rather than being repeated per page. A page
+ * that needs to differ overrides the one property it cares about — Find a Ride
+ * drops the bottom padding because its stat cards supply it.
+ */
+
+.page-hero {
+  position: relative;
+  padding: clamp(112px, 9vw, 140px) 5vw clamp(64px, 7vw, 99px);
+  color: #fff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 28, 14, 0.08) 0%,
+      rgba(12, 28, 14, 0.26) 38%,
+      rgba(12, 28, 14, 0.44) 72%,
+      rgba(12, 28, 14, 0.56) 100%
+    ),
+    url('../assets/find-ride-hero.webp') center 52% / cover no-repeat;
+}
+
+.page-hero-inner {
+  /*
+   * flow-root keeps a child's negative bottom margin inside this box. Find a
+   * Ride relies on it so its stat cards can overhang the photo rather than
+   * the margin collapsing out and pulling the whole page up.
+   */
+  display: flow-root;
+  width: min(1156px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.page-hero-eyebrow {
+  margin: 0 0 8px;
+  color: #cfe9d0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.page-hero-heading {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 700;
+}
+
+.page-hero-subtitle {
+  max-width: 520px;
+  margin: 0 0 28px;
+  color: #dcefdd;
+  font-size: 14px;
+}
+
+@media (max-width: 950px) {
+  .page-hero {
+    padding-inline: 24px;
+  }
+  .page-hero-inner {
+    width: min(100% - 32px, 760px);
+  }
+}
+
+@media (max-width: 680px) {
+  .page-hero {
+    /* The header wraps to two rows here, so the heading needs more room. */
+    padding: 168px 16px 52px;
+  }
+  .page-hero-inner {
+    width: calc(100% - 28px);
+  }
+}

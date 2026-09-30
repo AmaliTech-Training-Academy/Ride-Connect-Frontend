@@ -303,17 +303,21 @@ describe('PostRideForm', () => {
 
     const decreaseBtn = screen.getByRole('button', { name: 'Decrease seats' })
     const increaseBtn = screen.getByRole('button', { name: 'Increase seats' })
+    // Scoped to the stepper: a bare getByText('8') also matches a day in the
+    // date picker, which makes the query ambiguous depending on what is open.
+    const seatCount = () =>
+      document.querySelector('.seat-count').textContent.trim()
 
     expect(decreaseBtn).toBeDisabled()
 
     for (let i = 0; i < 7; i += 1) {
       await user.click(increaseBtn)
     }
-    expect(screen.getByText('8')).toBeInTheDocument()
+    expect(seatCount()).toBe('8')
     expect(increaseBtn).toBeDisabled()
 
     await user.click(decreaseBtn)
-    expect(screen.getByText('7')).toBeInTheDocument()
+    expect(seatCount()).toBe('7')
     expect(increaseBtn).not.toBeDisabled()
   })
 
