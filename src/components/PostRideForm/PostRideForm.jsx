@@ -6,10 +6,17 @@ import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
 import DatePickerField from '../PickerFields/DatePickerField'
 import TimePickerField from '../PickerFields/TimePickerField'
+import SelectPickerField from '../PickerFields/SelectPickerField'
 import { OFFICES, matchesOffice, officeLabel } from '../../lib/offices'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
+
+const OFFICE_OPTIONS = OFFICES.map((office) => ({
+  value: office.id,
+  label: `${office.name} office`,
+  hint: office.label,
+}))
 
 const DIRECTIONS = [
   { value: 'to-office', label: 'To the office', icon: 'fa-building' },
@@ -376,25 +383,19 @@ function PostRideForm({
   )
 
   const officeSelect = (id) => (
-    <select
+    <SelectPickerField
       id={id}
       value={values.office}
-      onChange={(event) => updateField('office', event.target.value)}
+      options={OFFICE_OPTIONS}
+      onChange={(office) => updateField('office', office)}
       disabled={isSubmitting || isOfficeLocked}
+      hasError={Boolean(errorClass('office'))}
       title={
         isOfficeLocked ? "A posted ride's office can't be changed" : undefined
       }
-      className={`office-select ${values.office ? '' : 'is-empty'} ${errorClass('office')}`}
-    >
-      <option value="" disabled>
-        Select an office
-      </option>
-      {OFFICES.map((office) => (
-        <option key={office.id} value={office.id}>
-          {office.name} office
-        </option>
-      ))}
-    </select>
+      placeholder="Select an office"
+      listLabel="Choose an office"
+    />
   )
 
   const originField = isToOffice ? 'place' : 'office'

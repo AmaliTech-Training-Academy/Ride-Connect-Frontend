@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { jest } from '@jest/globals'
 import { apiFetch } from '../../lib/api'
 import PostRideForm from './PostRideForm'
-import { futureISODate, pickDate, pickTime } from '../../test/pickers'
+import {
+  futureISODate,
+  pickDate,
+  pickOffice,
+  pickTime,
+} from '../../test/pickers'
 import { fetchMyRides, updateRide } from '../../services/rides'
 
 jest.mock('../../lib/api', () => ({
@@ -25,7 +30,7 @@ jest.mock('../../services/rides', () => ({
 /** Fills a valid "to the office" ride: Kasoa -> the Accra office. */
 async function fillValidRide(user) {
   await user.type(screen.getByLabelText('Origin'), 'Kasoa')
-  await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+  await pickOffice(user, 'Destination', 'Accra')
   await fillWhen(user)
 }
 
@@ -55,7 +60,9 @@ describe('PostRideForm', () => {
     expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
     expect(screen.getByLabelText('Origin')).toHaveValue('')
     // No office is picked for the driver: they must choose one.
-    expect(screen.getByLabelText('Destination')).toHaveValue('')
+    expect(screen.getByLabelText('Destination')).toHaveTextContent(
+      'Select an office',
+    )
     expect(screen.getByText('Select a date')).toBeInTheDocument()
     expect(screen.getByText('Select a time')).toBeInTheDocument()
     expect(
@@ -66,19 +73,17 @@ describe('PostRideForm', () => {
     ).toBeInTheDocument()
   })
 
-  it('offers exactly the three offices', () => {
+  it('offers exactly the three offices in our own list', async () => {
+    const user = userEvent.setup()
     render(<PostRideForm />)
 
-    const options = within(screen.getByLabelText('Destination'))
+    await user.click(screen.getByLabelText('Destination'))
+    const list = screen.getByRole('listbox', { name: 'Choose an office' })
+    const names = within(list)
       .getAllByRole('option')
-      .filter((option) => !option.disabled)
-      .map((option) => option.textContent)
+      .map((option) => option.querySelector('.picker-select-label').textContent)
 
-    expect(options).toEqual([
-      'Accra office',
-      'Kumasi office',
-      'Takoradi office',
-    ])
+    expect(names).toEqual(['Accra office', 'Kumasi office', 'Takoradi office'])
   })
 
   it('shows validation errors when required fields are submitted empty', async () => {
@@ -113,7 +118,7 @@ describe('PostRideForm', () => {
       render(<PostRideForm />)
 
       await user.type(screen.getByLabelText('Origin'), typed)
-      await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+      await pickOffice(user, 'Destination', 'Accra')
       await fillWhen(user)
       await postRide(user)
 
@@ -129,7 +134,7 @@ describe('PostRideForm', () => {
     render(<PostRideForm />)
 
     await user.type(screen.getByLabelText('Origin'), 'Accra Mall')
-    await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+    await pickOffice(user, 'Destination', 'Accra')
     await fillWhen(user)
     await postRide(user)
 
@@ -165,7 +170,7 @@ describe('PostRideForm', () => {
 
     await user.click(screen.getByRole('radio', { name: 'From the office' }))
     // The office dropdown has moved to the origin side.
-    await user.selectOptions(screen.getByLabelText('Origin'), 'TAKORADI')
+    await pickOffice(user, 'Origin', 'Takoradi')
     await user.type(screen.getByLabelText('Destination'), 'Anaji')
     await fillWhen(user)
     await postRide(user)
@@ -232,13 +237,13 @@ describe('PostRideForm', () => {
     render(<PostRideForm />)
 
     await user.type(screen.getByLabelText('Origin'), 'Kasoa')
-    await user.selectOptions(screen.getByLabelText('Destination'), 'KUMASI')
+    await pickOffice(user, 'Destination', 'Kumasi')
     await user.click(
       screen.getByRole('button', { name: 'Swap origin and destination' }),
     )
 
     expect(screen.getByRole('radio', { name: 'From the office' })).toBeChecked()
-    expect(screen.getByLabelText('Origin')).toHaveValue('KUMASI')
+    expect(screen.getByLabelText('Origin')).toHaveTextContent('Kumasi office')
     expect(screen.getByLabelText('Destination')).toHaveValue('Kasoa')
   })
 
@@ -329,13 +334,15 @@ describe('PostRideForm', () => {
     render(<PostRideForm />)
 
     await user.click(screen.getByRole('radio', { name: 'From the office' }))
-    await user.selectOptions(screen.getByLabelText('Origin'), 'ACCRA')
+    await pickOffice(user, 'Origin', 'Accra')
     await user.type(screen.getByLabelText('Destination'), 'Kasoa')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
     expect(screen.getByLabelText('Origin')).toHaveValue('')
-    expect(screen.getByLabelText('Destination')).toHaveValue('')
+    expect(screen.getByLabelText('Destination')).toHaveTextContent(
+      'Select an office',
+    )
   })
 })
 
@@ -382,7 +389,9 @@ describe('PostRideForm - editing an existing ride', () => {
 
     expect(await screen.findByLabelText('Origin')).toHaveValue('East Legon')
     expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
-    expect(screen.getByLabelText('Destination')).toHaveValue('ACCRA')
+    expect(screen.getByLabelText('Destination')).toHaveTextContent(
+      'Accra office',
+    )
     expect(screen.getByLabelText(/Route description/)).toHaveValue('Via the N1')
   })
 
@@ -396,7 +405,9 @@ describe('PostRideForm - editing an existing ride', () => {
     )
     render(<PostRideForm editRideId="ride-1" />)
 
-    expect(await screen.findByLabelText('Origin')).toHaveValue('KUMASI')
+    expect(await screen.findByLabelText('Origin')).toHaveTextContent(
+      'Kumasi office',
+    )
     expect(screen.getByRole('radio', { name: 'From the office' })).toBeChecked()
     expect(screen.getByLabelText('Destination')).toHaveValue('Adum')
   })
@@ -404,7 +415,12 @@ describe('PostRideForm - editing an existing ride', () => {
   it("locks the office, which the edit endpoint can't change", async () => {
     render(<PostRideForm editRideId="ride-1" />)
 
-    expect(await screen.findByLabelText('Destination')).toBeDisabled()
+    const office = await screen.findByLabelText('Destination')
+    expect(office).toBeDisabled()
+    expect(office).toHaveAttribute(
+      'title',
+      "A posted ride's office can't be changed",
+    )
     expect(screen.getByLabelText('Origin')).toBeEnabled()
   })
 
@@ -418,7 +434,9 @@ describe('PostRideForm - editing an existing ride', () => {
     )
     render(<PostRideForm editRideId="ride-1" />)
 
-    expect(await screen.findByLabelText('Origin')).toHaveValue('TAKORADI')
+    expect(await screen.findByLabelText('Origin')).toHaveTextContent(
+      'Takoradi office',
+    )
     expect(screen.getByLabelText('Destination')).toHaveValue('Anaji')
   })
 
@@ -429,7 +447,7 @@ describe('PostRideForm - editing an existing ride', () => {
     render(<PostRideForm editRideId="ride-1" />)
 
     const office = await screen.findByLabelText('Destination')
-    expect(office).toHaveValue('')
+    expect(office).toHaveTextContent('Select an office')
     expect(office).toBeEnabled()
     expect(screen.getByLabelText('Origin')).toHaveValue('East Legon')
   })
