@@ -37,6 +37,17 @@ export async function pickDate(user, iso, fieldLabel = 'Departure date') {
   throw new Error(`No calendar day found for ${iso}`)
 }
 
+/** Opens an office field's list and picks the office by name, e.g. "Accra". */
+export async function pickOffice(user, fieldLabel, officeName) {
+  await user.click(screen.getByLabelText(fieldLabel))
+  const list = screen.getByRole('listbox', { name: 'Choose an office' })
+  await user.click(
+    within(list).getByRole('option', {
+      name: new RegExp(`^${officeName} office`),
+    }),
+  )
+}
+
 /** Opens the time field's popover, picks an "HH:MM" (24h) time, then Done. */
 export async function pickTime(user, time, fieldLabel = 'Departure time') {
   const [hours, minutes] = time.split(':').map(Number)
