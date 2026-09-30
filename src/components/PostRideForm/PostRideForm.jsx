@@ -31,6 +31,8 @@ function getInitialValues() {
     // the other side (`place`) is free text.
     direction: 'to-office',
     office: '',
+    // Only set while editing: the office end's saved text, kept unchanged.
+    officeText: '',
     place: '',
     description: '',
     date: '',
@@ -43,8 +45,11 @@ function getInitialValues() {
  * Turns a saved ride back into the form's shape. A saved ride stores plain
  * origin and destination text, but the form works in terms of an office and
  * the other end. The ride's own `office` is trusted first; rides posted
- * before offices existed fall back to whichever end names an office. With no
- * office found, the driver picks one.
+ * before offices existed fall back to whichever end names an office.
+ *
+ * The edit endpoint cannot change a ride's office, so the office end is kept
+ * exactly as saved (`officeText`). That also covers an old ride with no
+ * office at all: its office end stays as it was rather than being re-picked.
  */
 function rideToValues(ride) {
   const office =
@@ -62,6 +67,7 @@ function rideToValues(ride) {
   return {
     direction: leavesOffice ? 'from-office' : 'to-office',
     office,
+    officeText: (leavesOffice ? ride.origin : ride.destination) ?? '',
     place: (leavesOffice ? ride.destination : ride.origin) ?? '',
     description: ride.description ?? '',
     date: ride.date ?? '',
@@ -98,8 +104,9 @@ function formatDisplayTime(timeStr) {
 }
 
 /** The origin and destination strings the ride is posted with. */
-function toRoute({ direction, office, place }) {
-  const officeName = officeLabel(office)
+function toRoute({ direction, office, officeText, place }) {
+  // An edited ride keeps its saved office text; a new one uses the label.
+  const officeName = officeText || officeLabel(office)
   const placeName = place.trim()
   return direction === 'to-office'
     ? { origin: placeName, destination: officeName }
@@ -111,7 +118,8 @@ function validate(values, now) {
   const todayISODate = toISODate(now)
   const isToOffice = values.direction === 'to-office'
 
-  if (!values.office) {
+  // An edited ride's office end is fixed, so there is nothing to choose.
+  if (!values.office && !values.officeText) {
     errors.office = 'Please choose an office'
   }
 
@@ -202,9 +210,6 @@ function PostRideForm({
   const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState('')
   const [seatsTaken, setSeatsTaken] = useState(0)
-  // The edit endpoint silently ignores `office`, so a ride that already has
-  // one keeps it; changing the dropdown would only change the text.
-  const [isOfficeLocked, setIsOfficeLocked] = useState(false)
 
   useEffect(() => {
     if (!editRideId) return undefined
@@ -224,7 +229,6 @@ function PostRideForm({
           return
         }
         setValues(rideToValues(ride))
-        setIsOfficeLocked(Boolean(ride.office))
         setSeatsTaken(
           Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
         )
@@ -355,8 +359,8 @@ function PostRideForm({
   const handleCancel = () => {
     // Blanking a ride being edited would lose it (and its locked office), so
     // cancelling an edit just leaves without saving.
-    if (isEditing && onMyRides) {
-      onMyRides()
+    if (isEditing) {
+      onMyRides?.()
       return
     }
     setValues(getInitialValues())
@@ -390,12 +394,14 @@ function PostRideForm({
       value={values.office}
       options={OFFICE_OPTIONS}
       onChange={(office) => updateField('office', office)}
-      disabled={isSubmitting || isOfficeLocked}
+      // The edit endpoint silently ignores `office`, so an edited ride's
+      // office is locked: picking another would only change the text and
+      // leave the ride under its old office in the filter.
+      disabled={isSubmitting || isEditing}
       hasError={Boolean(errorClass('office'))}
-      title={
-        isOfficeLocked ? "A posted ride's office can't be changed" : undefined
-      }
-      placeholder="Select an office"
+      title={isEditing ? "A posted ride's office can't be changed" : undefined}
+      // An old ride with no office shows its saved text instead.
+      placeholder={values.officeText || 'Select an office'}
       listLabel="Choose an office"
     />
   )

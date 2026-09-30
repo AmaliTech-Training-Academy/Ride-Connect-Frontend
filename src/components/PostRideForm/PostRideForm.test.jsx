@@ -442,17 +442,90 @@ describe('PostRideForm - editing an existing ride', () => {
       'Takoradi office',
     )
     expect(screen.getByLabelText('Destination')).toHaveValue('Anaji')
+    expect(screen.getByLabelText('Origin')).toBeDisabled()
   })
 
-  it('lets the driver choose an office when an old ride names none', async () => {
+  it('keeps the saved office text rather than rewriting it on save', async () => {
+    const user = userEvent.setup()
+    fetchMyRides.mockResolvedValue(
+      myRidesPayload({
+        origin: 'Takoradi office',
+        destination: 'Anaji',
+        office: undefined,
+      }),
+    )
+    render(<PostRideForm editRideId="ride-1" />)
+    await screen.findByLabelText('Origin')
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(updateRide).toHaveBeenCalledWith(
+      'ride-1',
+      expect.objectContaining({
+        origin: 'Takoradi office',
+        destination: 'Anaji',
+      }),
+    )
+  })
+
+  it('locks an old ride with no office and keeps its office end as saved', async () => {
+    const user = userEvent.setup()
     fetchMyRides.mockResolvedValue(
       myRidesPayload({ destination: 'AmaliTech Office', office: undefined }),
     )
     render(<PostRideForm editRideId="ride-1" />)
 
+    // Nothing to pick: an office chosen here could never be saved, so the
+    // route text and the office filter would drift apart.
     const office = await screen.findByLabelText('Destination')
-    expect(office).toHaveTextContent('Select an office')
-    expect(office).toBeEnabled()
+    expect(office).toBeDisabled()
+    expect(office).toHaveTextContent('AmaliTech Office')
+    expect(screen.getByLabelText('Origin')).toHaveValue('East Legon')
+
+    await user.clear(screen.getByLabelText('Origin'))
+    await user.type(screen.getByLabelText('Origin'), 'Adenta')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // Saves without asking for an office, with the office end untouched.
+    expect(
+      screen.queryByText('Please choose an office'),
+    ).not.toBeInTheDocument()
+    expect(updateRide).toHaveBeenCalledWith(
+      'ride-1',
+      expect.objectContaining({
+        origin: 'Adenta',
+        destination: 'AmaliTech Office',
+      }),
+    )
+    expect(updateRide.mock.calls[0][1]).not.toHaveProperty('office')
+  })
+
+  it('keeps the office end when the direction is swapped during an edit', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm editRideId="ride-1" />)
+    await screen.findByLabelText('Origin')
+
+    await user.click(
+      screen.getByRole('button', { name: 'Swap origin and destination' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(updateRide).toHaveBeenCalledWith(
+      'ride-1',
+      expect.objectContaining({
+        origin: 'AmaliTech Accra',
+        destination: 'East Legon',
+      }),
+    )
+  })
+
+  it('stays on a ride being edited when Cancel has nowhere to go', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm editRideId="ride-1" />)
+    await screen.findByLabelText('Origin')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
     expect(screen.getByLabelText('Origin')).toHaveValue('East Legon')
   })
 
