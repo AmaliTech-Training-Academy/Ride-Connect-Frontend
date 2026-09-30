@@ -1,10 +1,49 @@
-export const WORK_EMAIL_DOMAIN = 'amalitech.com'
 export const MIN_PASSWORD_LENGTH = 8
 
-const WORK_EMAIL_PATTERN = new RegExp(
-  `^[^\\s@]+@${WORK_EMAIL_DOMAIN.replace('.', '\\.')}$`,
-  'i',
-)
+/*
+ * The email domains allowed to register. This must match the backend's list:
+ * the backend is the real gate, and this check only gives quicker feedback.
+ * VITE_ALLOWED_EMAIL_DOMAINS (comma-separated) overrides the default.
+ */
+export const DEFAULT_ALLOWED_EMAIL_DOMAINS = [
+  'amalitech.com',
+  'amalitechtraining.org',
+]
+
+/** "a.com, B.org ,," -> ['a.com', 'b.org']; an empty list means "not set". */
+export function parseEmailDomains(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((domain) => domain.trim().replace(/^@/, '').toLowerCase())
+    .filter(Boolean)
+}
+
+function configuredEmailDomains() {
+  const fromEnv = parseEmailDomains(
+    globalThis.__VITE_ALLOWED_EMAIL_DOMAINS__ ||
+      globalThis.process?.env?.VITE_ALLOWED_EMAIL_DOMAINS,
+  )
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_EMAIL_DOMAINS
+}
+
+export const ALLOWED_EMAIL_DOMAINS = configuredEmailDomains()
+
+/** The main domain, used for examples such as the email placeholder. */
+export const WORK_EMAIL_DOMAIN = ALLOWED_EMAIL_DOMAINS[0]
+
+/** "@a.com", "@a.com or @b.org", "@a.com, @b.org or @c.net". */
+export function formatEmailDomains(domains = ALLOWED_EMAIL_DOMAINS) {
+  const tagged = domains.map((domain) => `@${domain}`)
+  return tagged.length > 1
+    ? `${tagged.slice(0, -1).join(', ')} or ${tagged.at(-1)}`
+    : (tagged[0] ?? '')
+}
+
+/** True when the email is a single address on one of the allowed domains. */
+export function isAllowedWorkEmail(email, domains = ALLOWED_EMAIL_DOMAINS) {
+  const match = /^[^\s@]+@([^\s@]+)$/.exec(String(email ?? '').trim())
+  return Boolean(match) && domains.includes(match[1].toLowerCase())
+}
 
 /**
  * Validates the registration form.
@@ -26,8 +65,8 @@ export function validateRegistration({
 
   if (!email.trim()) {
     errors.email = 'Please enter your work email'
-  } else if (!WORK_EMAIL_PATTERN.test(email.trim())) {
-    errors.email = `Please use your @${WORK_EMAIL_DOMAIN} work email`
+  } else if (!isAllowedWorkEmail(email)) {
+    errors.email = `Please use your ${formatEmailDomains()} work email`
   }
 
   if (!password) {

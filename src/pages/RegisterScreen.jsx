@@ -5,10 +5,15 @@ import EyeIcon from '../components/EyeIcon'
 import {
   MIN_PASSWORD_LENGTH,
   WORK_EMAIL_DOMAIN,
+  formatEmailDomains,
   passwordStrength,
   validateRegistration,
 } from '../lib/registration'
-import { DuplicateEmailError, registerUser } from '../services/auth'
+import {
+  DuplicateEmailError,
+  EmailDomainNotAllowedError,
+  registerUser,
+} from '../services/auth'
 import './authLayout.css'
 import './RegisterScreen.css'
 
@@ -25,6 +30,8 @@ function RegisterScreen({
   const [dirtyFields, setDirtyFields] = useState({})
   const [duplicateEmail, setDuplicateEmail] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  // The backend refused this exact email's domain: { email, message }.
+  const [rejectedEmail, setRejectedEmail] = useState(null)
   const [status, setStatus] = useState('idle')
   const [registeredUser, setRegisteredUser] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -76,6 +83,8 @@ function RegisterScreen({
       setStatus('idle')
       if (error instanceof DuplicateEmailError) {
         setDuplicateEmail(true)
+      } else if (error instanceof EmailDomainNotAllowedError) {
+        setRejectedEmail({ email: form.email, message: error.message })
       } else {
         setSubmitError('Something went wrong. Please try again.')
       }
@@ -93,6 +102,11 @@ function RegisterScreen({
       ([field]) => hasAttemptedSubmit || dirtyFields[field],
     ),
   )
+  // The backend has the final say on domains. Its refusal shows on the email
+  // field until the address is changed.
+  if (!errors.email && rejectedEmail?.email === form.email) {
+    errors.email = rejectedEmail.message
+  }
   const confirmError = errors.confirmPassword
 
   return (
@@ -201,7 +215,7 @@ function RegisterScreen({
                 </p>
               ) : (
                 <p className="register-hint" id="email-hint">
-                  Must be your @{WORK_EMAIL_DOMAIN} email
+                  Must be your {formatEmailDomains()} email
                 </p>
               )}
 
@@ -320,7 +334,7 @@ function RegisterScreen({
         </div>
 
         <p className="auth-footnote">
-          Use your <strong>@{WORK_EMAIL_DOMAIN}</strong> email to keep it
+          Use your <strong>{formatEmailDomains()}</strong> email to keep it
           colleagues-only.
         </p>
       </div>

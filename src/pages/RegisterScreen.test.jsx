@@ -2,7 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, jest } from '@jest/globals'
 import RegisterScreen from './RegisterScreen'
-import { DuplicateEmailError } from '../services/auth'
+import {
+  DuplicateEmailError,
+  EmailDomainNotAllowedError,
+} from '../services/auth'
 
 const VALID = {
   name: 'Kwame Mensah',
@@ -92,6 +95,61 @@ describe('RegisterScreen', () => {
       expect(register).not.toHaveBeenCalled()
     })
 
+    it('registers with an @amalitechtraining.org email', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { email: 'ama.owusu@amalitechtraining.org' })
+      await submit(user)
+
+      await waitFor(() =>
+        expect(register).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'ama.owusu@amalitechtraining.org' }),
+        ),
+      )
+    })
+
+    it('names both allowed domains on the email field and in the footer', () => {
+      setup()
+
+      expect(screen.getByLabelText(/work email/i)).toHaveAccessibleDescription(
+        'Must be your @amalitech.com or @amalitechtraining.org email',
+      )
+      expect(
+        screen.getByText('@amalitech.com or @amalitechtraining.org', {
+          selector: '.auth-footnote strong',
+        }),
+      ).toBeInTheDocument()
+    })
+
+    it("shows the backend's domain refusal on the email field until it changes", async () => {
+      const register = jest
+        .fn()
+        .mockRejectedValue(
+          new EmailDomainNotAllowedError(
+            'Registration is restricted to @amalitech.com email addresses.',
+          ),
+        )
+      const { user } = setup({ register })
+
+      // Passes the frontend check, but the backend's list is the real one.
+      await fillForm(user, { email: 'ama@amalitechtraining.org' })
+      await submit(user)
+
+      const message =
+        'Registration is restricted to @amalitech.com email addresses.'
+      expect(await screen.findByText(message)).toBeInTheDocument()
+      expect(screen.getByLabelText(/work email/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+      expect(
+        screen.queryByText('Something went wrong. Please try again.'),
+      ).not.toBeInTheDocument()
+
+      await fillField(user, /work email/i, 'ama@amalitech.com')
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
+    })
+
     it('rejects a non-work email address', async () => {
       const { register, user } = setup()
 
@@ -99,7 +157,9 @@ describe('RegisterScreen', () => {
       await submit(user)
 
       expect(
-        await screen.findByText('Please use your @amalitech.com work email'),
+        await screen.findByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
       ).toBeInTheDocument()
       expect(register).not.toHaveBeenCalled()
     })
@@ -142,7 +202,9 @@ describe('RegisterScreen', () => {
       await fillField(user, 'Password', 'short')
 
       expect(
-        screen.getByText('Please use your @amalitech.com work email'),
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
       ).toBeInTheDocument()
       expect(
         screen.getByText('Password must be at least 8 characters'),
@@ -166,14 +228,22 @@ describe('RegisterScreen', () => {
 
       await fillField(user, /work email/i, 'kwame@gmail.com')
       expect(
-        screen.getByText('Please use your @amalitech.com work email'),
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
       ).toBeInTheDocument()
 
       await fillField(user, /work email/i, VALID.email)
       expect(
-        screen.queryByText('Please use your @amalitech.com work email'),
+        screen.queryByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
       ).not.toBeInTheDocument()
-      expect(screen.getByText('Must be your @amalitech.com email')).toBeVisible()
+      expect(
+        screen.getByText(
+          'Must be your @amalitech.com or @amalitechtraining.org email',
+        ),
+      ).toBeVisible()
     })
 
     it('asks for a name again when it is typed and then cleared', async () => {
@@ -182,7 +252,9 @@ describe('RegisterScreen', () => {
       await user.type(screen.getByLabelText(/full name/i), 'K')
       await user.clear(screen.getByLabelText(/full name/i))
 
-      expect(screen.getByText('Please enter your full name')).toBeInTheDocument()
+      expect(
+        screen.getByText('Please enter your full name'),
+      ).toBeInTheDocument()
     })
 
     it('rechecks the confirmation when the first password is edited', async () => {
@@ -460,7 +532,7 @@ describe('RegisterScreen', () => {
       setup()
 
       expect(screen.getByLabelText(/work email/i)).toHaveAccessibleDescription(
-        'Must be your @amalitech.com email',
+        'Must be your @amalitech.com or @amalitechtraining.org email',
       )
       expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
         'At least 8 characters',

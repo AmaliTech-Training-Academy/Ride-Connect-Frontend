@@ -25,6 +25,18 @@ export class DuplicateEmailError extends Error {
   }
 }
 
+/**
+ * Thrown when the backend refuses the email's domain. The backend's list is
+ * the source of truth, so its own message is kept to show on the email field
+ * in case the frontend's copy of the list ever drifts.
+ */
+export class EmailDomainNotAllowedError extends Error {
+  constructor(message = 'This email domain is not allowed to register.') {
+    super(message)
+    this.name = 'EmailDomainNotAllowedError'
+  }
+}
+
 export class InvalidCredentialsError extends Error {
   constructor(message = 'Invalid email or password') {
     super(message)
@@ -41,6 +53,10 @@ export async function registerUser({ name, email, password }) {
 
   if (result.error?.status === 409) {
     throw new DuplicateEmailError()
+  }
+
+  if (result.error?.code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
+    throw new EmailDomainNotAllowedError(result.error.message || undefined)
   }
 
   if (result.error) {

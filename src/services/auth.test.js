@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import {
   DuplicateEmailError,
+  EmailDomainNotAllowedError,
   InvalidCredentialsError,
   changePassword,
   changePasswordErrorMessage,
@@ -81,6 +82,23 @@ describe('DuplicateEmailError', () => {
     const error = new DuplicateEmailError()
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe('DuplicateEmailError')
+  })
+})
+
+describe('EmailDomainNotAllowedError', () => {
+  it("keeps the backend's message, with a fallback", () => {
+    expect(new EmailDomainNotAllowedError('Only @a.com').message).toBe(
+      'Only @a.com',
+    )
+    expect(new EmailDomainNotAllowedError().message).toBe(
+      'This email domain is not allowed to register.',
+    )
+  })
+
+  it('is an Error with its own name', () => {
+    const error = new EmailDomainNotAllowedError()
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('EmailDomainNotAllowedError')
   })
 })
 

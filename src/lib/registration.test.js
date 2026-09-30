@@ -1,6 +1,11 @@
 import { describe, expect, it } from '@jest/globals'
 import {
+  ALLOWED_EMAIL_DOMAINS,
+  DEFAULT_ALLOWED_EMAIL_DOMAINS,
   MIN_PASSWORD_LENGTH,
+  formatEmailDomains,
+  isAllowedWorkEmail,
+  parseEmailDomains,
   passwordStrength,
   validateRegistration,
 } from './registration'
@@ -41,7 +46,9 @@ describe('validateRegistration', () => {
     it('rejects a non-work domain', () => {
       expect(
         validateRegistration({ ...valid, email: 'kwame@gmail.com' }).email,
-      ).toBe('Please use your @amalitech.com work email')
+      ).toBe(
+        'Please use your @amalitech.com or @amalitechtraining.org work email',
+      )
     })
 
     it('rejects text that is not an email at all', () => {
@@ -67,8 +74,65 @@ describe('validateRegistration', () => {
         validateRegistration({ ...valid, email: '  kwame@amalitech.com  ' }),
       ).toEqual({})
     })
+
+    it('accepts the training domain too', () => {
+      expect(
+        validateRegistration({
+          ...valid,
+          email: 'ama.owusu@AmaliTechTraining.org',
+        }),
+      ).toEqual({})
+    })
+
+    it.each([
+      ['a look-alike domain', 'kwame@amalitech.com.evil.io'],
+      ['a subdomain', 'kwame@mail.amalitech.com'],
+      ['a lookalike prefix', 'kwame@notamalitech.com'],
+      ['two @ signs', 'kwame@x@amalitech.com'],
+      ['a space inside', 'kwa me@amalitech.com'],
+    ])('rejects %s', (_, email) => {
+      expect(validateRegistration({ ...valid, email })).toHaveProperty('email')
+    })
+  })
+})
+
+describe('allowed email domains', () => {
+  it('defaults to the company and training domains', () => {
+    expect(ALLOWED_EMAIL_DOMAINS).toEqual([
+      'amalitech.com',
+      'amalitechtraining.org',
+    ])
+    expect(DEFAULT_ALLOWED_EMAIL_DOMAINS).toEqual(ALLOWED_EMAIL_DOMAINS)
   })
 
+  it('reads a comma-separated list, tidying spaces, case and @ signs', () => {
+    expect(
+      parseEmailDomains(' Amalitech.com, @amalitechtraining.org ,,'),
+    ).toEqual(['amalitech.com', 'amalitechtraining.org'])
+    expect(parseEmailDomains('')).toEqual([])
+    expect(parseEmailDomains(undefined)).toEqual([])
+  })
+
+  it('checks an address against any given list', () => {
+    expect(isAllowedWorkEmail('a@b.org', ['b.org'])).toBe(true)
+    expect(isAllowedWorkEmail('a@amalitech.com', ['b.org'])).toBe(false)
+    expect(isAllowedWorkEmail(undefined)).toBe(false)
+  })
+
+  it('names the domains in plain English for messages', () => {
+    expect(formatEmailDomains(['a.com'])).toBe('@a.com')
+    expect(formatEmailDomains(['a.com', 'b.org'])).toBe('@a.com or @b.org')
+    expect(formatEmailDomains(['a.com', 'b.org', 'c.net'])).toBe(
+      '@a.com, @b.org or @c.net',
+    )
+    expect(formatEmailDomains([])).toBe('')
+    expect(formatEmailDomains()).toBe(
+      '@amalitech.com or @amalitechtraining.org',
+    )
+  })
+})
+
+describe('validateRegistration, continued', () => {
   describe('password', () => {
     it('requires a password', () => {
       expect(
