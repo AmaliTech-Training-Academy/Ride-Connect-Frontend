@@ -21,7 +21,8 @@ function RegisterScreen({
   redirectDelay = 1500,
 }) {
   const [form, setForm] = useState(EMPTY_FORM)
-  const [errors, setErrors] = useState({})
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  const [dirtyFields, setDirtyFields] = useState({})
   const [duplicateEmail, setDuplicateEmail] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [status, setStatus] = useState('idle')
@@ -43,6 +44,9 @@ function RegisterScreen({
   function updateField(field) {
     return (event) => {
       setForm((current) => ({ ...current, [field]: event.target.value }))
+      setDirtyFields((current) =>
+        current[field] ? current : { ...current, [field]: true },
+      )
     }
   }
 
@@ -50,7 +54,7 @@ function RegisterScreen({
     event.preventDefault()
 
     const nextErrors = validateRegistration(form)
-    setErrors(nextErrors)
+    setHasAttemptedSubmit(true)
     setDuplicateEmail(false)
     setSubmitError('')
 
@@ -80,6 +84,16 @@ function RegisterScreen({
 
   const strength = passwordStrength(form.password)
   const isSubmitting = status === 'submitting'
+  // Every field is checked live once the user has typed in it (or after a
+  // submit), so errors appear while typing and clear as soon as they are
+  // fixed. Untouched fields stay quiet until the first submit.
+  const liveErrors = validateRegistration(form)
+  const errors = Object.fromEntries(
+    Object.entries(liveErrors).filter(
+      ([field]) => hasAttemptedSubmit || dirtyFields[field],
+    ),
+  )
+  const confirmError = errors.confirmPassword
 
   return (
     <main className="auth-shell">
@@ -249,7 +263,7 @@ function RegisterScreen({
 
               <label htmlFor="confirmPassword">Confirm password</label>
               <div
-                className={`register-password ${errors.confirmPassword ? 'has-error' : ''}`}
+                className={`register-password ${confirmError ? 'has-error' : ''}`}
               >
                 <input
                   id="confirmPassword"
@@ -258,10 +272,8 @@ function RegisterScreen({
                   onChange={updateField('confirmPassword')}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  aria-invalid={Boolean(errors.confirmPassword)}
-                  aria-describedby={
-                    errors.confirmPassword ? 'confirm-error' : undefined
-                  }
+                  aria-invalid={Boolean(confirmError)}
+                  aria-describedby={confirmError ? 'confirm-error' : undefined}
                 />
                 <button
                   type="button"
@@ -279,13 +291,13 @@ function RegisterScreen({
                   <EyeIcon hidden={showConfirmPassword} />
                 </button>
               </div>
-              {errors.confirmPassword && (
+              {confirmError && (
                 <p
                   className="register-field-error"
                   id="confirm-error"
                   role="alert"
                 >
-                  {errors.confirmPassword}
+                  {confirmError}
                 </p>
               )}
 
