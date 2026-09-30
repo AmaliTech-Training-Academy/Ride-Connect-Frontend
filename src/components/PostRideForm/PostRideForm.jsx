@@ -30,6 +30,37 @@ function getInitialValues() {
   }
 }
 
+/**
+ * Turns a saved ride back into the form's shape. The office end is found from
+ * the ride's `office`, or for rides posted before offices existed, from
+ * whichever end names an office. With no office found, the driver picks one.
+ */
+function rideToValues(ride) {
+  const namesOffice = (text, officeId) =>
+    text === officeLabel(officeId) || matchesOffice(text, officeId)
+  const office =
+    ride.office ??
+    OFFICES.find(
+      ({ id }) =>
+        namesOffice(ride.destination, id) || namesOffice(ride.origin, id),
+    )?.id ??
+    ''
+  const leavesOffice =
+    Boolean(office) &&
+    namesOffice(ride.origin, office) &&
+    !namesOffice(ride.destination, office)
+
+  return {
+    direction: leavesOffice ? 'from-office' : 'to-office',
+    office,
+    place: (leavesOffice ? ride.destination : ride.origin) ?? '',
+    description: ride.description ?? '',
+    date: ride.date ?? '',
+    time: ride.time ?? '',
+    seats: ride.seatsTotal ?? 1,
+  }
+}
+
 function toISODate(date) {
   const localMidnight = new Date(
     date.getFullYear(),
@@ -138,7 +169,8 @@ function mapServerFieldErrors(fields = {}, direction) {
     office: firstMessage(fields.office ?? officeSide),
     date: firstMessage(fields.departureDate),
     time: firstMessage(fields.departureTime),
-    seats: firstMessage(fields.availableSeats),
+    // Posting validates availableSeats; editing validates totalSeats.
+    seats: firstMessage(fields.availableSeats ?? fields.totalSeats),
     description: firstMessage(fields.routeDescription),
   }
 }
@@ -161,6 +193,9 @@ function PostRideForm({
   const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState('')
   const [seatsTaken, setSeatsTaken] = useState(0)
+  // The edit endpoint cannot move a ride to another office, so a ride that
+  // already has one keeps it; changing the dropdown would only change the text.
+  const [isOfficeLocked, setIsOfficeLocked] = useState(false)
 
   useEffect(() => {
     if (!editRideId) return undefined
@@ -179,14 +214,8 @@ function PostRideForm({
           setLoadState('error')
           return
         }
-        setValues({
-          origin: ride.origin ?? '',
-          destination: ride.destination ?? '',
-          description: ride.description ?? '',
-          date: ride.date ?? '',
-          time: ride.time ?? '',
-          seats: ride.seatsTotal ?? 1,
-        })
+        setValues(rideToValues(ride))
+        setIsOfficeLocked(Boolean(ride.office))
         setSeatsTaken(
           Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
         )
@@ -279,7 +308,9 @@ function PostRideForm({
           onFindRide?.(updated?.id ?? editRideId)
         } catch (error) {
           if (error?.fields) {
-            setServerErrors(mapServerFieldErrors(error.fields))
+            setServerErrors(
+              mapServerFieldErrors(error.fields, values.direction),
+            )
             setStatus('idle')
           } else {
             setStatus('error')
@@ -313,6 +344,12 @@ function PostRideForm({
   }
 
   const handleCancel = () => {
+    // Blanking a ride being edited would lose it (and its locked office), so
+    // cancelling an edit just leaves without saving.
+    if (isEditing && onMyRides) {
+      onMyRides()
+      return
+    }
     setValues(getInitialValues())
     setHasAttemptedSubmit(false)
     setStatus('idle')
@@ -343,7 +380,10 @@ function PostRideForm({
       id={id}
       value={values.office}
       onChange={(event) => updateField('office', event.target.value)}
-      disabled={isSubmitting}
+      disabled={isSubmitting || isOfficeLocked}
+      title={
+        isOfficeLocked ? "A posted ride's office can't be changed" : undefined
+      }
       className={`office-select ${values.office ? '' : 'is-empty'} ${errorClass('office')}`}
     >
       <option value="" disabled>

@@ -13,16 +13,14 @@ jest.mock('../../lib/api', () => ({
 async function fillWhen(user) {
   await pickDate(user, futureISODate(3))
   await pickTime(user, '08:30')
+}
+
 // The service is mocked directly: jest.mock on '../../lib/api' does not reach
 // a service module's own import of it under this ESM setup.
 jest.mock('../../services/rides', () => ({
   fetchMyRides: jest.fn(),
   updateRide: jest.fn(),
 }))
-
-function toISODate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
 
 /** Fills a valid "to the office" ride: Kasoa -> the Accra office. */
 async function fillValidRide(user) {
@@ -355,7 +353,8 @@ describe('PostRideForm - editing an existing ride', () => {
         {
           id: 'ride-1',
           origin: 'East Legon',
-          destination: 'AmaliTech Office',
+          destination: 'AmaliTech Accra',
+          office: 'ACCRA',
           routeDescription: 'Via the N1',
           departureAt: futureDeparture(),
           totalSeats: 4,
@@ -382,8 +381,84 @@ describe('PostRideForm - editing an existing ride', () => {
     render(<PostRideForm editRideId="ride-1" />)
 
     expect(await screen.findByLabelText('Origin')).toHaveValue('East Legon')
-    expect(screen.getByLabelText('Destination')).toHaveValue('AmaliTech Office')
+    expect(screen.getByRole('radio', { name: 'To the office' })).toBeChecked()
+    expect(screen.getByLabelText('Destination')).toHaveValue('ACCRA')
     expect(screen.getByLabelText(/Route description/)).toHaveValue('Via the N1')
+  })
+
+  it('puts the office on the origin side for a ride leaving the office', async () => {
+    fetchMyRides.mockResolvedValue(
+      myRidesPayload({
+        origin: 'AmaliTech Kumasi',
+        destination: 'Adum',
+        office: 'KUMASI',
+      }),
+    )
+    render(<PostRideForm editRideId="ride-1" />)
+
+    expect(await screen.findByLabelText('Origin')).toHaveValue('KUMASI')
+    expect(screen.getByRole('radio', { name: 'From the office' })).toBeChecked()
+    expect(screen.getByLabelText('Destination')).toHaveValue('Adum')
+  })
+
+  it("locks the office, which the edit endpoint can't change", async () => {
+    render(<PostRideForm editRideId="ride-1" />)
+
+    expect(await screen.findByLabelText('Destination')).toBeDisabled()
+    expect(screen.getByLabelText('Origin')).toBeEnabled()
+  })
+
+  it('works out the office of a ride posted before offices existed', async () => {
+    fetchMyRides.mockResolvedValue(
+      myRidesPayload({
+        origin: 'Takoradi office',
+        destination: 'Anaji',
+        office: undefined,
+      }),
+    )
+    render(<PostRideForm editRideId="ride-1" />)
+
+    expect(await screen.findByLabelText('Origin')).toHaveValue('TAKORADI')
+    expect(screen.getByLabelText('Destination')).toHaveValue('Anaji')
+  })
+
+  it('lets the driver choose an office when an old ride names none', async () => {
+    fetchMyRides.mockResolvedValue(
+      myRidesPayload({ destination: 'AmaliTech Office', office: undefined }),
+    )
+    render(<PostRideForm editRideId="ride-1" />)
+
+    const office = await screen.findByLabelText('Destination')
+    expect(office).toHaveValue('')
+    expect(office).toBeEnabled()
+    expect(screen.getByLabelText('Origin')).toHaveValue('East Legon')
+  })
+
+  it('goes back to My Rides on Cancel instead of blanking the ride', async () => {
+    const user = userEvent.setup()
+    const onMyRides = jest.fn()
+    render(<PostRideForm editRideId="ride-1" onMyRides={onMyRides} />)
+    await screen.findByLabelText('Origin')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onMyRides).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('Origin')).toHaveValue('East Legon')
+    expect(updateRide).not.toHaveBeenCalled()
+  })
+
+  it('shows a seat error from the edit endpoint under the seats', async () => {
+    const user = userEvent.setup()
+    const error = new Error('Validation failed')
+    error.status = 400
+    error.fields = { totalSeats: ['Must be at least 2'] }
+    updateRide.mockRejectedValueOnce(error)
+
+    render(<PostRideForm editRideId="ride-1" />)
+    await screen.findByLabelText('Origin')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Must be at least 2')).toBeInTheDocument()
   })
 
   it('reads as editing rather than offering', async () => {
@@ -413,7 +488,7 @@ describe('PostRideForm - editing an existing ride', () => {
     // The edit endpoint takes totalSeats and ignores availableSeats.
     expect(updateRide).toHaveBeenCalledWith('ride-1', {
       origin: 'Adenta',
-      destination: 'AmaliTech Office',
+      destination: 'AmaliTech Accra',
       departureDate: expect.any(String),
       departureTime: expect.any(String),
       totalSeats: 4,
