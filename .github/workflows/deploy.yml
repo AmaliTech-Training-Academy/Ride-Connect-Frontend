@@ -105,12 +105,16 @@ jobs:
             set -euo pipefail
             cd /opt/ride-connect
 
-            if grep -q '^FRONTEND_TAG=' .env 2>/dev/null; then
-              sed -i "s/^FRONTEND_TAG=.*/FRONTEND_TAG=$TAG/" .env
-            else
-              if [ -s .env ] && [ -n "$(tail -c1 .env)" ]; then echo >> .env; fi
-              echo "FRONTEND_TAG=$TAG" >> .env
+            if [ ! -r .env ] || [ ! -w .env ]; then
+              echo "/opt/ride-connect/.env must be readable and writable by $(whoami)" >&2
+              exit 1
             fi
+
+            TMP=$(mktemp)
+            grep -v '^FRONTEND_TAG=' .env > "$TMP" || true
+            echo "FRONTEND_TAG=$TAG" >> "$TMP"
+            cat "$TMP" > .env
+            rm -f "$TMP"
             echo "FRONTEND_TAG set to $TAG"
 
             if docker compose config --services | grep -qx frontend; then
