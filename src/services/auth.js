@@ -44,6 +44,19 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+/**
+ * better-auth reports a taken email as 422 USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL
+ * (or USER_ALREADY_EXISTS), not 409, so the code is checked; 409 stays as a
+ * fallback in case the backend maps it to a conflict.
+ */
+export function isDuplicateEmailError(error) {
+  return (
+    error?.status === 409 ||
+    error?.code === 'USER_ALREADY_EXISTS' ||
+    error?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
+  )
+}
+
 export async function registerUser({ name, email, password }) {
   if (!authClient || !apiBaseURL) {
     throw new Error('Authentication backend is not configured.')
@@ -51,7 +64,7 @@ export async function registerUser({ name, email, password }) {
 
   const result = await authClient.signUp.email({ name, email, password })
 
-  if (result.error?.status === 409) {
+  if (isDuplicateEmailError(result.error)) {
     throw new DuplicateEmailError()
   }
 
