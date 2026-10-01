@@ -47,6 +47,14 @@ function RegisterScreen({
       setDirtyFields((current) =>
         current[field] ? current : { ...current, [field]: true },
       )
+      /*
+       * "Already registered" is about one specific address, so editing the
+       * field retires it. Otherwise a fresh email stays marked invalid, and
+       * keeps the message, until the next submit proves otherwise.
+       */
+      if (field === 'email') {
+        setDuplicateEmail(false)
+      }
     }
   }
 

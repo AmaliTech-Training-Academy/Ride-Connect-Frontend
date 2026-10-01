@@ -276,6 +276,41 @@ describe('RegisterScreen', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('retires the message as soon as the email is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText('An account with this email already exists.')
+
+      const email = screen.getByLabelText(/work email/i)
+      await user.clear(email)
+      await user.type(email, 'someone.else@amalitech.com')
+
+      // A different address should not keep wearing the old answer.
+      expect(
+        screen.queryByText('An account with this email already exists.'),
+      ).not.toBeInTheDocument()
+      expect(email).toHaveAttribute('aria-invalid', 'false')
+    })
+
+    it('does not clear it when another field is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText('An account with this email already exists.')
+
+      await user.type(screen.getByLabelText(/full name/i), 'x')
+
+      // The email is unchanged, so the answer still stands.
+      expect(
+        screen.getByText('An account with this email already exists.'),
+      ).toBeInTheDocument()
+    })
+
     it('announces the duplicate error to assistive technology', async () => {
       const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register })
