@@ -32,6 +32,28 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+/**
+ * Turns a sign-up failure into the error the screen reacts to.
+ *
+ * better-auth reports a taken email as USER_ALREADY_EXISTS. The status it
+ * arrives with has varied — 422 today, 409 previously — so the code is the
+ * reliable signal and the statuses are a fallback. Anything else is left as a
+ * generic failure so the screen shows its usual message.
+ *
+ * Exported so the mapping can be tested without standing up an auth client.
+ */
+export function signUpError(error) {
+  const code = String(error?.code ?? '').toUpperCase()
+  const isDuplicate =
+    code === 'USER_ALREADY_EXISTS' ||
+    error?.status === 422 ||
+    error?.status === 409
+
+  return isDuplicate
+    ? new DuplicateEmailError()
+    : new Error('Registration failed')
+}
+
 export async function registerUser({ name, email, password }) {
   if (!authClient || !apiBaseURL) {
     throw new Error('Authentication backend is not configured.')
@@ -39,12 +61,8 @@ export async function registerUser({ name, email, password }) {
 
   const result = await authClient.signUp.email({ name, email, password })
 
-  if (result.error?.status === 409) {
-    throw new DuplicateEmailError()
-  }
-
   if (result.error) {
-    throw new Error('Registration failed')
+    throw signUpError(result.error)
   }
 
   return result.data?.user ?? result.data
