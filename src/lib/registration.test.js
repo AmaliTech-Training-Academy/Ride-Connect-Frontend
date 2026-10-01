@@ -2,7 +2,9 @@ import { describe, expect, it } from '@jest/globals'
 import {
   ALLOWED_EMAIL_DOMAINS,
   DEFAULT_ALLOWED_EMAIL_DOMAINS,
+  EXAMPLE_EMAIL_DOMAIN,
   MIN_PASSWORD_LENGTH,
+  emailDomainWarning,
   formatEmailDomains,
   isAllowedWorkEmail,
   parseEmailDomains,
@@ -43,12 +45,10 @@ describe('validateRegistration', () => {
       )
     })
 
-    it('rejects a non-work domain', () => {
+    it("doesn't block an unknown domain: the backend decides", () => {
       expect(
-        validateRegistration({ ...valid, email: 'kwame@gmail.com' }).email,
-      ).toBe(
-        'Please use your @amalitech.com or @amalitechtraining.org work email',
-      )
+        validateRegistration({ ...valid, email: 'kwame@gmail.com' }),
+      ).toEqual({})
     })
 
     it('rejects text that is not an email at all', () => {
@@ -85,14 +85,51 @@ describe('validateRegistration', () => {
     })
 
     it.each([
-      ['a look-alike domain', 'kwame@amalitech.com.evil.io'],
-      ['a subdomain', 'kwame@mail.amalitech.com'],
-      ['a lookalike prefix', 'kwame@notamalitech.com'],
       ['two @ signs', 'kwame@x@amalitech.com'],
       ['a space inside', 'kwa me@amalitech.com'],
-    ])('rejects %s', (_, email) => {
-      expect(validateRegistration({ ...valid, email })).toHaveProperty('email')
+      ['a domain with no dot', 'kwame@amalitech'],
+    ])('blocks an address with %s', (_, email) => {
+      expect(validateRegistration({ ...valid, email }).email).toBe(
+        'Please enter a valid email address',
+      )
     })
+  })
+})
+
+describe('emailDomainWarning', () => {
+  const warning =
+    'Please use your @amalitech.com or @amalitechtraining.org work email'
+
+  it.each([
+    ['another provider', 'kwame@gmail.com'],
+    ['a look-alike domain', 'kwame@amalitech.com.evil.io'],
+    ['a subdomain', 'kwame@mail.amalitech.com'],
+    ['a look-alike prefix', 'kwame@notamalitech.com'],
+  ])('warns about %s', (_, email) => {
+    expect(emailDomainWarning(email)).toBe(warning)
+  })
+
+  it.each([
+    'kwame@amalitech.com',
+    'Ama.Owusu@AmaliTechTraining.ORG',
+    '  kwame@amalitech.com  ',
+  ])('stays quiet for %s', (email) => {
+    expect(emailDomainWarning(email)).toBeUndefined()
+  })
+
+  it('leaves blanks and malformed text to the main validation', () => {
+    expect(emailDomainWarning('')).toBeUndefined()
+    expect(emailDomainWarning('asdf')).toBeUndefined()
+  })
+
+  it('uses whatever list it is given', () => {
+    expect(emailDomainWarning('a@x.com', ['b.org'])).toBe(
+      'Please use your @b.org work email',
+    )
+  })
+
+  it('names an example domain only for the placeholder', () => {
+    expect(ALLOWED_EMAIL_DOMAINS).toContain(EXAMPLE_EMAIL_DOMAIN)
   })
 })
 
@@ -193,7 +230,7 @@ describe('validateRegistration, continued', () => {
   it('reports every invalid field at once', () => {
     const errors = validateRegistration({
       name: '',
-      email: 'kwame@gmail.com',
+      email: 'kwame.mensah',
       password: '1234',
       confirmPassword: '12345',
     })

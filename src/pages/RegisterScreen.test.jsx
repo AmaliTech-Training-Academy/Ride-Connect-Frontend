@@ -150,16 +150,33 @@ describe('RegisterScreen', () => {
       expect(screen.queryByText(message)).not.toBeInTheDocument()
     })
 
-    it('rejects a non-work email address', async () => {
+    it('warns about an unknown domain but still lets the backend decide', async () => {
       const { register, user } = setup()
 
       await fillForm(user, { email: 'kwame.mensah@gmail.com' })
+      expect(
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
+      ).toBeInTheDocument()
+      await submit(user)
+
+      // A stale frontend list must never block an address the backend allows.
+      await waitFor(() =>
+        expect(register).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'kwame.mensah@gmail.com' }),
+        ),
+      )
+    })
+
+    it('blocks an address that is not an email at all', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { email: 'kwame.mensah' })
       await submit(user)
 
       expect(
-        await screen.findByText(
-          'Please use your @amalitech.com or @amalitechtraining.org work email',
-        ),
+        screen.getByText('Please enter a valid email address'),
       ).toBeInTheDocument()
       expect(register).not.toHaveBeenCalled()
     })

@@ -4,7 +4,8 @@ import CheckIcon from '../components/CheckIcon'
 import EyeIcon from '../components/EyeIcon'
 import {
   MIN_PASSWORD_LENGTH,
-  WORK_EMAIL_DOMAIN,
+  EXAMPLE_EMAIL_DOMAIN,
+  emailDomainWarning,
   formatEmailDomains,
   passwordStrength,
   validateRegistration,
@@ -102,10 +103,15 @@ function RegisterScreen({
       ([field]) => hasAttemptedSubmit || dirtyFields[field],
     ),
   )
-  // The backend has the final say on domains. Its refusal shows on the email
-  // field until the address is changed.
-  if (!errors.email && rejectedEmail?.email === form.email) {
-    errors.email = rejectedEmail.message
+  // Domains are the backend's call. Its refusal of this exact address shows on
+  // the email field until the address changes; before that, an unknown domain
+  // gets our warning, which is shown but never stops the form being sent.
+  if (!errors.email && (hasAttemptedSubmit || dirtyFields.email)) {
+    errors.email =
+      rejectedEmail?.email === form.email
+        ? rejectedEmail.message
+        : emailDomainWarning(form.email)
+    if (!errors.email) delete errors.email
   }
   const confirmError = errors.confirmPassword
 
@@ -199,7 +205,7 @@ function RegisterScreen({
                 type="email"
                 value={form.email}
                 onChange={updateField('email')}
-                placeholder={`you@${WORK_EMAIL_DOMAIN}`}
+                placeholder={`you@${EXAMPLE_EMAIL_DOMAIN}`}
                 autoComplete="email"
                 className={errors.email ? 'has-error' : ''}
                 aria-invalid={Boolean(errors.email)}
