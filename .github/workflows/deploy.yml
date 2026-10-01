@@ -96,6 +96,14 @@ jobs:
           echo "SSH never became reachable on $HOST" >&2
           exit 1
 
+      - name: Log the host in to GHCR
+        env:
+          TARGET: ${{ secrets.DOCKER_EC2_USER }}@${{ secrets.DOCKER_EC2_HOST }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | ssh "$TARGET" \
+            docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
       - name: Point FRONTEND_TAG at the new image and recreate the service
         id: deploy
         env:
