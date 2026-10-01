@@ -486,8 +486,14 @@ describe('App', () => {
     await pickTime(user, '08:30')
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
 
+    // The form holds the confirmation briefly before navigating, so this waits
+    // longer than findBy's one-second default.
     expect(
-      await screen.findByRole('heading', { name: /find a ride/i }),
+      await screen.findByRole(
+        'heading',
+        { name: /find a ride/i },
+        { timeout: 4000 },
+      ),
     ).toBeInTheDocument()
   }, 10000)
 })
