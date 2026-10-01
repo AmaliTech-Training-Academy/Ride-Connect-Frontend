@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, jest } from '@jest/globals'
 import DatePickerField from './DatePickerField'
 import TimePickerField from './TimePickerField'
+import SelectPickerField from './SelectPickerField'
 import { futureISODate, longDateLabel } from '../../test/pickers'
 
 function renderDate(props = {}) {
@@ -157,9 +158,13 @@ describe('TimePickerField', () => {
       ).getByRole('button', { name }),
     )
 
+  // A fixed morning "now", so the default AM/PM doesn't depend on when the
+  // tests happen to run.
+  const morning = () => new Date(2026, 8, 30, 9, 12)
+
   it('builds a 24-hour time from hour, minute and PM', async () => {
     const user = userEvent.setup()
-    const { onChange } = renderTime()
+    const { onChange } = renderTime({ getNow: morning })
 
     await user.click(screen.getByLabelText('Departure time'))
     await pick(user, 'Hour', '02')
@@ -195,9 +200,177 @@ describe('TimePickerField', () => {
       .getAllByRole('button', { pressed: true })
       .map((button) => button.textContent)
     expect(selected).toEqual(['07', '45', 'PM'])
+    // Focus lands on the chosen hour, ready for the keyboard.
+    expect(
+      within(
+        within(timeDialog()).getByRole('group', { name: 'Hour' }),
+      ).getByRole('button', { name: '07' }),
+    ).toHaveFocus()
 
     await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Departure time')).toHaveFocus()
+  })
+
+  it('opens an empty field on the current time without picking it', async () => {
+    const user = userEvent.setup()
+    // 2:37 PM: the minute rounds up to the next 5-minute step, :40.
+    const { onChange } = renderTime({
+      getNow: () => new Date(2026, 8, 30, 14, 37),
+    })
+
+    await user.click(screen.getByLabelText('Departure time'))
+    const column = (name) =>
+      within(within(timeDialog()).getByRole('group', { name }))
+
+    const hour = column('Hour').getByRole('button', { name: '02' })
+    expect(hour).toHaveFocus()
+    expect(hour).toHaveClass('is-now')
+    expect(column('Minute').getByRole('button', { name: '40' })).toHaveClass(
+      'is-now',
+    )
+    expect(
+      column('AM or PM').getByRole('button', { name: 'PM' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    // Only highlighted: nothing is filled in until the driver picks.
+    expect(onChange).not.toHaveBeenCalled()
+    expect(
+      within(timeDialog()).queryAllByRole('button', { pressed: true }),
+    ).toHaveLength(1)
+  })
+
+  it('keeps late-evening minutes on a pickable step', async () => {
+    const user = userEvent.setup()
+    renderTime({ getNow: () => new Date(2026, 8, 30, 23, 58) })
+
+    await user.click(screen.getByLabelText('Departure time'))
+
+    expect(
+      within(
+        within(timeDialog()).getByRole('group', { name: 'Minute' }),
+      ).getByRole('button', { name: '55' }),
+    ).toHaveClass('is-now')
+  })
+})
+
+describe('SelectPickerField', () => {
+  const OPTIONS = [
+    { value: 'ACCRA', label: 'Accra office', hint: 'AmaliTech Accra' },
+    { value: 'KUMASI', label: 'Kumasi office' },
+    { value: 'TAKORADI', label: 'Takoradi office' },
+  ]
+
+  function renderSelect(props = {}) {
+    const onChange = jest.fn()
+    render(
+      <>
+        <label htmlFor="office">Office</label>
+        <SelectPickerField
+          id="office"
+          value=""
+          options={OPTIONS}
+          onChange={onChange}
+          placeholder="Select an office"
+          listLabel="Choose an office"
+          {...props}
+        />
+        <button type="button">Elsewhere</button>
+      </>,
+    )
+    return { onChange }
+  }
+
+  const list = () => screen.getByRole('listbox', { name: 'Choose an office' })
+
+  it('shows the placeholder, then opens our own list with hints', async () => {
+    const user = userEvent.setup()
+    renderSelect()
+
+    expect(screen.getByLabelText('Office')).toHaveTextContent(
+      'Select an office',
+    )
+    await user.click(screen.getByLabelText('Office'))
+
+    expect(within(list()).getAllByRole('option')).toHaveLength(3)
+    expect(within(list()).getByText('AmaliTech Accra')).toBeInTheDocument()
+    expect(within(list()).getAllByRole('option')[0]).toHaveFocus()
+  })
+
+  it('picks an option by click, closes and returns focus', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderSelect()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.click(within(list()).getByRole('option', { name: /Kumasi/ }))
+
+    expect(onChange).toHaveBeenCalledWith('KUMASI')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Office')).toHaveFocus()
+  })
+
+  it('marks and focuses the chosen option when reopened', async () => {
+    const user = userEvent.setup()
+    renderSelect({ value: 'TAKORADI' })
+
+    expect(screen.getByLabelText('Office')).toHaveTextContent('Takoradi office')
+    await user.click(screen.getByLabelText('Office'))
+
+    const chosen = within(list()).getByRole('option', { selected: true })
+    expect(chosen).toHaveTextContent('Takoradi office')
+    expect(chosen).toHaveFocus()
+  })
+
+  it('works from the keyboard, wrapping at the ends', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderSelect()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.keyboard('{ArrowUp}')
+    expect(
+      within(list()).getByRole('option', { name: /Takoradi/ }),
+    ).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(within(list()).getByRole('option', { name: /Accra/ })).toHaveFocus()
+    await user.keyboard('{End}')
+    await user.keyboard('{Home}')
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('KUMASI')
+  })
+
+  it('picks with Space too', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderSelect()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.keyboard(' ')
+
+    expect(onChange).toHaveBeenCalledWith('ACCRA')
+  })
+
+  it('closes on Escape, Tab or a click elsewhere without picking', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderSelect()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.keyboard('{Tab}')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Office'))
+    await user.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('cannot be opened while disabled', () => {
+    renderSelect({ disabled: true, title: 'Locked' })
+
+    expect(screen.getByLabelText('Office')).toBeDisabled()
+    expect(screen.getByLabelText('Office')).toHaveAttribute('title', 'Locked')
   })
 })

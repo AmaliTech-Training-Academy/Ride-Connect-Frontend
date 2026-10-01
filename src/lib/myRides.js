@@ -82,6 +82,7 @@ export function normaliseDriverRide(
     driverId: ride.driverId,
     origin: ride.origin,
     destination: ride.destination,
+    office: ride.office,
     description: ride.routeDescription || '',
     date,
     time,

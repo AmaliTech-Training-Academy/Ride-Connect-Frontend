@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from '@jest/globals'
 import { jest } from '@jest/globals'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
-import { futureISODate, pickDate, pickTime } from './test/pickers'
+import { futureISODate, pickDate, pickOffice, pickTime } from './test/pickers'
 import { DuplicateEmailError } from './services/auth'
 import {
   getCurrentUser,
@@ -481,7 +481,7 @@ describe('App', () => {
     await screen.findByRole('heading', { name: /offer a ride/i })
 
     await user.type(screen.getByLabelText('Origin'), 'Kasoa')
-    await user.selectOptions(screen.getByLabelText('Destination'), 'ACCRA')
+    await pickOffice(user, 'Destination', 'Accra')
     await pickDate(user, futureISODate(3))
     await pickTime(user, '08:30')
     await user.click(screen.getByRole('button', { name: 'Post Ride' }))
