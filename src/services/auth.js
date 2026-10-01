@@ -19,7 +19,9 @@ if (typeof Request !== 'undefined' && apiBaseURL) {
  * rather than a generic failure.
  */
 export class DuplicateEmailError extends Error {
-  constructor(message = 'An account with this email already exists.') {
+  constructor(
+    message = 'An account may already exist for this email. Try signing in or use another work email.',
+  ) {
     super(message)
     this.name = 'DuplicateEmailError'
   }
@@ -43,9 +45,14 @@ export class InvalidCredentialsError extends Error {
  * Exported so the mapping can be tested without standing up an auth client.
  */
 export function signUpError(error) {
+  /*
+   * The deployed backend sends USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, so this
+   * matches on the prefix rather than the whole string; an exact comparison
+   * silently never fired and left the status checks doing all the work.
+   */
   const code = String(error?.code ?? '').toUpperCase()
   const isDuplicate =
-    code === 'USER_ALREADY_EXISTS' ||
+    code.startsWith('USER_ALREADY_EXISTS') ||
     error?.status === 422 ||
     error?.status === 409
 

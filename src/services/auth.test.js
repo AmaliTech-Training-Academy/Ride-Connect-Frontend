@@ -13,6 +13,18 @@ import {
 } from './auth'
 
 describe('signUpError', () => {
+  it('recognises the code the deployed backend actually sends', () => {
+    // USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, not the bare code: an exact
+    // comparison never matched and left the status checks doing the work.
+    expect(
+      signUpError({
+        code: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+        status: 422,
+        message: 'User already exists. Use another email.',
+      }),
+    ).toBeInstanceOf(DuplicateEmailError)
+  })
+
   it('recognises a taken email from the error code', () => {
     // The code is what the backend actually guarantees.
     expect(
@@ -113,7 +125,7 @@ describe('changePasswordErrorMessage', () => {
 describe('DuplicateEmailError', () => {
   it('carries a message the screen can show as-is', () => {
     expect(new DuplicateEmailError().message).toBe(
-      'An account with this email already exists.',
+      'An account may already exist for this email. Try signing in or use another work email.',
     )
   })
 

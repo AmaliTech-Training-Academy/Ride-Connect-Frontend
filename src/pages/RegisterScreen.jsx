@@ -196,7 +196,8 @@ function RegisterScreen({
                   id="email-taken"
                   role="alert"
                 >
-                  An account with this email already exists.{' '}
+                  An account may already exist for this email. Try signing in or
+                  use another work email.{' '}
                   {onLoginClick && (
                     <button
                       type="button"
