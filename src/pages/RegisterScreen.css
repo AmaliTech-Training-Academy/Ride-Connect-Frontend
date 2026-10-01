@@ -33,7 +33,7 @@
 
 .register-form label {
   display: block;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   color: #1a1a2e;
   font-size: 13px;
   font-weight: 600;
@@ -64,8 +64,14 @@
   color: #9ca3af;
 }
 
-.register-form > input {
-  margin-bottom: 16px;
+/*
+ * Field blocks are spaced off their labels rather than their inputs, because
+ * a block can end in an input, a hint, a strength meter or an error. Every
+ * label but the first opens a new block, so 12px there is the gap between
+ * one field and the next.
+ */
+.register-form > label ~ label {
+  margin-top: 12px;
 }
 
 .register-form input.has-error,
@@ -106,7 +112,7 @@
 }
 
 .register-hint {
-  margin: 5px 0 16px;
+  margin: 3px 0 0;
   color: #757575;
   font-size: 12px;
 }
@@ -119,7 +125,7 @@
 .register-field-error {
   display: flex;
   gap: 5px;
-  margin: 5px 0 14px;
+  margin: 3px 0 0;
   color: #b91c1c;
   font-size: 12px;
 }
@@ -205,7 +211,8 @@
 .register-submit {
   width: 100%;
   min-height: 46px;
-  margin: 6px 0 18px;
+  /* 16px clear of the last field. */
+  margin: 16px 0 18px;
   border: 0;
   border-radius: 10px;
   color: #fff;
