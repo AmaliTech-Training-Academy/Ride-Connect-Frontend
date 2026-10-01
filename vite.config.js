@@ -14,6 +14,9 @@ export default defineConfig(({ mode }) => {
       'globalThis.__VITE_CLOUDINARY_UPLOAD_PRESET__': JSON.stringify(
         env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '',
       ),
+      'globalThis.__VITE_ALLOWED_EMAIL_DOMAINS__': JSON.stringify(
+        env.VITE_ALLOWED_EMAIL_DOMAINS ?? '',
+      ),
     },
     plugins: [react()],
     server: {

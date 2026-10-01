@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import CarIcon from '../components/CarIcon'
 import EyeIcon from '../components/EyeIcon'
+import { formatEmailDomains } from '../lib/registration'
 import { loginUser } from '../services/auth'
 import './authLayout.css'
 import './LoginScreen.css'
@@ -138,7 +139,7 @@ function LoginScreen({ onCreateAccount, onLoggedIn, login = loginUser }) {
         </div>
 
         <p className="auth-footnote">
-          Use your <strong>@amalitech.com</strong> email to keep it
+          Use your <strong>{formatEmailDomains()}</strong> email to keep it
           colleagues-only.
         </p>
       </div>

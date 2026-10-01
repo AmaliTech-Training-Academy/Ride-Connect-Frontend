@@ -4,11 +4,17 @@ import CheckIcon from '../components/CheckIcon'
 import EyeIcon from '../components/EyeIcon'
 import {
   MIN_PASSWORD_LENGTH,
-  WORK_EMAIL_DOMAIN,
+  EXAMPLE_EMAIL_DOMAIN,
+  emailDomainWarning,
+  formatEmailDomains,
   passwordStrength,
   validateRegistration,
 } from '../lib/registration'
-import { DuplicateEmailError, registerUser } from '../services/auth'
+import {
+  DuplicateEmailError,
+  EmailDomainNotAllowedError,
+  registerUser,
+} from '../services/auth'
 import './authLayout.css'
 import './RegisterScreen.css'
 
@@ -25,6 +31,8 @@ function RegisterScreen({
   const [dirtyFields, setDirtyFields] = useState({})
   const [duplicateEmail, setDuplicateEmail] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  // The backend refused this exact email's domain: { email, message }.
+  const [rejectedEmail, setRejectedEmail] = useState(null)
   const [status, setStatus] = useState('idle')
   const [registeredUser, setRegisteredUser] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -76,6 +84,8 @@ function RegisterScreen({
       setStatus('idle')
       if (error instanceof DuplicateEmailError) {
         setDuplicateEmail(true)
+      } else if (error instanceof EmailDomainNotAllowedError) {
+        setRejectedEmail({ email: form.email, message: error.message })
       } else {
         setSubmitError('Something went wrong. Please try again.')
       }
@@ -93,6 +103,16 @@ function RegisterScreen({
       ([field]) => hasAttemptedSubmit || dirtyFields[field],
     ),
   )
+  // Domains are the backend's call. Its refusal of this exact address shows on
+  // the email field until the address changes; before that, an unknown domain
+  // gets our warning, which is shown but never stops the form being sent.
+  if (!errors.email && (hasAttemptedSubmit || dirtyFields.email)) {
+    errors.email =
+      rejectedEmail?.email === form.email
+        ? rejectedEmail.message
+        : emailDomainWarning(form.email)
+    if (!errors.email) delete errors.email
+  }
   const confirmError = errors.confirmPassword
 
   return (
@@ -185,7 +205,7 @@ function RegisterScreen({
                 type="email"
                 value={form.email}
                 onChange={updateField('email')}
-                placeholder={`you@${WORK_EMAIL_DOMAIN}`}
+                placeholder={`you@${EXAMPLE_EMAIL_DOMAIN}`}
                 autoComplete="email"
                 className={errors.email ? 'has-error' : ''}
                 aria-invalid={Boolean(errors.email)}
@@ -201,7 +221,7 @@ function RegisterScreen({
                 </p>
               ) : (
                 <p className="register-hint" id="email-hint">
-                  Must be your @{WORK_EMAIL_DOMAIN} email
+                  Must be your {formatEmailDomains()} email
                 </p>
               )}
 
@@ -320,7 +340,7 @@ function RegisterScreen({
         </div>
 
         <p className="auth-footnote">
-          Use your <strong>@{WORK_EMAIL_DOMAIN}</strong> email to keep it
+          Use your <strong>{formatEmailDomains()}</strong> email to keep it
           colleagues-only.
         </p>
       </div>
