@@ -8,8 +8,60 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  signUpError,
   updateProfileImage,
 } from './auth'
+
+describe('signUpError', () => {
+  it('recognises the code the deployed backend actually sends', () => {
+    // USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, not the bare code: an exact
+    // comparison never matched and left the status checks doing the work.
+    expect(
+      signUpError({
+        code: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+        status: 422,
+        message: 'User already exists. Use another email.',
+      }),
+    ).toBeInstanceOf(DuplicateEmailError)
+  })
+
+  it('recognises a taken email from the error code', () => {
+    // The code is what the backend actually guarantees.
+    expect(
+      signUpError({
+        code: 'USER_ALREADY_EXISTS',
+        status: 422,
+        message: 'User already exists. Use another email.',
+      }),
+    ).toBeInstanceOf(DuplicateEmailError)
+  })
+
+  it('recognises it from the status alone, whichever one arrives', () => {
+    // 422 today, 409 before; neither should need a code to be understood.
+    expect(signUpError({ status: 422 })).toBeInstanceOf(DuplicateEmailError)
+    expect(signUpError({ status: 409 })).toBeInstanceOf(DuplicateEmailError)
+  })
+
+  it('accepts a lowercase code', () => {
+    expect(signUpError({ code: 'user_already_exists' })).toBeInstanceOf(
+      DuplicateEmailError,
+    )
+  })
+
+  it('leaves every other failure generic', () => {
+    for (const error of [
+      { status: 500 },
+      { status: 400, code: 'PASSWORD_TOO_SHORT' },
+      { message: 'network down' },
+      {},
+      undefined,
+    ]) {
+      const mapped = signUpError(error)
+      expect(mapped).not.toBeInstanceOf(DuplicateEmailError)
+      expect(mapped.message).toBe('Registration failed')
+    }
+  })
+})
 
 describe('auth backend configuration', () => {
   it('refuses registration when no backend URL is configured', async () => {
@@ -73,7 +125,7 @@ describe('changePasswordErrorMessage', () => {
 describe('DuplicateEmailError', () => {
   it('carries a message the screen can show as-is', () => {
     expect(new DuplicateEmailError().message).toBe(
-      'An account with this email already exists.',
+      'An account may already exist for this email. Try signing in or use another work email.',
     )
   })
 

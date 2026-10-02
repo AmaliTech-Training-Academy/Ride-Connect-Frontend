@@ -173,7 +173,9 @@ describe('RegisterScreen', () => {
       expect(
         screen.queryByText('Please use your @amalitech.com work email'),
       ).not.toBeInTheDocument()
-      expect(screen.getByText('Must be your @amalitech.com email')).toBeVisible()
+      expect(
+        screen.getByText('Must be your @amalitech.com email'),
+      ).toBeVisible()
     })
 
     it('asks for a name again when it is typed and then cleared', async () => {
@@ -182,7 +184,9 @@ describe('RegisterScreen', () => {
       await user.type(screen.getByLabelText(/full name/i), 'K')
       await user.clear(screen.getByLabelText(/full name/i))
 
-      expect(screen.getByText('Please enter your full name')).toBeInTheDocument()
+      expect(
+        screen.getByText('Please enter your full name'),
+      ).toBeInTheDocument()
     })
 
     it('rechecks the confirmation when the first password is edited', async () => {
@@ -225,7 +229,9 @@ describe('RegisterScreen', () => {
       await submit(user)
 
       expect(
-        await screen.findByText('An account with this email already exists.'),
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
       ).toBeInTheDocument()
     })
 
@@ -243,6 +249,80 @@ describe('RegisterScreen', () => {
       expect(onLoginClick).toHaveBeenCalledTimes(1)
     })
 
+    it('puts the message on the email field, not in a page-level banner', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      const email = screen.getByLabelText(/work email/i)
+      await waitFor(() => expect(email).toHaveAttribute('aria-invalid', 'true'))
+      // The field points at the message, so a screen reader reads them together.
+      expect(email).toHaveAttribute('aria-describedby', 'email-taken')
+      expect(document.getElementById('email-taken')).toHaveTextContent(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+    })
+
+    it('does not fall back to the generic message for a duplicate', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+      expect(
+        screen.queryByText('Something went wrong. Please try again.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('retires the message as soon as the email is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+
+      const email = screen.getByLabelText(/work email/i)
+      await user.clear(email)
+      await user.type(email, 'someone.else@amalitech.com')
+
+      // A different address should not keep wearing the old answer.
+      expect(
+        screen.queryByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).not.toBeInTheDocument()
+      expect(email).toHaveAttribute('aria-invalid', 'false')
+    })
+
+    it('does not clear it when another field is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+
+      await user.type(screen.getByLabelText(/full name/i), 'x')
+
+      // The email is unchanged, so the answer still stands.
+      expect(
+        screen.getByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).toBeInTheDocument()
+    })
+
     it('announces the duplicate error to assistive technology', async () => {
       const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
       const { user } = setup({ register })
@@ -252,7 +332,7 @@ describe('RegisterScreen', () => {
 
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(
-        'An account with this email already exists.',
+        'An account may already exist for this email. Try signing in or use another work email.',
       )
     })
 
@@ -266,7 +346,9 @@ describe('RegisterScreen', () => {
       await fillForm(user)
       await submit(user)
       expect(
-        await screen.findByText('An account with this email already exists.'),
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
       ).toBeInTheDocument()
 
       // Only the email needs changing; retyping the whole form is slow enough
@@ -276,7 +358,9 @@ describe('RegisterScreen', () => {
 
       await waitFor(() =>
         expect(
-          screen.queryByText('An account with this email already exists.'),
+          screen.queryByText(
+            'An account may already exist for this email. Try signing in or use another work email.',
+          ),
         ).not.toBeInTheDocument(),
       )
     })
@@ -292,7 +376,9 @@ describe('RegisterScreen', () => {
         await screen.findByText('Something went wrong. Please try again.'),
       ).toBeInTheDocument()
       expect(
-        screen.queryByText('An account with this email already exists.'),
+        screen.queryByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
       ).not.toBeInTheDocument()
     })
   })
@@ -433,7 +519,9 @@ describe('RegisterScreen', () => {
       await submit(user)
 
       expect(
-        await screen.findByText('An account with this email already exists.'),
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
       ).toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: /log in instead/i }),

@@ -18,7 +18,9 @@ import { fetchMyRides } from './services/rides'
 
 jest.mock('./services/auth', () => ({
   DuplicateEmailError: class DuplicateEmailError extends Error {
-    constructor(message = 'An account with this email already exists.') {
+    constructor(
+      message = 'An account may already exist for this email. Try signing in or use another work email.',
+    ) {
       super(message)
       this.name = 'DuplicateEmailError'
     }
@@ -373,7 +375,7 @@ describe('App', () => {
 
     expect(
       await screen.findByText(
-        'An account with this email already exists.',
+        'An account may already exist for this email. Try signing in or use another work email.',
         undefined,
         {
           timeout: 5000,
