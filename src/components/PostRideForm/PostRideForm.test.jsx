@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { jest } from '@jest/globals'
 import { apiFetch } from '../../lib/api'
@@ -203,6 +203,22 @@ describe('PostRideForm', () => {
     const preview = document.querySelector('.preview-card')
     expect(preview).toHaveTextContent('Kasoa')
     expect(preview).toHaveTextContent('AmaliTech Accra')
+  })
+
+  it('shows the confirmation before it navigates away', async () => {
+    const user = userEvent.setup()
+    const onFindRide = jest.fn()
+    render(<PostRideForm onFindRide={onFindRide} redirectDelay={60} />)
+
+    await fillValidRide(user)
+    await postRide(user)
+
+    // The form used to navigate in the same tick, unmounting before the
+    // confirmation ever painted.
+    expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
+    expect(onFindRide).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(onFindRide).toHaveBeenCalled())
   })
 
   it('omits routeDescription entirely when the optional field is blank', async () => {
@@ -573,7 +589,13 @@ describe('PostRideForm - editing an existing ride', () => {
   it('saves the changes to the ride being edited', async () => {
     const user = userEvent.setup()
     const onFindRide = jest.fn()
-    render(<PostRideForm editRideId="ride-1" onFindRide={onFindRide} />)
+    render(
+      <PostRideForm
+        editRideId="ride-1"
+        onFindRide={onFindRide}
+        redirectDelay={0}
+      />,
+    )
     await screen.findByLabelText('Origin')
 
     await user.clear(screen.getByLabelText('Origin'))
@@ -593,7 +615,7 @@ describe('PostRideForm - editing an existing ride', () => {
     expect(
       await screen.findByText('Your ride has been updated.'),
     ).toBeInTheDocument()
-    expect(onFindRide).toHaveBeenCalledWith('ride-1')
+    await waitFor(() => expect(onFindRide).toHaveBeenCalledWith('ride-1'))
     // Editing must never create a second ride.
     expect(apiFetch).not.toHaveBeenCalled()
   })

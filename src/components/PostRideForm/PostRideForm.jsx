@@ -198,6 +198,9 @@ function PostRideForm({
   userImage,
   userInitials,
   editRideId,
+  // Hold on the confirmation briefly before navigating, so it is actually
+  // seen. Injectable so tests need not wait on a timer.
+  redirectDelay = 1600,
 }) {
   const isEditing = Boolean(editRideId)
   const [values, setValues] = useState(getInitialValues)
@@ -210,6 +213,8 @@ function PostRideForm({
   const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState('')
   const [seatsTaken, setSeatsTaken] = useState(0)
+  // The ride to move on to once the confirmation has been shown.
+  const [postedRideId, setPostedRideId] = useState(null)
 
   useEffect(() => {
     if (!editRideId) return undefined
@@ -257,6 +262,20 @@ function PostRideForm({
     const timer = setTimeout(() => setToastMessage(null), 3000)
     return () => clearTimeout(timer)
   }, [toastMessage])
+
+  /*
+   * Navigating in the same tick as setting the toast unmounted this form
+   * before the confirmation painted, so a driver never saw it. The move is
+   * held back just long enough to read.
+   */
+  useEffect(() => {
+    if (postedRideId === null) return undefined
+    const timer = setTimeout(
+      () => onFindRide?.(postedRideId || undefined),
+      redirectDelay,
+    )
+    return () => clearTimeout(timer)
+  }, [postedRideId, onFindRide, redirectDelay])
 
   const updateField = (field, value) => {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -318,7 +337,7 @@ function PostRideForm({
           const updated = await updateRide(editRideId, editPayload)
           setStatus('success')
           setToastMessage('Your ride has been updated.')
-          onFindRide?.(updated?.id ?? editRideId)
+          setPostedRideId(updated?.id ?? editRideId)
         } catch (error) {
           if (error?.fields) {
             setServerErrors(
@@ -342,7 +361,9 @@ function PostRideForm({
       if (response.ok || (response.status >= 200 && response.status < 300)) {
         setStatus('success')
         setToastMessage('Your ride is live!')
-        onFindRide?.(body?.data?.id ?? body?.data?.ride?.id ?? body?.id)
+        setPostedRideId(
+          body?.data?.id ?? body?.data?.ride?.id ?? body?.id ?? '',
+        )
       } else if (response.status === 400) {
         setServerErrors(
           mapServerFieldErrors(body?.data?.fields, values.direction),
