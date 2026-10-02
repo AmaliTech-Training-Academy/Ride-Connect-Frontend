@@ -9,7 +9,7 @@
 
 .page-hero {
   position: relative;
-  padding: clamp(112px, 9vw, 140px) 5vw clamp(64px, 7vw, 99px);
+  padding: clamp(132px, 10vw, 164px) 5vw 16px;
   color: #fff;
   background:
     linear-gradient(
@@ -42,16 +42,23 @@
   text-transform: uppercase;
 }
 
+/*
+ * index.css styles h1 and h2 differently (letter-spacing and line-height), and
+ * pages use whichever element suits their document outline. Pinning both here
+ * keeps the heading identical across screens.
+ */
 .page-hero-heading {
   margin: 0 0 8px;
   color: #fff;
   font-size: clamp(24px, 2.4vw, 32px);
   font-weight: 700;
+  letter-spacing: -0.24px;
+  line-height: 118%;
 }
 
 .page-hero-subtitle {
   max-width: 520px;
-  margin: 0 0 28px;
+  margin: 0;
   color: #dcefdd;
   font-size: 14px;
 }
@@ -68,7 +75,7 @@
 @media (max-width: 680px) {
   .page-hero {
     /* The header wraps to two rows here, so the heading needs more room. */
-    padding: 168px 16px 52px;
+    padding: 180px 16px 16px;
   }
   .page-hero-inner {
     width: calc(100% - 28px);
