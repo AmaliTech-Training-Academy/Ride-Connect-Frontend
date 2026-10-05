@@ -1,0 +1,164 @@
+name: Deploy Frontend (docker)
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/amalitech-training-academy/ride-connect-frontend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    concurrency:
+      group: deploy-frontend-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Ensure EC2 instance is running
+        env:
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          STATE=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query 'Reservations[0].Instances[0].State.Name' \
+            --output text)
+          echo "Current state: $STATE"
+          case "$STATE" in
+            running) ;;
+            pending)
+              aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" ;;
+            stopping|stopped)
+              aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID"
+              aws ec2 start-instances --instance-ids "$INSTANCE_ID"
+              aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" ;;
+            *)
+              echo "Instance cannot be started from state: $STATE" >&2
+              exit 1 ;;
+          esac
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Wait for SSH and add host to known_hosts
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          for attempt in $(seq 1 30); do
+            KEYS=$(ssh-keyscan -H "$HOST" 2>/dev/null || true)
+            if [ -n "$KEYS" ]; then
+              echo "$KEYS" >> ~/.ssh/known_hosts
+              exit 0
+            fi
+            echo "SSH not ready (attempt $attempt), retrying..."
+            sleep 10
+          done
+          echo "SSH never became reachable on $HOST" >&2
+          exit 1
+
+      - name: Point FRONTEND_TAG at the new image and recreate the service
+        id: deploy
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REMOTE=$(cat <<'EOF'
+          set -euo pipefail
+          cd /opt/ride-connect
+          # Shared with the backend deploy, which rewrites the same .env.
+          exec 9> .deploy.lock
+          flock 9
+
+          if [ ! -r .env ] || [ ! -w .env ]; then
+            echo "/opt/ride-connect/.env must be readable and writable by $(whoami)" >&2
+            exit 1
+          fi
+
+          TMP=$(mktemp)
+          grep -v '^FRONTEND_TAG=' .env > "$TMP" || true
+          echo "FRONTEND_TAG=$TAG" >> "$TMP"
+          cat "$TMP" > .env
+          rm -f "$TMP"
+          echo "FRONTEND_TAG set to $TAG"
+
+          # GITHUB_TOKEN dies with the job, so log in with a throwaway config
+          # and leave the host's own GHCR login untouched.
+          export DOCKER_CONFIG=$(mktemp -d)
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          if [ -d "$HOME/.docker/cli-plugins" ]; then
+            ln -s "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"
+          fi
+          docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          if docker compose config --services | grep -qx frontend; then
+            docker compose pull frontend
+            docker compose up -d frontend
+            echo "recreated=true" > /tmp/frontend-deploy-result
+          else
+            echo "No frontend service in compose.yml yet; skipping recreate."
+            echo "recreated=false" > /tmp/frontend-deploy-result
+          fi
+          EOF
+          )
+          printf '%s\n' "$GITHUB_TOKEN" | ssh "$TARGET" "TAG=$TAG GHCR_USER=$GITHUB_ACTOR; $REMOTE"
+          ssh "$TARGET" cat /tmp/frontend-deploy-result >> "$GITHUB_OUTPUT"
+
+      - name: Verify the site
+        if: steps.deploy.outputs.recreated == 'true'
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          URL="${SITE_URL%/}"
+          fetch() {
+            curl -fsS --retry 10 --retry-delay 5 --retry-all-errors "$1"
+          }
+
+          fetch "$URL/" | grep -q 'id="root"'
+          echo "SPA served at $URL/"
+
+          fetch "$URL/deploy-check-client-route" | grep -q 'id="root"'
+          echo "Client-side route falls back to index.html"
+
+          fetch "$URL/api/health" > /dev/null
+          echo "API still healthy at $URL/api/health"

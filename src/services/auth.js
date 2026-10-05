@@ -1,9 +1,9 @@
 import { createAuthClient } from 'better-auth/react'
 
 const apiBaseURL =
-  typeof import.meta !== 'undefined' && import.meta.env
-    ? (import.meta.env.VITE_API_BASE_URL ?? '')
-    : ''
+  (typeof import.meta !== 'undefined' && import.meta.env
+    ? import.meta.env.VITE_API_BASE_URL
+    : '') || (typeof window !== 'undefined' ? window.location.origin : '')
 
 let authClient = null
 
