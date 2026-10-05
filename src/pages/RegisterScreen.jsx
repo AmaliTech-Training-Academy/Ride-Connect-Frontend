@@ -197,16 +197,7 @@ function RegisterScreen({
                   role="alert"
                 >
                   An account may already exist for this email. Try signing in or
-                  use another work email.{' '}
-                  {onLoginClick && (
-                    <button
-                      type="button"
-                      className="register-banner-link"
-                      onClick={onLoginClick}
-                    >
-                      Log in instead
-                    </button>
-                  )}
+                  use another work email.
                 </p>
               )}
               {errors.email ? (
