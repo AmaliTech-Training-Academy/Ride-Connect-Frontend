@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import usePopover from './usePopover'
 import './PickerFields.css'
 
@@ -24,15 +24,40 @@ function toValue({ hour, minute, period }) {
   return `${pad(hours)}:${pad(minute)}`
 }
 
-function Column({ label, options, selected, format, onSelect }) {
+/**
+ * The current time as picker parts, with minutes rounded up to the next
+ * 5-minute step (capped at :55) so "now" is always a pickable option.
+ */
+function nowParts(now) {
+  const hours = now.getHours()
+  return {
+    hour: hours % 12 || 12,
+    minute: Math.min(55, Math.ceil(now.getMinutes() / 5) * 5),
+    period: hours >= 12 ? 'PM' : 'AM',
+  }
+}
+
+/** Scrolls a column so `button` sits in its middle, without moving the page. */
+function centreInColumn(button) {
+  const column = button?.parentElement
+  if (!column) return
+  column.scrollTop =
+    button.offsetTop -
+    column.offsetTop -
+    column.clientHeight / 2 +
+    button.offsetHeight / 2
+}
+
+function Column({ label, options, selected, current, format, onSelect }) {
   return (
     <div className="picker-time-column" role="group" aria-label={label}>
       {options.map((option) => (
         <button
           key={option}
           type="button"
-          className={`picker-time-option ${option === selected ? 'is-selected' : ''}`}
+          className={`picker-time-option ${option === selected ? 'is-selected' : ''} ${option === current ? 'is-now' : ''}`}
           aria-pressed={option === selected}
+          data-focus-target={option === (selected ?? current) || undefined}
           onClick={() => onSelect(option)}
         >
           {format(option)}
@@ -54,14 +79,35 @@ function TimePickerField({
   hasError = false,
   placeholder = 'Select a time',
   formatValue = (time) => time,
+  getNow = () => new Date(),
 }) {
   const { isOpen, toggle, close, containerRef, triggerRef } = usePopover()
   const [draft, setDraft] = useState(() => toParts(value))
+  // With no time chosen yet, the picker opens on the current time: it is
+  // scrolled into view and outlined, but only picked when the driver clicks.
+  const [current, setCurrent] = useState(null)
+  const columnsRef = useRef(null)
 
   const openPicker = () => {
-    setDraft(toParts(value))
+    if (value) {
+      setDraft(toParts(value))
+      setCurrent(null)
+    } else {
+      const now = nowParts(getNow())
+      // Start on the current AM/PM so picking an hour and minute lands today.
+      setDraft({ hour: null, minute: null, period: now.period })
+      setCurrent(now)
+    }
     toggle()
   }
+
+  useEffect(() => {
+    if (!isOpen) return
+    const targets =
+      columnsRef.current?.querySelectorAll('[data-focus-target]') ?? []
+    targets.forEach(centreInColumn)
+    targets[0]?.focus({ preventScroll: true })
+  }, [isOpen])
 
   // The field updates as soon as an hour and a minute are both picked, so
   // "Done" only closes the popover.
@@ -95,11 +141,12 @@ function TimePickerField({
           role="dialog"
           aria-label="Choose a time"
         >
-          <div className="picker-time-columns">
+          <div className="picker-time-columns" ref={columnsRef}>
             <Column
               label="Hour"
               options={HOURS}
               selected={draft.hour}
+              current={current?.hour}
               format={pad}
               onSelect={(hour) => update({ hour })}
             />
@@ -107,6 +154,7 @@ function TimePickerField({
               label="Minute"
               options={MINUTES}
               selected={draft.minute}
+              current={current?.minute}
               format={pad}
               onSelect={(minute) => update({ minute })}
             />

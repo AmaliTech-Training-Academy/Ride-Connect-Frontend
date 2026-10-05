@@ -55,6 +55,14 @@ function RegisterScreen({
       setDirtyFields((current) =>
         current[field] ? current : { ...current, [field]: true },
       )
+      /*
+       * "Already registered" is about one specific address, so editing the
+       * field retires it. Otherwise a fresh email stays marked invalid, and
+       * keeps the message, until the next submit proves otherwise.
+       */
+      if (field === 'email') {
+        setDuplicateEmail(false)
+      }
     }
   }
 
@@ -156,21 +164,6 @@ function RegisterScreen({
                 Use your work email to join your colleagues.
               </p>
 
-              {duplicateEmail && (
-                <div className="register-banner" role="alert">
-                  <p>An account with this email already exists.</p>
-                  {onLoginClick && (
-                    <button
-                      type="button"
-                      className="register-banner-link"
-                      onClick={onLoginClick}
-                    >
-                      Log in instead
-                    </button>
-                  )}
-                </div>
-              )}
-
               {submitError && (
                 <div className="register-banner" role="alert">
                   <p>{submitError}</p>
@@ -207,10 +200,35 @@ function RegisterScreen({
                 onChange={updateField('email')}
                 placeholder={`you@${EXAMPLE_EMAIL_DOMAIN}`}
                 autoComplete="email"
-                className={errors.email ? 'has-error' : ''}
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'email-error' : 'email-hint'}
+                className={errors.email || duplicateEmail ? 'has-error' : ''}
+                aria-invalid={Boolean(errors.email) || duplicateEmail}
+                aria-describedby={
+                  duplicateEmail
+                    ? 'email-taken'
+                    : errors.email
+                      ? 'email-error'
+                      : 'email-hint'
+                }
               />
+              {duplicateEmail && (
+                <p
+                  className="register-field-error register-email-taken"
+                  id="email-taken"
+                  role="alert"
+                >
+                  An account may already exist for this email. Try signing in or
+                  use another work email.{' '}
+                  {onLoginClick && (
+                    <button
+                      type="button"
+                      className="register-banner-link"
+                      onClick={onLoginClick}
+                    >
+                      Log in instead
+                    </button>
+                  )}
+                </p>
+              )}
               {errors.email ? (
                 <p
                   className="register-field-error"

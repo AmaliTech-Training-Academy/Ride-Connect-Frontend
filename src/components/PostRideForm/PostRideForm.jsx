@@ -6,12 +6,19 @@ import SeatStepper from './SeatStepper'
 import RidePreviewCard from './RidePreviewCard'
 import DatePickerField from '../PickerFields/DatePickerField'
 import TimePickerField from '../PickerFields/TimePickerField'
+import SelectPickerField from '../PickerFields/SelectPickerField'
 import { OFFICES, matchesOffice, officeLabel } from '../../lib/offices'
 
 import '../../styles/pageHero.css'
 import './PostRideForm.css'
 
 const DESCRIPTION_MAX_LENGTH = 500
+
+const OFFICE_OPTIONS = OFFICES.map((office) => ({
+  value: office.id,
+  label: `${office.name} office`,
+  hint: office.label,
+}))
 
 const DIRECTIONS = [
   { value: 'to-office', label: 'To the office', icon: 'fa-building' },
@@ -24,11 +31,48 @@ function getInitialValues() {
     // the other side (`place`) is free text.
     direction: 'to-office',
     office: '',
+    // Only set while editing: the office end's saved text, kept unchanged.
+    officeText: '',
     place: '',
     description: '',
     date: '',
     time: '',
     seats: 1,
+  }
+}
+
+/**
+ * Turns a saved ride back into the form's shape. A saved ride stores plain
+ * origin and destination text, but the form works in terms of an office and
+ * the other end. The ride's own `office` is trusted first; rides posted
+ * before offices existed fall back to whichever end names an office.
+ *
+ * The edit endpoint cannot change a ride's office, so the office end is kept
+ * exactly as saved (`officeText`). That also covers an old ride with no
+ * office at all: its office end stays as it was rather than being re-picked.
+ */
+function rideToValues(ride) {
+  const office =
+    ride.office ??
+    OFFICES.find(
+      ({ id }) =>
+        matchesOffice(ride.destination, id) || matchesOffice(ride.origin, id),
+    )?.id ??
+    ''
+  const leavesOffice =
+    Boolean(office) &&
+    matchesOffice(ride.origin, office) &&
+    !matchesOffice(ride.destination, office)
+
+  return {
+    direction: leavesOffice ? 'from-office' : 'to-office',
+    office,
+    officeText: (leavesOffice ? ride.origin : ride.destination) ?? '',
+    place: (leavesOffice ? ride.destination : ride.origin) ?? '',
+    description: ride.description ?? '',
+    date: ride.date ?? '',
+    time: ride.time ?? '',
+    seats: ride.seatsTotal ?? 1,
   }
 }
 
@@ -60,8 +104,9 @@ function formatDisplayTime(timeStr) {
 }
 
 /** The origin and destination strings the ride is posted with. */
-function toRoute({ direction, office, place }) {
-  const officeName = officeLabel(office)
+function toRoute({ direction, office, officeText, place }) {
+  // An edited ride keeps its saved office text; a new one uses the label.
+  const officeName = officeText || officeLabel(office)
   const placeName = place.trim()
   return direction === 'to-office'
     ? { origin: placeName, destination: officeName }
@@ -73,7 +118,8 @@ function validate(values, now) {
   const todayISODate = toISODate(now)
   const isToOffice = values.direction === 'to-office'
 
-  if (!values.office) {
+  // An edited ride's office end is fixed, so there is nothing to choose.
+  if (!values.office && !values.officeText) {
     errors.office = 'Please choose an office'
   }
 
@@ -140,7 +186,8 @@ function mapServerFieldErrors(fields = {}, direction) {
     office: firstMessage(fields.office ?? officeSide),
     date: firstMessage(fields.departureDate),
     time: firstMessage(fields.departureTime),
-    seats: firstMessage(fields.availableSeats),
+    // Posting validates availableSeats; editing validates totalSeats.
+    seats: firstMessage(fields.availableSeats ?? fields.totalSeats),
     description: firstMessage(fields.routeDescription),
   }
 }
@@ -151,6 +198,9 @@ function PostRideForm({
   userImage,
   userInitials,
   editRideId,
+  // Hold on the confirmation briefly before navigating, so it is actually
+  // seen. Injectable so tests need not wait on a timer.
+  redirectDelay = 1600,
 }) {
   const isEditing = Boolean(editRideId)
   const [values, setValues] = useState(getInitialValues)
@@ -163,6 +213,8 @@ function PostRideForm({
   const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState('')
   const [seatsTaken, setSeatsTaken] = useState(0)
+  // The ride to move on to once the confirmation has been shown.
+  const [postedRideId, setPostedRideId] = useState(null)
 
   useEffect(() => {
     if (!editRideId) return undefined
@@ -181,28 +233,7 @@ function PostRideForm({
           setLoadState('error')
           return
         }
-        /*
-         * A saved ride stores plain origin and destination text, but the form
-         * works in terms of an office and the other end. Whichever side names
-         * an office decides the direction; the other side is the free text.
-         */
-        const originOffice = OFFICES.find((office) =>
-          matchesOffice(ride.origin, office.id),
-        )
-        const destinationOffice = OFFICES.find((office) =>
-          matchesOffice(ride.destination, office.id),
-        )
-        const leavesOffice = Boolean(originOffice) && !destinationOffice
-
-        setValues({
-          direction: leavesOffice ? 'from-office' : 'to-office',
-          office: (leavesOffice ? originOffice : destinationOffice)?.id ?? '',
-          place: leavesOffice ? (ride.destination ?? '') : (ride.origin ?? ''),
-          description: ride.description ?? '',
-          date: ride.date ?? '',
-          time: ride.time ?? '',
-          seats: ride.seatsTotal ?? 1,
-        })
+        setValues(rideToValues(ride))
         setSeatsTaken(
           Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
         )
@@ -231,6 +262,20 @@ function PostRideForm({
     const timer = setTimeout(() => setToastMessage(null), 3000)
     return () => clearTimeout(timer)
   }, [toastMessage])
+
+  /*
+   * Navigating in the same tick as setting the toast unmounted this form
+   * before the confirmation painted, so a driver never saw it. The move is
+   * held back just long enough to read.
+   */
+  useEffect(() => {
+    if (postedRideId === null) return undefined
+    const timer = setTimeout(
+      () => onFindRide?.(postedRideId || undefined),
+      redirectDelay,
+    )
+    return () => clearTimeout(timer)
+  }, [postedRideId, onFindRide, redirectDelay])
 
   const updateField = (field, value) => {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -282,7 +327,6 @@ function PostRideForm({
         const editPayload = {
           origin: payload.origin,
           destination: payload.destination,
-          office: values.office,
           departureDate: payload.departureDate,
           departureTime: payload.departureTime,
           totalSeats: Number(values.seats),
@@ -293,10 +337,12 @@ function PostRideForm({
           const updated = await updateRide(editRideId, editPayload)
           setStatus('success')
           setToastMessage('Your ride has been updated.')
-          onFindRide?.(updated?.id ?? editRideId)
+          setPostedRideId(updated?.id ?? editRideId)
         } catch (error) {
           if (error?.fields) {
-            setServerErrors(mapServerFieldErrors(error.fields))
+            setServerErrors(
+              mapServerFieldErrors(error.fields, values.direction),
+            )
             setStatus('idle')
           } else {
             setStatus('error')
@@ -315,7 +361,9 @@ function PostRideForm({
       if (response.ok || (response.status >= 200 && response.status < 300)) {
         setStatus('success')
         setToastMessage('Your ride is live!')
-        onFindRide?.(body?.data?.id ?? body?.data?.ride?.id ?? body?.id)
+        setPostedRideId(
+          body?.data?.id ?? body?.data?.ride?.id ?? body?.id ?? '',
+        )
       } else if (response.status === 400) {
         setServerErrors(
           mapServerFieldErrors(body?.data?.fields, values.direction),
@@ -330,6 +378,12 @@ function PostRideForm({
   }
 
   const handleCancel = () => {
+    // Blanking a ride being edited would lose it (and its locked office), so
+    // cancelling an edit just leaves without saving.
+    if (isEditing) {
+      onMyRides?.()
+      return
+    }
     setValues(getInitialValues())
     setHasAttemptedSubmit(false)
     setStatus('idle')
@@ -356,22 +410,21 @@ function PostRideForm({
   )
 
   const officeSelect = (id) => (
-    <select
+    <SelectPickerField
       id={id}
       value={values.office}
-      onChange={(event) => updateField('office', event.target.value)}
-      disabled={isSubmitting}
-      className={`office-select ${values.office ? '' : 'is-empty'} ${errorClass('office')}`}
-    >
-      <option value="" disabled>
-        Select an office
-      </option>
-      {OFFICES.map((office) => (
-        <option key={office.id} value={office.id}>
-          {office.name} office
-        </option>
-      ))}
-    </select>
+      options={OFFICE_OPTIONS}
+      onChange={(office) => updateField('office', office)}
+      // The edit endpoint silently ignores `office`, so an edited ride's
+      // office is locked: picking another would only change the text and
+      // leave the ride under its old office in the filter.
+      disabled={isSubmitting || isEditing}
+      hasError={Boolean(errorClass('office'))}
+      title={isEditing ? "A posted ride's office can't be changed" : undefined}
+      // An old ride with no office shows its saved text instead.
+      placeholder={values.officeText || 'Select an office'}
+      listLabel="Choose an office"
+    />
   )
 
   const originField = isToOffice ? 'place' : 'office'

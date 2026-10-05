@@ -19,7 +19,9 @@ if (typeof Request !== 'undefined' && apiBaseURL) {
  * rather than a generic failure.
  */
 export class DuplicateEmailError extends Error {
-  constructor(message = 'An account with this email already exists.') {
+  constructor(
+    message = 'An account may already exist for this email. Try signing in or use another work email.',
+  ) {
     super(message)
     this.name = 'DuplicateEmailError'
   }
@@ -45,16 +47,38 @@ export class InvalidCredentialsError extends Error {
 }
 
 /**
- * better-auth reports a taken email as 422 USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL
- * (or USER_ALREADY_EXISTS), not 409, so the code is checked; 409 stays as a
- * fallback in case the backend maps it to a conflict.
+ * Turns a sign-up failure into the error the screen reacts to.
+ *
+ * better-auth reports a taken email as USER_ALREADY_EXISTS. The status it
+ * arrives with has varied — 422 today, 409 previously — so the code is the
+ * reliable signal and the statuses are a fallback. Anything else is left as a
+ * generic failure so the screen shows its usual message. A refused email
+ * domain becomes EmailDomainNotAllowedError.
+ *
+ * Exported so the mapping can be tested without standing up an auth client.
  */
-export function isDuplicateEmailError(error) {
-  return (
-    error?.status === 409 ||
-    error?.code === 'USER_ALREADY_EXISTS' ||
-    error?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
-  )
+export function signUpError(error) {
+  /*
+   * The deployed backend sends USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, so this
+   * matches on the prefix rather than the whole string; an exact comparison
+   * silently never fired and left the status checks doing all the work.
+   */
+  const code = String(error?.code ?? '').toUpperCase()
+
+  // Checked first: the backend's domain list is the source of truth, and its
+  // own message is kept so the email field can show it as-is.
+  if (code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
+    return new EmailDomainNotAllowedError(error.message || undefined)
+  }
+
+  const isDuplicate =
+    code.startsWith('USER_ALREADY_EXISTS') ||
+    error?.status === 422 ||
+    error?.status === 409
+
+  return isDuplicate
+    ? new DuplicateEmailError()
+    : new Error('Registration failed')
 }
 
 export async function registerUser({ name, email, password }) {
@@ -64,16 +88,8 @@ export async function registerUser({ name, email, password }) {
 
   const result = await authClient.signUp.email({ name, email, password })
 
-  if (isDuplicateEmailError(result.error)) {
-    throw new DuplicateEmailError()
-  }
-
-  if (result.error?.code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
-    throw new EmailDomainNotAllowedError(result.error.message || undefined)
-  }
-
   if (result.error) {
-    throw new Error('Registration failed')
+    throw signUpError(result.error)
   }
 
   return result.data?.user ?? result.data
