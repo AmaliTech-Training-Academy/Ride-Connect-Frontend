@@ -12,7 +12,14 @@ const NAV_ITEMS = [
   { label: 'My Rides', path: '/my-rides' },
 ]
 
-function AppHeader({ userInitials, userImage, onLogout, onUserUpdated }) {
+function AppHeader({
+  userInitials,
+  userImage,
+  userName,
+  userEmail,
+  onLogout,
+  onUserUpdated,
+}) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [isPasswordPanelOpen, setPasswordPanelOpen] = useState(false)
@@ -102,6 +109,8 @@ function AppHeader({ userInitials, userImage, onLogout, onUserUpdated }) {
             <UserMenu
               initials={userInitials || '?'}
               imageUrl={userImage}
+              name={userName}
+              email={userEmail}
               isUploadingImage={isUploadingImage}
               onChangePicture={handleChangePicture}
               onChangePassword={openPasswordPanel}

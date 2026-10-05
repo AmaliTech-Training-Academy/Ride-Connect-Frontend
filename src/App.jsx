@@ -120,6 +120,8 @@ function App() {
             <AppHeader
               userInitials={userInitials}
               userImage={user?.image}
+              userName={user?.name}
+              userEmail={user?.email}
               onLogout={handleLogout}
               onUserUpdated={(changes) =>
                 setUser((current) => ({ ...current, ...changes }))

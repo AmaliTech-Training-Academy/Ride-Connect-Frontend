@@ -47,6 +47,19 @@ describe('AppHeader', () => {
     )
   })
 
+  it('shows the signed-in name and address in the account menu', async () => {
+    const user = userEvent.setup()
+    renderHeader('/find-a-ride', {
+      userName: 'Kwame Mensah',
+      userEmail: 'kwame@amalitech.com',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+
+    expect(screen.getByText('Kwame Mensah')).toBeInTheDocument()
+    expect(screen.getByText('kwame@amalitech.com')).toBeInTheDocument()
+  })
+
   it.each([
     ['Find a Ride', '/find-a-ride'],
     ['My Rides', '/my-rides'],
@@ -106,7 +119,9 @@ describe('AppHeader', () => {
   it('reports a failed upload and keeps the old picture', async () => {
     const user = userEvent.setup()
     const onUserUpdated = jest.fn()
-    uploadImage.mockRejectedValue(new Error('Please choose an image under 5 MB.'))
+    uploadImage.mockRejectedValue(
+      new Error('Please choose an image under 5 MB.'),
+    )
     renderHeader('/find-a-ride', { onUserUpdated })
 
     await user.upload(

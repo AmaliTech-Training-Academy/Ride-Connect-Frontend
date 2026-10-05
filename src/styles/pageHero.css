@@ -9,15 +9,15 @@
 
 .page-hero {
   position: relative;
-  padding: clamp(132px, 10vw, 164px) 5vw 16px;
+  padding: clamp(166px, calc(10vw + 34px), 198px) 5vw 21px;
   color: #fff;
   background:
     linear-gradient(
       180deg,
-      rgba(12, 28, 14, 0.08) 0%,
-      rgba(12, 28, 14, 0.26) 38%,
-      rgba(12, 28, 14, 0.44) 72%,
-      rgba(12, 28, 14, 0.56) 100%
+      rgba(12, 28, 14, 0.3) 0%,
+      rgba(12, 28, 14, 0.48) 38%,
+      rgba(12, 28, 14, 0.62) 72%,
+      rgba(12, 28, 14, 0.72) 100%
     ),
     url('../assets/find-ride-hero.webp') center 52% / cover no-repeat;
 }
@@ -75,7 +75,7 @@
 @media (max-width: 680px) {
   .page-hero {
     /* The header wraps to two rows here, so the heading needs more room. */
-    padding: 180px 16px 16px;
+    padding: 214px 16px 21px;
   }
   .page-hero-inner {
     width: calc(100% - 28px);
