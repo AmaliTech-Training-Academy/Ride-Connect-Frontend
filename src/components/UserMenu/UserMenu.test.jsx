@@ -27,6 +27,57 @@ describe('UserMenu', () => {
     )
   })
 
+  it('names the signed-in person and their address above the actions', async () => {
+    const user = userEvent.setup()
+    render(
+      <UserMenu
+        initials="KM"
+        name="Kwame Mensah"
+        email="kwame@amalitech.com"
+      />,
+    )
+
+    await openMenu(user)
+
+    expect(screen.getByText('Kwame Mensah')).toBeInTheDocument()
+    expect(screen.getByText('kwame@amalitech.com')).toBeInTheDocument()
+  })
+
+  it('falls back to the address when the account has no name', async () => {
+    const user = userEvent.setup()
+    render(<UserMenu initials="K" email="kwame@amalitech.com" />)
+
+    await openMenu(user)
+
+    // Shown once as the heading, not repeated as its own second line.
+    expect(screen.getAllByText('kwame@amalitech.com')).toHaveLength(1)
+  })
+
+  it('shows no identity block when neither name nor address is known', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<UserMenu initials="?" />)
+
+    await openMenu(user)
+
+    expect(container.querySelector('.user-menu-identity')).toBeNull()
+  })
+
+  it('keeps the identity block out of the menu itself', async () => {
+    const user = userEvent.setup()
+    render(
+      <UserMenu
+        initials="KM"
+        name="Kwame Mensah"
+        email="kwame@amalitech.com"
+      />,
+    )
+
+    await openMenu(user)
+
+    // A menu's children should be its menuitems and nothing else.
+    expect(screen.getByRole('menu')).not.toHaveTextContent('Kwame Mensah')
+  })
+
   it('offers the three account actions', async () => {
     const user = userEvent.setup()
     render(<UserMenu initials="YO" />)
