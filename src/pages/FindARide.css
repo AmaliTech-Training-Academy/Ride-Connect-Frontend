@@ -311,6 +311,11 @@
   color: #246b2b;
   background: #d5ebd6;
 }
+/* Faint orange: requested, waiting on the driver's answer. */
+.find-ride-status-pending {
+  color: #b45309;
+  background: #fff1e0;
+}
 .find-ride-price {
   color: #246b2b;
   font-size: 13px;

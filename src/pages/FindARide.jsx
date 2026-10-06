@@ -6,6 +6,7 @@ import {
   withdrawRideRequest,
 } from '../services/rides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
+import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog'
 import { OFFICES, officeName } from '../lib/offices'
 import '../styles/pageHero.css'
 import './FindARide.css'
@@ -110,9 +111,11 @@ function RideCard({
   requestState,
 }) {
   const isLowSeat = ride.seatsAvailable === 1
-  const isRequested = requestState === 'requested'
   const isSending = requestState === 'sending'
   const isWithdrawing = requestState === 'withdrawing'
+  // Still requested while the withdrawal is in flight, so the card keeps its
+  // "Withdrawing..." label instead of flashing back to "Request to Join".
+  const isRequested = requestState === 'requested' || isWithdrawing
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
@@ -126,10 +129,11 @@ function RideCard({
     <article className={cardClassName}>
       <div className="find-ride-card-header">
         <div className="find-ride-card-tags">
+          {/* Once requested, the ride is waiting on the driver's answer. */}
           <span
-            className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''}`}
+            className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''} ${!ride.isOwnRide && isRequested ? 'find-ride-status-pending' : ''}`}
           >
-            {ride.isOwnRide ? 'Your ride' : 'Open'}
+            {ride.isOwnRide ? 'Your ride' : isRequested ? 'Pending' : 'Open'}
           </span>
           {officeName(ride.office) && (
             <span className="find-ride-office-tag">
@@ -329,6 +333,8 @@ function FindARide({
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
   const [toast, setToast] = useState(null)
+  // The ride whose request the user is being asked to confirm withdrawing.
+  const [rideToWithdraw, setRideToWithdraw] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
   // rideId -> 'sending' | 'requested' | 'withdrawing'
   const [requestStates, setRequestStates] = useState({})
@@ -633,7 +639,8 @@ function FindARide({
             ride={ride}
             viewerImage={userImage}
             onRequest={handleRequest}
-            onWithdraw={handleWithdraw}
+            // Withdrawing gives up the place in the queue, so ask first.
+            onWithdraw={setRideToWithdraw}
             onManage={onManageRide}
             requestState={requestStates[ride.id]}
             isHighlighted={ride.id === highlightedRideId}
@@ -797,6 +804,22 @@ function FindARide({
 
         {renderResults()}
       </section>
+
+      {rideToWithdraw && (
+        <ConfirmDialog
+          title="Withdraw your request?"
+          message={`Your request to join ${rideToWithdraw.driverName}'s ride from ${rideToWithdraw.origin} to ${rideToWithdraw.destination} will be cancelled, and the seat may go to someone else.`}
+          icon="fa-solid fa-arrow-rotate-left"
+          cancelLabel="Keep request"
+          confirmLabel="Yes, withdraw"
+          onCancel={() => setRideToWithdraw(null)}
+          onConfirm={() => {
+            const ride = rideToWithdraw
+            setRideToWithdraw(null)
+            handleWithdraw(ride)
+          }}
+        />
+      )}
     </main>
   )
 }
