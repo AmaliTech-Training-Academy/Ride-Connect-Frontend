@@ -5,6 +5,8 @@ import './UserMenu.css'
 function UserMenu({
   initials,
   imageUrl,
+  name,
+  email,
   isUploadingImage = false,
   onChangePicture,
   onChangePassword,
@@ -81,47 +83,65 @@ function UserMenu({
       />
 
       {open && (
-        <div className="user-menu-popover" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="user-menu-item"
-            disabled={isUploadingImage}
-            onClick={() => {
-              setOpen(false)
-              fileInputRef.current?.click()
-            }}
-          >
-            <i className="fa-solid fa-camera" aria-hidden="true" />
-            {isUploadingImage ? 'Uploading picture...' : 'Update profile picture'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="user-menu-item"
-            onClick={() => {
-              setOpen(false)
-              onChangePassword?.(triggerRef.current)
-            }}
-          >
-            <i className="fa-solid fa-key" aria-hidden="true" />
-            Change password
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="user-menu-item user-menu-item-danger"
-            onClick={() => {
-              setOpen(false)
-              onLogout?.()
-            }}
-          >
-            <i
-              className="fa-solid fa-arrow-right-from-bracket"
-              aria-hidden="true"
-            />
-            Logout
-          </button>
+        <div className="user-menu-popover">
+          {/*
+            Who is signed in. Accounts created without a name fall back to the
+            address, the same way the header's initials do, so the block is
+            never a blank line. It sits outside role="menu" because a menu's
+            children should only ever be its menuitems.
+          */}
+          {(name || email) && (
+            <div className="user-menu-identity">
+              <p className="user-menu-identity-name">{name || email}</p>
+              {name && email && (
+                <p className="user-menu-identity-email">{email}</p>
+              )}
+            </div>
+          )}
+          <div className="user-menu-actions" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="user-menu-item"
+              disabled={isUploadingImage}
+              onClick={() => {
+                setOpen(false)
+                fileInputRef.current?.click()
+              }}
+            >
+              <i className="fa-solid fa-camera" aria-hidden="true" />
+              {isUploadingImage
+                ? 'Uploading picture...'
+                : 'Update profile picture'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="user-menu-item"
+              onClick={() => {
+                setOpen(false)
+                onChangePassword?.(triggerRef.current)
+              }}
+            >
+              <i className="fa-solid fa-key" aria-hidden="true" />
+              Change password
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="user-menu-item user-menu-item-danger"
+              onClick={() => {
+                setOpen(false)
+                onLogout?.()
+              }}
+            >
+              <i
+                className="fa-solid fa-arrow-right-from-bracket"
+                aria-hidden="true"
+              />
+              Logout
+            </button>
+          </div>
         </div>
       )}
     </div>

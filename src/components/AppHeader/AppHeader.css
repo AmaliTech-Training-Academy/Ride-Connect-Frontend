@@ -109,6 +109,17 @@
   }
 }
 
+.site-header-nav-link:focus-visible {
+  outline: 2px solid #2e7d32;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header-nav-link {
+    transition: none;
+  }
+}
+
 .site-header-actions {
   display: flex;
   align-items: center;
@@ -128,10 +139,11 @@
   gap: 8px;
   min-height: 36px;
   padding: 7px 13px;
-  border: 1px solid #2e7d32;
+  /* A muted grey-green, so it does not compete with the active nav tab. */
+  border: 1px solid #5f7d64;
   border-radius: 9px;
   color: #fff;
-  background: #2e7d32;
+  background: #5f7d64;
   font:
     600 13px 'Poppins',
     sans-serif;

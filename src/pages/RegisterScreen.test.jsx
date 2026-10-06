@@ -320,18 +320,17 @@ describe('RegisterScreen', () => {
       ).toBeInTheDocument()
     })
 
-    it('offers a route to log in instead', async () => {
-      const onLoginClick = jest.fn()
+    it('states the problem without offering an action button', async () => {
+      // The tab above the form is the way to log in; the message only tells
+      // you what happened, even when a login handler is available.
       const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
-      const { user } = setup({ register, onLoginClick })
+      const { user } = setup({ register, onLoginClick: jest.fn() })
 
       await fillForm(user)
       await submit(user)
 
-      await user.click(
-        await screen.findByRole('button', { name: /log in instead/i }),
-      )
-      expect(onLoginClick).toHaveBeenCalledTimes(1)
+      const message = await screen.findByText(/account may already exist/i)
+      expect(message.querySelector('button')).toBeNull()
     })
 
     it('puts the message on the email field, not in a page-level banner', async () => {
