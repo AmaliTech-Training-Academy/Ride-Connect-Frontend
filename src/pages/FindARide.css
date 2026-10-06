@@ -63,7 +63,12 @@
    */
   position: relative;
   z-index: 1;
-  margin-top: 34px;
+  /*
+   * Holds the cards still while the shared hero's top padding shrank by 42px:
+   * this page has no bottom padding to absorb that, so the gap above the
+   * cards does instead and the band keeps its height.
+   */
+  margin-top: 76px;
   margin-bottom: -38px;
 }
 .find-ride-stat-card {

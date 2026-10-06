@@ -9,7 +9,7 @@
 
 .page-hero {
   position: relative;
-  padding: clamp(166px, calc(10vw + 34px), 198px) 5vw 21px;
+  padding: clamp(124px, calc(10vw - 8px), 156px) 5vw 63px;
   color: #fff;
   background:
     linear-gradient(
@@ -75,7 +75,7 @@
 @media (max-width: 680px) {
   .page-hero {
     /* The header wraps to two rows here, so the heading needs more room. */
-    padding: 214px 16px 21px;
+    padding: 172px 16px 63px;
   }
   .page-hero-inner {
     width: calc(100% - 28px);
