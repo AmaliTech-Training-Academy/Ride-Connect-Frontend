@@ -118,22 +118,9 @@ input.has-error {
   border-color: var(--danger);
 }
 .field-error {
-  display: flex;
-  gap: 5px;
   margin: 6px 0 16px;
   color: #b91c1c;
   font-size: 12px;
-}
-.field-error::before {
-  content: '!';
-  display: grid;
-  width: 14px;
-  height: 14px;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 700;
 }
 .login-error {
   margin: 0 0 14px;

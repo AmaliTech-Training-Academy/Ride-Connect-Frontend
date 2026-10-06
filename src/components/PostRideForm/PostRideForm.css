@@ -160,12 +160,6 @@ textarea {
   margin: 0;
 }
 
-/* LoginScreen.css gives the same global class a "!" badge; this form already
-   renders its own icon, so drop the second one. */
-.post-ride-form .field-error::before {
-  content: none;
-}
-
 /* Origin / destination swap row */
 
 .direction-toggle {
