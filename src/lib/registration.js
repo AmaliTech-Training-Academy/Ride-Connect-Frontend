@@ -1,10 +1,73 @@
-export const WORK_EMAIL_DOMAIN = 'amalitech.com'
 export const MIN_PASSWORD_LENGTH = 8
 
-const WORK_EMAIL_PATTERN = new RegExp(
-  `^[^\\s@]+@${WORK_EMAIL_DOMAIN.replace('.', '\\.')}$`,
-  'i',
-)
+/*
+ * The email domains allowed to register, kept in step with the backend's
+ * list. The backend is the only real gate: this copy just warns early, and a
+ * domain it doesn't know is still sent, so a stale list never locks anyone
+ * out. VITE_ALLOWED_EMAIL_DOMAINS (comma-separated) overrides the default.
+ */
+export const DEFAULT_ALLOWED_EMAIL_DOMAINS = [
+  'amalitech.com',
+  'amalitechtraining.org',
+]
+
+/** "a.com, B.org ,," -> ['a.com', 'b.org']; an empty list means "not set". */
+export function parseEmailDomains(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((domain) => domain.trim().replace(/^@/, '').toLowerCase())
+    .filter(Boolean)
+}
+
+function configuredEmailDomains() {
+  const fromEnv = parseEmailDomains(
+    globalThis.__VITE_ALLOWED_EMAIL_DOMAINS__ ||
+      globalThis.process?.env?.VITE_ALLOWED_EMAIL_DOMAINS,
+  )
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_EMAIL_DOMAINS
+}
+
+export const ALLOWED_EMAIL_DOMAINS = configuredEmailDomains()
+
+/**
+ * Only used to build an example address for the email placeholder. Every
+ * allowed domain is equally valid; this one is not preferred in any way.
+ */
+export const EXAMPLE_EMAIL_DOMAIN = ALLOWED_EMAIL_DOMAINS[0]
+
+/** "@a.com", "@a.com or @b.org", "@a.com, @b.org or @c.net". */
+export function formatEmailDomains(domains = ALLOWED_EMAIL_DOMAINS) {
+  const tagged = domains.map((domain) => `@${domain}`)
+  return tagged.length > 1
+    ? `${tagged.slice(0, -1).join(', ')} or ${tagged.at(-1)}`
+    : (tagged[0] ?? '')
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/
+
+/** The address's domain, lower-cased, or null when it isn't an email. */
+function emailDomain(email) {
+  const match = EMAIL_PATTERN.exec(String(email ?? '').trim())
+  return match ? match[1].toLowerCase() : null
+}
+
+/** True when the email is a single address on one of the allowed domains. */
+export function isAllowedWorkEmail(email, domains = ALLOWED_EMAIL_DOMAINS) {
+  const domain = emailDomain(email)
+  return domain !== null && domains.includes(domain)
+}
+
+/**
+ * An early warning for an address on a domain we don't know, or undefined.
+ * This never blocks sign-up: the backend decides, so a stale list here can't
+ * keep out someone the backend accepts.
+ */
+export function emailDomainWarning(email, domains = ALLOWED_EMAIL_DOMAINS) {
+  if (emailDomain(email) === null || isAllowedWorkEmail(email, domains)) {
+    return undefined
+  }
+  return `Please use your ${formatEmailDomains(domains)} work email`
+}
 
 /**
  * Validates the registration form.
@@ -26,8 +89,10 @@ export function validateRegistration({
 
   if (!email.trim()) {
     errors.email = 'Please enter your work email'
-  } else if (!WORK_EMAIL_PATTERN.test(email.trim())) {
-    errors.email = `Please use your @${WORK_EMAIL_DOMAIN} work email`
+  } else if (emailDomain(email) === null) {
+    // Only the shape blocks sending; the domain is the backend's call (see
+    // emailDomainWarning).
+    errors.email = 'Please enter a valid email address'
   }
 
   if (!password) {

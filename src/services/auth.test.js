@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import {
   DuplicateEmailError,
+  EmailDomainNotAllowedError,
   InvalidCredentialsError,
   changePassword,
   changePasswordErrorMessage,
@@ -45,6 +46,26 @@ describe('signUpError', () => {
   it('accepts a lowercase code', () => {
     expect(signUpError({ code: 'user_already_exists' })).toBeInstanceOf(
       DuplicateEmailError,
+    )
+  })
+
+  it("turns a refused domain into its own error, keeping the backend's message", () => {
+    const message =
+      'Registration is restricted to @amalitech.com or @amalitechtraining.org email addresses.'
+    const mapped = signUpError({
+      code: 'EMAIL_DOMAIN_NOT_ALLOWED',
+      status: 403,
+      message,
+    })
+
+    expect(mapped).toBeInstanceOf(EmailDomainNotAllowedError)
+    expect(mapped).not.toBeInstanceOf(DuplicateEmailError)
+    expect(mapped.message).toBe(message)
+  })
+
+  it('falls back to a default message for a refused domain without one', () => {
+    expect(signUpError({ code: 'EMAIL_DOMAIN_NOT_ALLOWED' }).message).toBe(
+      'This email domain is not allowed to register.',
     )
   })
 
@@ -133,6 +154,23 @@ describe('DuplicateEmailError', () => {
     const error = new DuplicateEmailError()
     expect(error).toBeInstanceOf(Error)
     expect(error.name).toBe('DuplicateEmailError')
+  })
+})
+
+describe('EmailDomainNotAllowedError', () => {
+  it("keeps the backend's message, with a fallback", () => {
+    expect(new EmailDomainNotAllowedError('Only @a.com').message).toBe(
+      'Only @a.com',
+    )
+    expect(new EmailDomainNotAllowedError().message).toBe(
+      'This email domain is not allowed to register.',
+    )
+  })
+
+  it('is an Error with its own name', () => {
+    const error = new EmailDomainNotAllowedError()
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('EmailDomainNotAllowedError')
   })
 })
 

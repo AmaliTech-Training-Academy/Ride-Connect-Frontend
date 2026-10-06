@@ -27,6 +27,18 @@ export class DuplicateEmailError extends Error {
   }
 }
 
+/**
+ * Thrown when the backend refuses the email's domain. The backend's list is
+ * the source of truth, so its own message is kept to show on the email field
+ * in case the frontend's copy of the list ever drifts.
+ */
+export class EmailDomainNotAllowedError extends Error {
+  constructor(message = 'This email domain is not allowed to register.') {
+    super(message)
+    this.name = 'EmailDomainNotAllowedError'
+  }
+}
+
 export class InvalidCredentialsError extends Error {
   constructor(message = 'Invalid email or password') {
     super(message)
@@ -40,7 +52,8 @@ export class InvalidCredentialsError extends Error {
  * better-auth reports a taken email as USER_ALREADY_EXISTS. The status it
  * arrives with has varied — 422 today, 409 previously — so the code is the
  * reliable signal and the statuses are a fallback. Anything else is left as a
- * generic failure so the screen shows its usual message.
+ * generic failure so the screen shows its usual message. A refused email
+ * domain becomes EmailDomainNotAllowedError.
  *
  * Exported so the mapping can be tested without standing up an auth client.
  */
@@ -51,6 +64,13 @@ export function signUpError(error) {
    * silently never fired and left the status checks doing all the work.
    */
   const code = String(error?.code ?? '').toUpperCase()
+
+  // Checked first: the backend's domain list is the source of truth, and its
+  // own message is kept so the email field can show it as-is.
+  if (code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
+    return new EmailDomainNotAllowedError(error.message || undefined)
+  }
+
   const isDuplicate =
     code.startsWith('USER_ALREADY_EXISTS') ||
     error?.status === 422 ||
