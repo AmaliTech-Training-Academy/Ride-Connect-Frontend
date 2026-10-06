@@ -873,6 +873,7 @@ function MyRidesDashboard({
   onFindRide,
   onOfferRide,
   onEditRide,
+  onRepostRide,
   managedRideId,
   initialTab,
 }) {
@@ -1512,11 +1513,25 @@ function MyRidesDashboard({
                           {formatDate(ride.date)} · {formatTime(ride.time)}
                         </span>
                       </div>
-                      <StatusBadge status={getRideStatus(ride)} />
+                      <div className="my-rides-past-actions">
+                        <StatusBadge status={getRideStatus(ride)} />
+                        <button
+                          type="button"
+                          className="my-rides-repost-button"
+                          aria-label={`Repost ${ride.origin} to ${ride.destination}`}
+                          onClick={() => onRepostRide?.(ride.id)}
+                        >
+                          <i
+                            className="fa-solid fa-rotate-right"
+                            aria-hidden="true"
+                          />{' '}
+                          Repost
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <p className="my-rides-past-note">
-                    No actions available on past or cancelled rides.
+                    Repost a ride to offer the same trip again on a new date.
                   </p>
                 </div>
               )}

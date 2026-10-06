@@ -439,6 +439,38 @@
   color: #8b968d;
   font-size: 11px;
 }
+.my-rides-past-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+}
+.my-rides-repost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #2e7d32;
+  border-radius: 8px;
+  color: #2e7d32;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+.my-rides-repost-button:hover,
+.my-rides-repost-button:focus-visible {
+  color: #fff;
+  background: #2e7d32;
+}
+.my-rides-repost-button:focus-visible {
+  outline: 2px solid #2e7d32;
+  outline-offset: 2px;
+}
 .my-rides-past-note {
   margin-top: 13px;
   color: #89958b;

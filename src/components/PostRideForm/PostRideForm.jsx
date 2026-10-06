@@ -198,11 +198,16 @@ function PostRideForm({
   userImage,
   userInitials,
   editRideId,
+  // A past ride to offer again: its details are copied into a new ride.
+  repostRideId,
   // Hold on the confirmation briefly before navigating, so it is actually
   // seen. Injectable so tests need not wait on a timer.
   redirectDelay = 1600,
 }) {
   const isEditing = Boolean(editRideId)
+  const isReposting = !isEditing && Boolean(repostRideId)
+  // The saved ride the form starts from, when editing or reposting.
+  const sourceRideId = isEditing ? editRideId : repostRideId
   const [values, setValues] = useState(getInitialValues)
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
@@ -210,14 +215,14 @@ function PostRideForm({
   const [serverErrors, setServerErrors] = useState({})
   // Only meaningful while editing: the ride being changed, and the seats
   // already given away, which the stepper must not drop below.
-  const [loadState, setLoadState] = useState(isEditing ? 'loading' : 'ready')
+  const [loadState, setLoadState] = useState(sourceRideId ? 'loading' : 'ready')
   const [loadError, setLoadError] = useState('')
   const [seatsTaken, setSeatsTaken] = useState(0)
   // The ride to move on to once the confirmation has been shown.
   const [postedRideId, setPostedRideId] = useState(null)
 
   useEffect(() => {
-    if (!editRideId) return undefined
+    if (!sourceRideId) return undefined
     let ignore = false
 
     // The ride is read from the driver's own list rather than passed through
@@ -226,17 +231,32 @@ function PostRideForm({
       .then((payload) => {
         if (ignore) return
         const ride = normaliseMyRides(payload).find(
-          (item) => item.id === editRideId,
+          (item) => item.id === sourceRideId,
         )
         if (!ride) {
           setLoadError('That ride could not be found.')
           setLoadState('error')
           return
         }
-        setValues(rideToValues(ride))
-        setSeatsTaken(
-          Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
-        )
+        if (isReposting) {
+          /*
+           * A repost is a brand-new ride on the same route: only the date and
+           * time are left for the driver. It is posted fresh, so the office
+           * is chosen normally and written as its label rather than kept as
+           * the old ride's text, and no seats are taken yet.
+           */
+          setValues({
+            ...rideToValues(ride),
+            officeText: '',
+            date: '',
+            time: '',
+          })
+        } else {
+          setValues(rideToValues(ride))
+          setSeatsTaken(
+            Math.max(0, (ride.seatsTotal ?? 0) - (ride.seatsAvailable ?? 0)),
+          )
+        }
         setLoadState('ready')
       })
       .catch((error) => {
@@ -248,7 +268,7 @@ function PostRideForm({
     return () => {
       ignore = true
     }
-  }, [editRideId])
+  }, [sourceRideId, isReposting])
 
   const now = new Date()
   const todayISODate = toISODate(now)
@@ -484,15 +504,25 @@ function PostRideForm({
       <section className="page-hero">
         <div className="page-hero-inner">
           <p className="page-hero-eyebrow">
-            {isEditing ? 'Update your ride' : 'Colleague carpool'}
+            {isEditing
+              ? 'Update your ride'
+              : isReposting
+                ? 'Repost a past ride'
+                : 'Colleague carpool'}
           </p>
           <h1 className="page-hero-heading">
-            {isEditing ? 'Edit your ride' : 'Offer a ride'}
+            {isEditing
+              ? 'Edit your ride'
+              : isReposting
+                ? 'Offer this ride again'
+                : 'Offer a ride'}
           </h1>
           <p className="page-hero-subtitle">
             {isEditing
               ? 'Change the details and your passengers will be told.'
-              : 'Post your commute and let colleagues share the journey.'}
+              : isReposting
+                ? 'Everything is filled in from your last trip. Just pick a new date and time.'
+                : 'Post your commute and let colleagues share the journey.'}
           </p>
         </div>
       </section>
