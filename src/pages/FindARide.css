@@ -316,6 +316,11 @@
   color: #246b2b;
   background: #d5ebd6;
 }
+/* Faint orange: requested, waiting on the driver's answer. */
+.find-ride-status-pending {
+  color: #b45309;
+  background: #fff1e0;
+}
 .find-ride-price {
   color: #246b2b;
   font-size: 13px;
@@ -420,9 +425,18 @@
 }
 .find-ride-card-action {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 12px;
   margin-top: auto;
   padding-top: 18px;
+}
+/* Accepted passengers sit on the left; the action button stays right. */
+.find-ride-card-action .passenger-stack {
+  flex: 1 1 auto;
+}
+.find-ride-card-action .find-ride-button {
+  flex-shrink: 0;
 }
 .find-ride-button-outline {
   border-color: #4a8951;

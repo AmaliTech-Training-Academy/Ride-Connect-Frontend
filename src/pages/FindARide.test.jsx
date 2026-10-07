@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { apiFetch } from '../lib/api'
@@ -43,6 +43,16 @@ function ride(overrides = {}) {
     status: 'open',
     ...overrides,
   }
+}
+
+/** Withdrawing now asks first; this answers the dialog with "Yes, withdraw". */
+async function confirmWithdraw(user) {
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Withdraw your request?',
+  })
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Yes, withdraw' }),
+  )
 }
 
 describe('FindARide', () => {
@@ -299,6 +309,7 @@ describe('FindARide', () => {
     expect(requestToJoinRide).toHaveBeenCalledTimes(1)
 
     await user.click(withdraw)
+    await confirmWithdraw(user)
 
     expect(
       await screen.findByText('Your request has been withdrawn.'),
@@ -307,6 +318,92 @@ describe('FindARide', () => {
     expect(
       await screen.findByRole('button', { name: 'Request to Join' }),
     ).toBeInTheDocument()
+  })
+
+  it('shows who the driver has already accepted, with a profile card on tap', async () => {
+    apiFetch.mockResolvedValue(
+      response([
+        ride({
+          acceptedPassengers: [
+            {
+              id: 'p1',
+              name: 'Kofi Boateng',
+              image: 'https://img/kofi.png',
+              office: 'KUMASI',
+            },
+            { id: 'p2', name: 'Esi Mensah', image: null },
+          ],
+        }),
+      ]),
+    )
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    expect(
+      screen.getByRole('list', {
+        name: 'Already on this ride: Kofi and Esi are riding',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Kofi Boateng' }))
+    const card = screen.getByRole('tooltip')
+    expect(card).toHaveTextContent('Kofi Boateng')
+    expect(card).toHaveTextContent('Kumasi office')
+  })
+
+  it('leaves the passenger row out until someone is accepted', async () => {
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    expect(
+      screen.queryByRole('list', { name: /Already on this ride/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows a pending badge once requested, and asks before withdrawing', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+    expect(screen.getByText('Open')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+    expect(await screen.findByText('Pending')).toHaveClass(
+      'find-ride-status-pending',
+    )
+    expect(screen.queryByText('Open')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Withdraw request' }))
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Withdraw your request?',
+    })
+    expect(dialog).toHaveTextContent('Ama Owusu')
+
+    // Backing out keeps the request exactly as it was.
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Keep request' }),
+    )
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(withdrawRideRequest).not.toHaveBeenCalled()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Withdraw request' }),
+    ).toHaveFocus()
+  })
+
+  it('goes back to an open badge after a withdrawal', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    await user.click(screen.getByRole('button', { name: 'Request to Join' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    )
+    await confirmWithdraw(user)
+
+    expect(await screen.findByText('Open')).toBeInTheDocument()
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument()
   })
 
   it('re-marks the ride as requested when withdrawing fails', async () => {
@@ -321,6 +418,7 @@ describe('FindARide', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Withdraw request' }),
     )
+    await confirmWithdraw(user)
 
     expect(
       await screen.findByText('Could not withdraw your request.'),
@@ -344,6 +442,7 @@ describe('FindARide', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Withdraw request' }),
     )
+    await confirmWithdraw(user)
 
     expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-loaded')
     expect(
@@ -416,6 +515,7 @@ describe('FindARide', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Withdraw request' }),
     )
+    await confirmWithdraw(user)
     expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-existing')
   })
 

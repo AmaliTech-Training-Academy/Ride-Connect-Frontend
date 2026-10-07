@@ -135,9 +135,13 @@ function App() {
           path="/offer-a-ride"
           element={
             <PostRideForm
+              // A fresh form whenever the ride it starts from changes, e.g.
+              // "Offer a Ride" clicked while a repost is open.
+              key={`${searchParams.get('edit')}:${searchParams.get('repost')}`}
               userImage={user?.image}
               userInitials={userInitials}
               editRideId={searchParams.get('edit')}
+              repostRideId={searchParams.get('repost')}
               onFindRide={(rideId) =>
                 navigate(
                   rideId ? `/find-a-ride?ride=${rideId}` : '/find-a-ride',
@@ -168,6 +172,9 @@ function App() {
               onOfferRide={() => navigate('/offer-a-ride')}
               managedRideId={searchParams.get('manage')}
               onEditRide={(rideId) => navigate(`/offer-a-ride?edit=${rideId}`)}
+              onRepostRide={(rideId) =>
+                navigate(`/offer-a-ride?repost=${rideId}`)
+              }
               initialTab={searchParams.get('tab')}
             />
           }

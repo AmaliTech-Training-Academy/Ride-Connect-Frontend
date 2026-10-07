@@ -215,8 +215,25 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     // Toggle Past & cancelled section
     await user.click(screen.getByText(/Past & cancelled/))
     expect(
-      screen.getByText('No actions available on past or cancelled rides.'),
+      screen.getByText(
+        'Repost a ride to offer the same trip again on a new date.',
+      ),
     ).toBeInTheDocument()
+  })
+
+  it('offers to repost each past or cancelled ride', async () => {
+    const user = userEvent.setup()
+    const onRepostRide = jest.fn()
+    await renderDashboard({ onRepostRide })
+
+    await user.click(screen.getByText(/Past & cancelled/))
+    const repostButtons = screen.getAllByRole('button', { name: /^Repost / })
+    expect(repostButtons.length).toBeGreaterThan(0)
+
+    await user.click(repostButtons[0])
+
+    expect(onRepostRide).toHaveBeenCalledTimes(1)
+    expect(onRepostRide.mock.calls[0][0]).toEqual(expect.any(String))
   })
 
   it('manually marks a ride as Full and then reopens it', async () => {

@@ -67,15 +67,12 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px;
-  border-radius: 12px;
-  background: #eef5ee;
 }
 
 .site-header-nav-link {
   padding: 8px 16px;
   border-radius: 9px;
-  color: #5e6c61;
+  color: #1b1b1b;
   font-size: 14px;
   font-weight: 500;
   text-decoration: underline transparent;
@@ -87,22 +84,29 @@
     text-decoration-color 0.15s ease;
 }
 
-/*
- * The current page's tab uses the "Offer a Ride" green and is underlined like
- * an active link. Hovering (or keyboard-focusing) another tab previews that
- * same look.
- */
-.site-header-nav-link.active,
+/* The current page's tab reads like an active link: green and underlined. */
+.site-header-nav-link.active {
+  color: #2e7d32;
+  font-weight: 600;
+  text-decoration-color: currentColor;
+}
+
+/* Hovering (or keyboard-focusing) a tab fills it with the brand green. */
 .site-header-nav-link:hover,
 .site-header-nav-link:focus-visible {
   color: #fff;
   background: #2e7d32;
-  text-decoration-color: currentColor;
 }
 
-.site-header-nav-link.active {
-  box-shadow: 0 2px 6px rgba(46, 91, 49, 0.18);
-  font-weight: 600;
+.site-header-nav-link:focus-visible {
+  outline: 2px solid #2e7d32;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header-nav-link {
+    transition: none;
+  }
 }
 
 .site-header-nav-link:focus-visible {
@@ -135,19 +139,18 @@
   gap: 8px;
   min-height: 36px;
   padding: 7px 13px;
-  /* A muted grey-green, so it does not compete with the active nav tab. */
-  border: 1px solid #5f7d64;
+  border: 1px solid #2e7d32;
   border-radius: 9px;
   color: #fff;
-  background: #5f7d64;
+  background: #2e7d32;
   font:
     600 13px 'Poppins',
     sans-serif;
 }
 
 .site-header .site-header-offer:hover {
-  border-color: #4f6f55;
-  background: #4f6f55;
+  border-color: #256b2a;
+  background: #256b2a;
 }
 
 .site-header-icon-button {

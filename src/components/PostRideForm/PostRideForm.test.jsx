@@ -743,3 +743,107 @@ describe('PostRideForm - editing an existing ride', () => {
     expect(fetchMyRides).not.toHaveBeenCalled()
   })
 })
+
+describe('PostRideForm - reposting a past ride', () => {
+  const pastPayload = (overrides = {}) => ({
+    data: {
+      driving: [],
+      joined: [],
+      pastAndCancelled: [
+        {
+          id: 'past-1',
+          origin: 'AmaliTech Kumasi',
+          destination: 'Adum',
+          office: 'KUMASI',
+          routeDescription: 'Via Kejetia',
+          departureAt: '2026-01-10T07:30:00.000Z',
+          totalSeats: 3,
+          availableSeats: 0,
+          status: 'COMPLETED',
+          pendingRequests: [],
+          confirmedPassengers: [],
+          ...overrides,
+        },
+      ],
+      joinedPastAndCancelled: [],
+    },
+  })
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    fetchMyRides.mockResolvedValue(pastPayload())
+    apiFetch.mockResolvedValue({
+      status: 201,
+      ok: true,
+      json: async () => ({ data: { id: 'new-ride' } }),
+    })
+  })
+
+  it('fills in everything except the date and time', async () => {
+    render(<PostRideForm repostRideId="past-1" />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Offer this ride again' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'From the office' })).toBeChecked()
+    expect(screen.getByLabelText('Origin')).toHaveTextContent('Kumasi office')
+    expect(screen.getByLabelText('Destination')).toHaveValue('Adum')
+    expect(screen.getByLabelText(/Route description/)).toHaveValue(
+      'Via Kejetia',
+    )
+    expect(screen.getByText('3')).toBeInTheDocument()
+    // The new trip's timing is the driver's to choose.
+    expect(screen.getByText('Select a date')).toBeInTheDocument()
+    expect(screen.getByText('Select a time')).toBeInTheDocument()
+    // It is a new ride: the office stays choosable and seats start free.
+    expect(screen.getByLabelText('Origin')).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Post Ride' }),
+    ).toBeInTheDocument()
+  })
+
+  it('asks for a date and time before posting', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm repostRideId="past-1" />)
+    await screen.findByRole('heading', { name: 'Offer this ride again' })
+
+    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+
+    expect(
+      screen.getByText('Please enter a departure date'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Please enter a departure time'),
+    ).toBeInTheDocument()
+    expect(apiFetch).not.toHaveBeenCalled()
+  })
+
+  it('posts a brand-new ride, never editing the old one', async () => {
+    const user = userEvent.setup()
+    render(<PostRideForm repostRideId="past-1" redirectDelay={0} />)
+    await screen.findByRole('heading', { name: 'Offer this ride again' })
+
+    await fillWhen(user)
+    await user.click(screen.getByRole('button', { name: 'Post Ride' }))
+
+    expect(await screen.findByText('Your ride is live!')).toBeInTheDocument()
+    expect(updateRide).not.toHaveBeenCalled()
+    expect(sentBody()).toMatchObject({
+      origin: 'AmaliTech Kumasi',
+      destination: 'Adum',
+      office: 'KUMASI',
+      availableSeats: 3,
+      departureTime: '08:30',
+      routeDescription: 'Via Kejetia',
+    })
+  })
+
+  it('reports a past ride it cannot find', async () => {
+    fetchMyRides.mockResolvedValue({ data: { pastAndCancelled: [] } })
+    render(<PostRideForm repostRideId="gone" />)
+
+    expect(
+      await screen.findByText('That ride could not be found.'),
+    ).toBeInTheDocument()
+  })
+})
