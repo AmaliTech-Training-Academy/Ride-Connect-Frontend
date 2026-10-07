@@ -139,11 +139,10 @@
   gap: 8px;
   min-height: 36px;
   padding: 7px 13px;
-  /* A muted grey-green, so it does not compete with the active nav tab. */
-  border: 1px solid #5f7d64;
+  border: 1px solid #2e7d32;
   border-radius: 9px;
   color: #fff;
-  background: #5f7d64;
+  background: #2e7d32;
   font:
     600 13px 'Poppins',
     sans-serif;
