@@ -7,6 +7,8 @@ import {
 } from '../services/rides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog'
+import PassengerStack from '../components/PassengerStack/PassengerStack'
+import { normalisePassengers } from '../lib/passengers'
 import { OFFICES, officeName } from '../lib/offices'
 import '../styles/pageHero.css'
 import './FindARide.css'
@@ -57,6 +59,7 @@ function normaliseRide(ride, currentUserId) {
     seatsTotal: ride.totalSeats,
     seatsAvailable: ride.availableSeats,
     driverInitials,
+    passengers: normalisePassengers(ride),
     isOwnRide:
       currentUserId != null &&
       String(rideDriverId).trim() === String(currentUserId).trim(),
@@ -209,6 +212,8 @@ function RideCard({
       </div>
 
       <div className="find-ride-card-action">
+        {/* Who's already riding, so a colleague can decide whether to join. */}
+        <PassengerStack passengers={ride.passengers} />
         {ride.isOwnRide ? (
           <button
             type="button"

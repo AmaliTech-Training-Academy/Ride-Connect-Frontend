@@ -320,6 +320,47 @@ describe('FindARide', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows who the driver has already accepted, with a profile card on tap', async () => {
+    apiFetch.mockResolvedValue(
+      response([
+        ride({
+          acceptedPassengers: [
+            {
+              id: 'p1',
+              name: 'Kofi Boateng',
+              image: 'https://img/kofi.png',
+              office: 'KUMASI',
+            },
+            { id: 'p2', name: 'Esi Mensah', image: null },
+          ],
+        }),
+      ]),
+    )
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    expect(
+      screen.getByRole('list', {
+        name: 'Already on this ride: Kofi and Esi are riding',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Kofi Boateng' }))
+    const card = screen.getByRole('tooltip')
+    expect(card).toHaveTextContent('Kofi Boateng')
+    expect(card).toHaveTextContent('Kumasi office')
+  })
+
+  it('leaves the passenger row out until someone is accepted', async () => {
+    render(<FindARide onOfferRide={jest.fn()} />)
+    await screen.findByText('Ama Owusu')
+
+    expect(
+      screen.queryByRole('list', { name: /Already on this ride/ }),
+    ).not.toBeInTheDocument()
+  })
+
   it('shows a pending badge once requested, and asks before withdrawing', async () => {
     const user = userEvent.setup()
     render(<FindARide onOfferRide={jest.fn()} />)
