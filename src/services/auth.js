@@ -164,22 +164,6 @@ export async function changePassword({ currentPassword, newPassword }) {
 }
 
 /**
- * Saves an already-uploaded picture URL as the user's profile image; it comes
- * back as `user.image` from the session.
- */
-export async function updateProfileImage(image) {
-  if (!authClient) {
-    throw new Error('Authentication backend is not configured.')
-  }
-
-  const { error } = await authClient.updateUser({ image })
-
-  if (error) {
-    throw new Error(error.message || 'Could not save your new picture.')
-  }
-}
-
-/**
  * Clears the session cookie server-side so the next getCurrentUser() call
  * (or sign-in as a different account) doesn't pick the old session back up.
  * Throws on failure so a caller doesn't clear local state and redirect while
