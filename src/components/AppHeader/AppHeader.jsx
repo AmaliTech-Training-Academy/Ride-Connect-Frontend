@@ -3,8 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import NotificationsBell from '../NotificationsBell/NotificationsBell'
 import UserMenu from '../UserMenu/UserMenu'
 import ChangePasswordPanel from '../ChangePasswordPanel/ChangePasswordPanel'
-import { uploadImage } from '../../services/cloudinary'
-import { updateProfileImage } from '../../services/auth'
+import { uploadAvatar } from '../../services/avatar'
 import './AppHeader.css'
 
 const NAV_ITEMS = [
@@ -36,9 +35,8 @@ function AppHeader({
   const handleChangePicture = async (file) => {
     setUploadingImage(true)
     try {
-      const imageUrl = await uploadImage(file)
-      await updateProfileImage(imageUrl)
-      onUserUpdated?.({ image: imageUrl })
+      const image = await uploadAvatar(file)
+      onUserUpdated?.({ image })
       setToast({ tone: 'success', message: 'Profile picture updated.' })
     } catch (error) {
       setToast({

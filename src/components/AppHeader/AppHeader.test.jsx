@@ -3,14 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import AppHeader from './AppHeader'
-import { uploadImage } from '../../services/cloudinary'
-import { changePassword, updateProfileImage } from '../../services/auth'
+import { uploadAvatar } from '../../services/avatar'
+import { changePassword } from '../../services/auth'
 
-jest.mock('../../services/cloudinary', () => ({
-  uploadImage: jest.fn(),
+jest.mock('../../services/avatar', () => ({
+  uploadAvatar: jest.fn(),
 }))
 jest.mock('../../services/auth', () => ({
-  updateProfileImage: jest.fn(),
   changePassword: jest.fn(),
 }))
 
@@ -31,8 +30,7 @@ function renderHeader(path = '/find-a-ride', props = {}) {
 
 describe('AppHeader', () => {
   beforeEach(() => {
-    uploadImage.mockReset()
-    updateProfileImage.mockReset()
+    uploadAvatar.mockReset()
   })
 
   it.each([
@@ -94,23 +92,18 @@ describe('AppHeader', () => {
     expect(onLogout).toHaveBeenCalled()
   })
 
-  it('uploads a new picture, saves it, and passes it up to the app', async () => {
+  it('uploads a new picture and passes it up to the app', async () => {
     const user = userEvent.setup()
     const onUserUpdated = jest.fn()
-    uploadImage.mockResolvedValue('https://res.cloudinary.com/x/me.png')
-    updateProfileImage.mockResolvedValue(undefined)
+    const image = 'https://bucket.s3.eu-west-1.amazonaws.com/avatars/u1/me.png'
+    uploadAvatar.mockResolvedValue(image)
     renderHeader('/find-a-ride', { onUserUpdated })
     const file = new File(['x'], 'me.png', { type: 'image/png' })
 
     await user.upload(screen.getByLabelText('Choose a profile picture'), file)
 
-    expect(uploadImage).toHaveBeenCalledWith(file)
-    expect(updateProfileImage).toHaveBeenCalledWith(
-      'https://res.cloudinary.com/x/me.png',
-    )
-    expect(onUserUpdated).toHaveBeenCalledWith({
-      image: 'https://res.cloudinary.com/x/me.png',
-    })
+    expect(uploadAvatar).toHaveBeenCalledWith(file)
+    expect(onUserUpdated).toHaveBeenCalledWith({ image })
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Profile picture updated.',
     )
@@ -119,7 +112,7 @@ describe('AppHeader', () => {
   it('reports a failed upload and keeps the old picture', async () => {
     const user = userEvent.setup()
     const onUserUpdated = jest.fn()
-    uploadImage.mockRejectedValue(
+    uploadAvatar.mockRejectedValue(
       new Error('Please choose an image under 5 MB.'),
     )
     renderHeader('/find-a-ride', { onUserUpdated })
@@ -132,7 +125,6 @@ describe('AppHeader', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Please choose an image under 5 MB.',
     )
-    expect(updateProfileImage).not.toHaveBeenCalled()
     expect(onUserUpdated).not.toHaveBeenCalled()
   })
 
