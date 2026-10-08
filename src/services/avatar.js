@@ -1,4 +1,5 @@
 import { apiFetch } from '../lib/api'
+import { shrinkImage } from '../lib/shrinkImage'
 
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 export const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -47,24 +48,30 @@ async function sendToS3({ url, fields }, file) {
 }
 
 export async function uploadAvatar(file) {
-  if (!AVATAR_TYPES.includes(file?.type)) {
+  if (!file?.type?.startsWith('image/')) {
+    throw new AvatarUploadError('Please choose an image file.')
+  }
+
+  const image = await shrinkImage(file)
+
+  if (!AVATAR_TYPES.includes(image.type)) {
     throw new AvatarUploadError('Please choose a JPEG, PNG or WebP image.')
   }
-  if (file.size > MAX_AVATAR_BYTES) {
+  if (image.size > MAX_AVATAR_BYTES) {
     throw new AvatarUploadError('Please choose an image under 5 MB.')
   }
 
   const upload = await apiData('/api/users/me/avatar/upload', {
     method: 'POST',
-    body: JSON.stringify({ contentType: file.type }),
+    body: JSON.stringify({ contentType: image.type }),
   })
 
-  await sendToS3(upload, file)
+  await sendToS3(upload, image)
 
-  const { image } = await apiData('/api/users/me/avatar', {
+  const saved = await apiData('/api/users/me/avatar', {
     method: 'PUT',
     body: JSON.stringify({ key: upload.key }),
   })
 
-  return image
+  return saved.image
 }
