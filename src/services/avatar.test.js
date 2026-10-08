@@ -172,6 +172,18 @@ describe('uploadAvatar', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1)
   })
 
+  it.each([200, 201])(
+    'accepts a %i from S3 as a successful upload',
+    async (status) => {
+      globalThis.fetch
+        .mockResolvedValueOnce(json(201, { data: signedForm }))
+        .mockResolvedValueOnce(s3(status, '<PostResponse />'))
+        .mockResolvedValueOnce(json(200, { data: { image: IMAGE } }))
+
+      await expect(uploadAvatar(imageFile())).resolves.toBe(IMAGE)
+    },
+  )
+
   it('explains an image S3 finds too large', async () => {
     globalThis.fetch
       .mockResolvedValueOnce(json(201, { data: signedForm }))

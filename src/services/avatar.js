@@ -38,7 +38,7 @@ async function sendToS3({ url, fields }, file) {
     throw new AvatarUploadError()
   }
 
-  if (response.status === 204) return
+  if (response.ok) return
 
   const text = await response.text().catch(() => '')
   if (text.includes('EntityTooLarge')) {
