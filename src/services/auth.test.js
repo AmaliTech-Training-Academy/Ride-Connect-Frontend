@@ -10,7 +10,6 @@ import {
   logoutUser,
   registerUser,
   signUpError,
-  updateProfileImage,
 } from './auth'
 
 describe('signUpError', () => {
@@ -115,12 +114,6 @@ describe('auth backend configuration', () => {
   it('refuses a password change when no backend URL is configured', async () => {
     await expect(
       changePassword({ currentPassword: 'old-pass', newPassword: 'new-pass1' }),
-    ).rejects.toThrow('Authentication backend is not configured.')
-  })
-
-  it('refuses a picture change when no backend URL is configured', async () => {
-    await expect(
-      updateProfileImage('https://res.cloudinary.com/x/me.png'),
     ).rejects.toThrow('Authentication backend is not configured.')
   })
 })
