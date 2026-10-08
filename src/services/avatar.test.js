@@ -184,6 +184,38 @@ describe('uploadAvatar', () => {
     },
   )
 
+  it.each([
+    ['no data', undefined],
+    ['no url', { ...signedForm, url: undefined }],
+    ['a url that is not https', { ...signedForm, url: 'http://bucket/' }],
+    ['no fields', { ...signedForm, fields: undefined }],
+    ['fields that are not an object', { ...signedForm, fields: ['key'] }],
+    ['no key', { ...signedForm, key: '' }],
+  ])('stops before S3 when the signed form has %s', async (_, data) => {
+    globalThis.fetch.mockResolvedValueOnce(json(201, { data }))
+
+    await expect(uploadAvatar(imageFile())).rejects.toThrow(
+      'Could not update your picture. Please try again.',
+    )
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['no data', undefined],
+    ['no image', {}],
+    ['an image that is not a URL', { image: 'avatars/u1/abc.png' }],
+    ['an image that is not https', { image: 'http://bucket/abc.png' }],
+  ])('reports a failure when the saved avatar has %s', async (_, data) => {
+    globalThis.fetch
+      .mockResolvedValueOnce(json(201, { data: signedForm }))
+      .mockResolvedValueOnce(s3(204))
+      .mockResolvedValueOnce(json(200, { data }))
+
+    await expect(uploadAvatar(imageFile())).rejects.toThrow(
+      'Could not update your picture. Please try again.',
+    )
+  })
+
   it('explains an image S3 finds too large', async () => {
     globalThis.fetch
       .mockResolvedValueOnce(json(201, { data: signedForm }))

@@ -26,6 +26,25 @@ async function apiData(path, options) {
   return body?.data
 }
 
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function isSignedForm(upload) {
+  return (
+    isHttpsUrl(upload?.url) &&
+    typeof upload.fields === 'object' &&
+    upload.fields !== null &&
+    !Array.isArray(upload.fields) &&
+    typeof upload.key === 'string' &&
+    upload.key !== ''
+  )
+}
+
 async function sendToS3({ url, fields }, file) {
   const form = new FormData()
   Object.entries(fields).forEach(([name, value]) => form.append(name, value))
@@ -69,12 +88,20 @@ export async function uploadAvatar(file) {
     body: JSON.stringify({ contentType: image.type }),
   })
 
+  if (!isSignedForm(upload)) {
+    throw new AvatarUploadError()
+  }
+
   await sendToS3(upload, image)
 
   const saved = await apiData('/api/users/me/avatar', {
     method: 'PUT',
     body: JSON.stringify({ key: upload.key }),
   })
+
+  if (!isHttpsUrl(saved?.image)) {
+    throw new AvatarUploadError()
+  }
 
   return saved.image
 }
