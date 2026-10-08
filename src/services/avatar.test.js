@@ -98,7 +98,7 @@ describe('uploadAvatar', () => {
       .mockResolvedValueOnce(json(201, { data: signedForm }))
       .mockResolvedValueOnce(s3(204))
       .mockResolvedValueOnce(json(200, { data: { image: IMAGE } }))
-    const file = imageFile({ type: 'image/jpeg', size: MAX_AVATAR_BYTES * 2 })
+    const file = imageFile({ type: 'image/jpeg', size: MAX_AVATAR_BYTES })
 
     await expect(uploadAvatar(file)).resolves.toBe(IMAGE)
 
@@ -128,10 +128,32 @@ describe('uploadAvatar', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 
-  it('rejects an image still over the size limit without uploading', async () => {
+  it('rejects an original over the size limit before decoding it', async () => {
+    globalThis.createImageBitmap = jest.fn()
+
     await expect(
       uploadAvatar(imageFile({ size: MAX_AVATAR_BYTES + 1 })),
     ).rejects.toThrow('Please choose an image under 5 MB.')
+    expect(globalThis.createImageBitmap).not.toHaveBeenCalled()
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a shrunk image still over the size limit without uploading', async () => {
+    const webp = new Blob(['y'], { type: 'image/webp' })
+    Object.defineProperty(webp, 'size', { value: MAX_AVATAR_BYTES + 1 })
+    globalThis.createImageBitmap = jest
+      .fn()
+      .mockResolvedValue({ width: 512, height: 512, close: jest.fn() })
+    jest
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockImplementation(() => ({ drawImage: jest.fn() }))
+    jest
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback) => callback(webp))
+
+    await expect(uploadAvatar(imageFile())).rejects.toThrow(
+      'Please choose an image under 5 MB.',
+    )
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 

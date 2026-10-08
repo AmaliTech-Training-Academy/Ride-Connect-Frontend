@@ -51,6 +51,9 @@ export async function uploadAvatar(file) {
   if (!file?.type?.startsWith('image/')) {
     throw new AvatarUploadError('Please choose an image file.')
   }
+  if (file.size > MAX_AVATAR_BYTES) {
+    throw new AvatarUploadError('Please choose an image under 5 MB.')
+  }
 
   const image = await shrinkImage(file)
 
