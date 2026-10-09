@@ -321,6 +321,43 @@
   color: #b45309;
   background: #fff1e0;
 }
+/* Faint red: the driver turned the request down. */
+.find-ride-status-declined {
+  color: #b42318;
+  background: #fdecea;
+}
+.find-ride-decline-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: #6b4a46;
+  background: #fdf4f3;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+.find-ride-decline-note i {
+  margin-top: 3px;
+  color: #c4453e;
+}
+.find-ride-decline-note strong {
+  color: #4a2f2c;
+}
+.find-ride-decline-text {
+  display: grid;
+  gap: 4px;
+}
+.find-ride-decline-quote {
+  font-style: italic;
+}
+.find-ride-button:disabled.find-ride-button-outline {
+  border-color: #d5dcd5;
+  color: #8a968c;
+  cursor: not-allowed;
+}
 .find-ride-price {
   color: #246b2b;
   font-size: 13px;

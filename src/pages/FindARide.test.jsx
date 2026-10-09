@@ -6,6 +6,7 @@ import FindARide from './FindARide'
 import {
   fetchMyRides,
   requestToJoinRide,
+  rerequestRide,
   withdrawRideRequest,
 } from '../services/rides'
 
@@ -18,6 +19,7 @@ jest.mock('../lib/api', () => ({
 jest.mock('../services/rides', () => ({
   fetchMyRides: jest.fn(),
   requestToJoinRide: jest.fn(),
+  rerequestRide: jest.fn(),
   withdrawRideRequest: jest.fn(),
 }))
 
@@ -65,6 +67,8 @@ describe('FindARide', () => {
     requestToJoinRide.mockResolvedValue({ id: 'req-1', status: 'PENDING' })
     withdrawRideRequest.mockReset()
     withdrawRideRequest.mockResolvedValue({ status: 'WITHDRAWN' })
+    rerequestRide.mockReset()
+    rerequestRide.mockResolvedValue({ status: 'PENDING' })
   })
 
   it('renders rides from a successful API response', async () => {
@@ -784,5 +788,268 @@ describe('FindARide', () => {
     expect(tagged).toHaveTextContent('Takoradi office')
     const untagged = screen.getByText('Kofi Boateng').closest('article')
     expect(untagged.querySelector('.find-ride-office-tag')).toBeNull()
+  })
+})
+
+describe('FindARide - asking again after a decline', () => {
+  // The viewer's own request for ride-1, as /rides/mine reports it.
+  const declinedRequest = (overrides = {}) => ({
+    data: {
+      joined: [
+        {
+          id: 'ride-1',
+          requestId: 'req-declined',
+          requestStatus: 'DECLINED',
+          rerequestCount: 0,
+          rejectionReason: 'The car is full of luggage that day.',
+          ...overrides,
+        },
+      ],
+    },
+  })
+
+  const rejoinDialog = () =>
+    screen.findByRole('dialog', { name: 'Request to join again?' })
+
+  beforeEach(() => {
+    apiFetch.mockReset()
+    apiFetch.mockResolvedValue(response([ride()]))
+    fetchMyRides.mockReset()
+    fetchMyRides.mockResolvedValue(declinedRequest())
+    requestToJoinRide.mockReset()
+    rerequestRide.mockReset()
+    rerequestRide.mockResolvedValue({ status: 'PENDING' })
+  })
+
+  it("shows the decline and the driver's reason instead of Request to Join", async () => {
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(await screen.findByText('Declined')).toHaveClass(
+      'find-ride-status-declined',
+    )
+    expect(
+      screen.getByText('The car is full of luggage that day.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request again' })).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: 'Request to Join' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('re-requests once, with a reason, through the re-request endpoint', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request again' }),
+    )
+    const dialog = await rejoinDialog()
+    const send = within(dialog).getByRole('button', { name: 'Send request' })
+    // A reason is required before it can be sent.
+    expect(send).toBeDisabled()
+
+    await user.type(
+      within(dialog).getByLabelText('Reason for rejoining'),
+      'I can leave my bags at home.',
+    )
+    await user.click(send)
+
+    expect(rerequestRide).toHaveBeenCalledWith(
+      'ride-1',
+      'req-declined',
+      'I can leave my bags at home.',
+    )
+    // Never a fresh join: the old request is reopened instead.
+    expect(requestToJoinRide).not.toHaveBeenCalled()
+    expect(
+      await screen.findByText(/Request sent to Ama Owusu again/),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
+  })
+
+  it('withdraws a re-request using the same request', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request again' }),
+    )
+    await user.type(
+      within(await rejoinDialog()).getByLabelText('Reason for rejoining'),
+      'Please?',
+    )
+    await user.click(screen.getByRole('button', { name: 'Send request' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Withdraw request' }),
+    )
+    await confirmWithdraw(user)
+
+    expect(withdrawRideRequest).toHaveBeenCalledWith('ride-1', 'req-declined')
+  })
+
+  it('leaves everything as it was when the dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+    const again = await screen.findByRole('button', { name: 'Request again' })
+
+    await user.click(again)
+    await user.click(
+      within(await rejoinDialog()).getByRole('button', { name: 'Cancel' }),
+    )
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(rerequestRide).not.toHaveBeenCalled()
+    expect(screen.getByText('Declined')).toBeInTheDocument()
+    expect(again).toHaveFocus()
+  })
+
+  it('allows only one re-request: after that the ride stays declined', async () => {
+    fetchMyRides.mockResolvedValue(declinedRequest({ rerequestCount: 1 }))
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Request declined' }),
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Request again' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("keeps quoting the driver's first message, exactly, after a final decline", async () => {
+    fetchMyRides.mockResolvedValue(
+      declinedRequest({ rerequestCount: 1, rejectionReason: '  testing  ' }),
+    )
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    const quote = await screen.findByText('testing')
+    expect(quote.tagName).toBe('Q')
+    // Only the driver's words: nothing of the app's wording is added.
+    expect(quote.closest('.find-ride-decline-note')).toHaveTextContent(
+      /^Ama Owusu said: testing$/,
+    )
+  })
+
+  it('says so when the driver gave no reason', async () => {
+    fetchMyRides.mockResolvedValue(declinedRequest({ rejectionReason: null }))
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByText(
+        'The driver declined your request without a reason.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('closes the dialog and locks the card when the backend refuses with 409', async () => {
+    const error = new Error('You have already re-requested this ride.')
+    error.status = 409
+    rerequestRide.mockRejectedValueOnce(error)
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request again' }),
+    )
+    await user.type(
+      within(await rejoinDialog()).getByLabelText('Reason for rejoining'),
+      'One more try',
+    )
+    await user.click(screen.getByRole('button', { name: 'Send request' }))
+
+    expect(
+      await screen.findByText('You have already re-requested this ride.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Request declined' }),
+    ).toBeDisabled()
+  })
+
+  it('keeps the dialog open to retry after another failure', async () => {
+    rerequestRide.mockRejectedValueOnce(new Error('Network down'))
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request again' }),
+    )
+    const dialog = await rejoinDialog()
+    await user.type(
+      within(dialog).getByLabelText('Reason for rejoining'),
+      'Please',
+    )
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Send request' }),
+    )
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Network down',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+    expect(rerequestRide).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers the re-request when a plain join reveals an earlier decline', async () => {
+    // Status failed to load, so the card started as "Request to Join".
+    fetchMyRides
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(declinedRequest())
+    const error = new Error('You have already requested this ride.')
+    error.status = 409
+    requestToJoinRide.mockRejectedValueOnce(error)
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    )
+
+    // Not the misleading "already requested" toast: the reason dialog.
+    expect(await rejoinDialog()).toBeInTheDocument()
+    expect(
+      screen.queryByText('You have already requested this ride.'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Declined')).toBeInTheDocument()
+  })
+
+  it('explains, rather than offers, when that earlier decline was already re-requested', async () => {
+    fetchMyRides
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(declinedRequest({ rerequestCount: 1 }))
+    const error = new Error('You have already requested this ride.')
+    error.status = 409
+    requestToJoinRide.mockRejectedValueOnce(error)
+    const user = userEvent.setup()
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    )
+
+    expect(
+      await screen.findByText(
+        'Your request for this ride was declined, and you have already asked again once.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Request declined' }),
+    ).toBeDisabled()
+  })
+
+  it('treats a withdrawn request as no request at all', async () => {
+    fetchMyRides.mockResolvedValue(
+      declinedRequest({ requestStatus: 'WITHDRAWN' }),
+    )
+    render(<FindARide onOfferRide={jest.fn()} />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Request to Join' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Declined')).not.toBeInTheDocument()
   })
 })
