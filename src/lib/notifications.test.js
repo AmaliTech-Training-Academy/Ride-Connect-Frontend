@@ -27,6 +27,10 @@ describe('presentationFor', () => {
       icon: 'fa-user-minus',
       tone: 'danger',
     })
+    expect(presentationFor('PASSENGER_REMOVED')).toEqual({
+      icon: 'fa-user-xmark',
+      tone: 'danger',
+    })
     expect(presentationFor('RIDE_CANCELLED').icon).toBe('fa-ban')
     expect(presentationFor('RIDE_UPDATED').icon).toBe('fa-pen-to-square')
   })
@@ -72,6 +76,13 @@ describe('composeMessage', () => {
     expect(
       composeMessage({ type: 'PASSENGER_WITHDREW', actorName: 'Ama', ...ride }),
     ).toBe('Ama withdrew on your ride to AmaliTech Office.')
+
+    // Being removed after acceptance must not read like a plain decline.
+    expect(
+      composeMessage({ type: 'PASSENGER_REMOVED', actorName: 'Efua', ...ride }),
+    ).toBe(
+      'Efua removed you from the ride from East Legon to AmaliTech Office.',
+    )
 
     expect(composeMessage({ type: 'RIDE_CANCELLED', ...ride })).toBe(
       'Your ride from East Legon to AmaliTech Office was cancelled.',
@@ -218,6 +229,9 @@ describe('audienceFor', () => {
 
   it('sends passenger-side events to the joined tab', () => {
     expect(audienceFor('REQUEST_ACCEPTED')).toBe('joined')
+    // A removed passenger belongs on the joined tab; the driving tab would
+    // show them an empty list.
+    expect(audienceFor('PASSENGER_REMOVED')).toBe('joined')
     expect(audienceFor('REQUEST_DECLINED')).toBe('joined')
     expect(audienceFor('RIDE_CANCELLED')).toBe('joined')
     expect(audienceFor('RIDE_UPDATED')).toBe('joined')

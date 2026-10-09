@@ -140,8 +140,13 @@ export function normaliseJoinedRide(ride, { isPast = false } = {}) {
     requestId: ride.requestId,
     requestStatus: ride.requestStatus,
     requestedAt: ride.requestedAt,
-    // Only present once a driver has declined; the passenger is shown why.
-    rejectionReason: ride.rejectionReason ?? '',
+    /*
+     * Only present once a driver has declined; the passenger is shown why.
+     * A decline that ends the matter arrives as `finalRejectionReason`
+     * instead — the backend moves the reason there once the passenger has
+     * already used their re-request — so both are read into one field.
+     */
+    rejectionReason: ride.rejectionReason || ride.finalRejectionReason || '',
     // 0 means the passenger may ask once more; 1 means the decline is final.
     rerequestCount: Number(ride.rerequestCount ?? 0),
     isPast,
