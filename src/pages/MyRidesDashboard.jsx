@@ -14,6 +14,7 @@ import {
   normaliseMyRides,
 } from '../lib/myRides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
+import { RejoinRideModal } from '../components/RejoinRideDialog/RejoinRideDialog'
 import '../styles/pageHero.css'
 import './MyRidesDashboard.css'
 
@@ -739,134 +740,6 @@ function CancelRideModal({ ride, ...props }) {
   // `key` remounts the dialog if a different ride is targeted, so the
   // focus trap and error state reset with it.
   return <CancelRideDialog key={ride.id} {...props} />
-}
-
-/**
- * Shared focus-trap behaviour for the decline/rejoin confirmation dialogs:
- * focus the "safe" action on open, wrap Tab inside the dialog, and restore
- * focus to whatever opened it on close.
- */
-function useModalFocusTrap(dialogRef, safeRef, returnFocusTo, onDismiss) {
-  const onDismissRef = useRef(onDismiss)
-
-  useEffect(() => {
-    onDismissRef.current = onDismiss
-  }, [onDismiss])
-
-  useEffect(() => {
-    const previouslyFocused = returnFocusTo?.current ?? document.activeElement
-    safeRef.current?.focus()
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        onDismissRef.current?.()
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const focusable = dialogRef.current?.querySelectorAll(
-        'button:not([disabled]), textarea:not([disabled])',
-      )
-      if (!focusable?.length) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused?.focus?.()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-}
-
-function RejoinRideDialog({
-  ride,
-  reason,
-  onReasonChange,
-  error,
-  isPending,
-  returnFocusTo,
-  onCancel,
-  onConfirm,
-}) {
-  const dialogRef = useRef(null)
-  const cancelRef = useRef(null)
-  useModalFocusTrap(dialogRef, cancelRef, returnFocusTo, onCancel)
-
-  const trimmedReason = reason.trim()
-
-  return (
-    <div className="my-rides-modal-backdrop">
-      <div
-        ref={dialogRef}
-        className="my-rides-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rejoin-ride-title"
-      >
-        <div className="my-rides-modal-icon my-rides-modal-icon-neutral">
-          <i className="fa-solid fa-rotate-right" aria-hidden="true" />
-        </div>
-        <h2 id="rejoin-ride-title">Request to join again?</h2>
-        <p>
-          Your last request for {ride.origin}{' '}
-          <i className="fa-solid fa-arrow-right-long" aria-hidden="true" />{' '}
-          {ride.destination} was declined. Let {ride.driverName} know why
-          you&apos;d like to join again.
-        </p>
-        <label className="my-rides-modal-field" htmlFor="rejoin-reason">
-          Reason for rejoining
-        </label>
-        <textarea
-          id="rejoin-reason"
-          className="my-rides-modal-textarea"
-          rows={3}
-          value={reason}
-          onChange={(event) => onReasonChange(event.target.value)}
-          placeholder="e.g. I can be flexible on the pickup time."
-        />
-        {error && (
-          <p className="my-rides-modal-error" role="alert">
-            <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />{' '}
-            {error}
-          </p>
-        )}
-        <div className="my-rides-modal-actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="my-rides-ghost-button"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="my-rides-confirm-button"
-            disabled={isPending || !trimmedReason}
-            onClick={onConfirm}
-          >
-            {error ? 'Try again' : 'Send request'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function RejoinRideModal({ ride, ...props }) {
-  if (!ride) return null
-  return <RejoinRideDialog key={ride.id} ride={ride} {...props} />
 }
 
 function MyRidesDashboard({

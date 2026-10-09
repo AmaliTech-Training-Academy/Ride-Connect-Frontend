@@ -1,0 +1,51 @@
+/* The card, icon and buttons come from ConfirmDialog.css; these are the
+   reason box and its messages. Scoped under .confirm-dialog so they win over
+   its plain paragraph style. */
+.confirm-dialog .rejoin-dialog-note {
+  margin-top: 6px;
+  color: #8a6d1f;
+  font-size: 12px;
+}
+
+.rejoin-dialog-field {
+  display: block;
+  margin: 18px 0 6px;
+  color: #405144;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.rejoin-dialog-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  color: #2b382d;
+  background: #fbfdfb;
+  font:
+    13px 'Poppins',
+    sans-serif;
+  text-align: left;
+  resize: vertical;
+}
+
+.rejoin-dialog-textarea:focus {
+  outline: 2px solid #b8d8ba;
+  outline-offset: 1px;
+}
+
+.confirm-dialog .rejoin-dialog-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #eab8b4;
+  border-radius: 8px;
+  color: #a33b35;
+  background: #fdf4f3;
+  font-size: 12px;
+  text-align: left;
+}

@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import {
   fetchMyRides,
   requestToJoinRide,
+  rerequestRide,
   withdrawRideRequest,
 } from '../services/rides'
 import UserAvatar from '../components/UserAvatar/UserAvatar'
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog'
+import { RejoinRideModal } from '../components/RejoinRideDialog/RejoinRideDialog'
 import PassengerStack from '../components/PassengerStack/PassengerStack'
 import { normalisePassengers } from '../lib/passengers'
 import { OFFICES, officeName } from '../lib/offices'
@@ -66,25 +68,43 @@ function normaliseRide(ride, currentUserId) {
   }
 }
 
-const INACTIVE_REQUEST_STATUSES = ['DECLINED', 'WITHDRAWN']
+const ACTIVE_REQUEST_STATUSES = ['PENDING', 'ACCEPTED']
 
 /**
- * `GET /api/rides` carries no per-user request status, so the viewer's open
- * requests come from their own joined buckets: rideId -> requestId.
+ * `GET /api/rides` carries no per-user request status, so the viewer's own
+ * requests come from their joined buckets:
+ * - `active`: rideId -> requestId, for requests still standing;
+ * - `declined`: rideId -> { requestId, canRejoin, rejectionReason }.
+ *   A declined passenger may ask once more (`rerequestCount` 0), the same
+ *   rule as on My Rides; after that the ride stays closed to them.
  */
-async function fetchActiveRequestIds() {
+async function fetchMyRequests() {
   const payload = await fetchMyRides()
   const entries = [
     ...(payload?.data?.joined ?? []),
     ...(payload?.data?.joinedPastAndCancelled ?? []),
   ]
   const active = {}
+  const declined = {}
   entries.forEach((ride) => {
-    const status = String(ride?.requestStatus || '').toUpperCase()
-    if (!ride?.id || INACTIVE_REQUEST_STATUSES.includes(status)) return
-    if (!active[ride.id]) active[ride.id] = ride.requestId ?? null
+    if (!ride?.id || active[ride.id] !== undefined || declined[ride.id]) return
+    const status = String(ride.requestStatus || '').toUpperCase()
+    if (ACTIVE_REQUEST_STATUSES.includes(status)) {
+      active[ride.id] = ride.requestId ?? null
+    } else if (status === 'DECLINED') {
+      declined[ride.id] = {
+        requestId: ride.requestId ?? null,
+        canRejoin: Number(ride.rerequestCount ?? 0) === 0,
+        rejectionReason: ride.rejectionReason ?? '',
+      }
+    }
   })
-  return active
+  return { active, declined }
+}
+
+/** rideId -> requestId for the viewer's standing requests. */
+async function fetchActiveRequestIds() {
+  return (await fetchMyRequests()).active
 }
 
 function getActiveDateLabel(date) {
@@ -110,8 +130,10 @@ function RideCard({
   onRequest,
   onWithdraw,
   onManage,
+  onRejoin,
   isHighlighted,
   requestState,
+  declined,
 }) {
   const isLowSeat = ride.seatsAvailable === 1
   const isSending = requestState === 'sending'
@@ -119,6 +141,10 @@ function RideCard({
   // Still requested while the withdrawal is in flight, so the card keeps its
   // "Withdrawing..." label instead of flashing back to "Request to Join".
   const isRequested = requestState === 'requested' || isWithdrawing
+  // Declined, and not asked again since. One more ask is allowed, the same
+  // rule as My Rides; once it's used the card stays declined.
+  const isDeclined = !ride.isOwnRide && !requestState && Boolean(declined)
+  const canRejoin = isDeclined && declined.canRejoin
   const cardClassName = [
     'find-ride-card',
     isLowSeat ? 'find-ride-card-low-seat' : '',
@@ -134,9 +160,15 @@ function RideCard({
         <div className="find-ride-card-tags">
           {/* Once requested, the ride is waiting on the driver's answer. */}
           <span
-            className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''} ${!ride.isOwnRide && isRequested ? 'find-ride-status-pending' : ''}`}
+            className={`find-ride-status ${ride.isOwnRide ? 'find-ride-status-own' : ''} ${!ride.isOwnRide && isRequested ? 'find-ride-status-pending' : ''} ${isDeclined ? 'find-ride-status-declined' : ''}`}
           >
-            {ride.isOwnRide ? 'Your ride' : isRequested ? 'Pending' : 'Open'}
+            {ride.isOwnRide
+              ? 'Your ride'
+              : isRequested
+                ? 'Pending'
+                : isDeclined
+                  ? 'Declined'
+                  : 'Open'}
           </span>
           {officeName(ride.office) && (
             <span className="find-ride-office-tag">
@@ -180,6 +212,26 @@ function RideCard({
         </span>
       </div>
 
+      {isDeclined && (
+        <p className="find-ride-decline-note">
+          <i className="fa-solid fa-circle-info" aria-hidden="true" />
+          <span className="find-ride-decline-text">
+            {/* The driver's own words, quoted exactly and kept apart from
+                anything the app adds, so the two can't run together. */}
+            {declined.rejectionReason ? (
+              <span>
+                <strong>{ride.driverName} said:</strong>{' '}
+                <q className="find-ride-decline-quote">
+                  {declined.rejectionReason.trim()}
+                </q>
+              </span>
+            ) : (
+              <span>The driver declined your request without a reason.</span>
+            )}
+          </span>
+        </p>
+      )}
+
       <div className="find-ride-card-divider" />
 
       <div className="find-ride-driver-row">
@@ -221,6 +273,15 @@ function RideCard({
             onClick={() => onManage(ride)}
           >
             Manage
+          </button>
+        ) : isDeclined ? (
+          <button
+            type="button"
+            className="find-ride-button find-ride-button-outline"
+            disabled={!canRejoin}
+            onClick={(event) => onRejoin(ride, event.currentTarget)}
+          >
+            {canRejoin ? 'Request again' : 'Request declined'}
           </button>
         ) : (
           <button
@@ -347,6 +408,14 @@ function FindARide({
   const [requestIds, setRequestIds] = useState({})
   // Cards wait for this so a requested ride never flashes "Request to Join".
   const [requestStatusReady, setRequestStatusReady] = useState(false)
+  // rideId -> { requestId, canRejoin, rejectionReason } for declined requests
+  const [declinedRequests, setDeclinedRequests] = useState({})
+  // The declined ride being asked for again, and the dialog's state.
+  const [rideToRejoin, setRideToRejoin] = useState(null)
+  const [rejoinReason, setRejoinReason] = useState('')
+  const [rejoinError, setRejoinError] = useState('')
+  const [isRejoining, setIsRejoining] = useState(false)
+  const rejoinTriggerRef = useRef(null)
 
   const today = getDateOffset(0)
   const tomorrow = getDateOffset(1)
@@ -405,9 +474,10 @@ function FindARide({
   useEffect(() => {
     let ignore = false
 
-    fetchActiveRequestIds()
-      .then((active) => {
+    fetchMyRequests()
+      .then(({ active, declined }) => {
         if (ignore) return
+        setDeclinedRequests(declined)
         setRequestStates((current) => {
           const next = { ...current }
           Object.keys(active).forEach((rideId) => {
@@ -491,9 +561,33 @@ function FindARide({
       })
     } catch (error) {
       if (error?.status === 409) {
-        // 409 means "already requested" or "ride closed"; the viewer's own
-        // requests tell the two apart and supply the id Withdraw needs.
-        const active = await fetchActiveRequestIds().catch(() => null)
+        // 409 means "already requested", "declined before" or "ride closed";
+        // the viewer's own requests tell them apart and supply the id
+        // Withdraw or a re-request needs.
+        const mine = await fetchMyRequests().catch(() => null)
+        const active = mine?.active ?? null
+        const declined = mine?.declined?.[ride.id]
+        if (declined) {
+          setRequestStates((current) => {
+            const next = { ...current }
+            delete next[ride.id]
+            return next
+          })
+          setDeclinedRequests((current) => ({
+            ...current,
+            [ride.id]: declined,
+          }))
+          if (declined.canRejoin) {
+            openRejoinDialog(ride, null)
+          } else {
+            setToast({
+              tone: 'error',
+              message:
+                'Your request for this ride was declined, and you have already asked again once.',
+            })
+          }
+          return
+        }
         if (active && !(ride.id in active)) {
           setRequestStates((current) => {
             const next = { ...current }
@@ -573,6 +667,65 @@ function FindARide({
     }
   }
 
+  const openRejoinDialog = (ride, trigger) => {
+    rejoinTriggerRef.current = trigger
+    setRejoinReason('')
+    setRejoinError('')
+    setRideToRejoin(ride)
+  }
+
+  const closeRejoinDialog = () => {
+    if (!isRejoining) setRideToRejoin(null)
+  }
+
+  // The one re-request after a decline, through the dedicated endpoint: a
+  // fresh join would be refused because the declined request still exists.
+  const confirmRejoin = async () => {
+    const ride = rideToRejoin
+    const declined = declinedRequests[ride?.id]
+    if (!ride || !declined?.requestId || isRejoining) return
+
+    setIsRejoining(true)
+    setRejoinError('')
+    try {
+      await rerequestRide(ride.id, declined.requestId, rejoinReason)
+      setDeclinedRequests((current) => {
+        const next = { ...current }
+        delete next[ride.id]
+        return next
+      })
+      setRequestStates((current) => ({ ...current, [ride.id]: 'requested' }))
+      setRequestIds((current) => ({
+        ...current,
+        [ride.id]: declined.requestId,
+      }))
+      setRideToRejoin(null)
+      setToast({
+        tone: 'success',
+        message: `Request sent to ${ride.driverName} again, with your reason.`,
+      })
+    } catch (error) {
+      if (error?.status === 409) {
+        // Already asked again, or the ride filled or closed: a retry can't
+        // succeed, so close and show the ride's real state.
+        setRideToRejoin(null)
+        setDeclinedRequests((current) => ({
+          ...current,
+          [ride.id]: { ...declined, canRejoin: false },
+        }))
+        setToast({
+          tone: 'error',
+          message:
+            error.message || 'This ride can no longer be requested again.',
+        })
+        return
+      }
+      setRejoinError(error?.message || 'Failed to send your request.')
+    } finally {
+      setIsRejoining(false)
+    }
+  }
+
   const renderResults = () => {
     if (
       loadState === 'loading' ||
@@ -648,6 +801,8 @@ function FindARide({
             onWithdraw={setRideToWithdraw}
             onManage={onManageRide}
             requestState={requestStates[ride.id]}
+            declined={declinedRequests[ride.id]}
+            onRejoin={openRejoinDialog}
             isHighlighted={ride.id === highlightedRideId}
           />
         ))}
@@ -809,6 +964,17 @@ function FindARide({
 
         {renderResults()}
       </section>
+
+      <RejoinRideModal
+        ride={rideToRejoin}
+        reason={rejoinReason}
+        onReasonChange={setRejoinReason}
+        error={rejoinError}
+        isPending={isRejoining}
+        returnFocusTo={rejoinTriggerRef}
+        onCancel={closeRejoinDialog}
+        onConfirm={confirmRejoin}
+      />
 
       {rideToWithdraw && (
         <ConfirmDialog
