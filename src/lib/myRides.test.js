@@ -192,7 +192,26 @@ describe('normaliseJoinedRide - decline reason', () => {
   it('falls back to empty when the backend sends no reason', () => {
     const ride = normaliseJoinedRide(base)
     expect(ride.rejectionReason).toBe('')
-    expect(ride.rerequestCount).toBe(0)
+  })
+
+  it('reads a final decline reason, which the backend sends under its own key', () => {
+    // Once a passenger has used their re-request, the backend writes the
+    // reason to finalRejectionReason rather than rejectionReason.
+    const [ride] = normaliseMyJoinedRides({
+      data: {
+        joined: [
+          {
+            id: 'ride-1',
+            requestStatus: 'DECLINED',
+            finalRejectionReason: 'Plans changed, sorry.',
+            rerequestCount: 1,
+          },
+        ],
+      },
+    })
+
+    expect(ride.rejectionReason).toBe('Plans changed, sorry.')
+    expect(ride.rerequestCount).toBe(1)
   })
 
   it('reads a re-request that has already been used', () => {
