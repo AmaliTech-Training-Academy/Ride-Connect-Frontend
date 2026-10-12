@@ -1,12 +1,41 @@
+import { createAuthClient } from 'better-auth/react'
+
+const apiBaseURL =
+  (typeof import.meta !== 'undefined' && import.meta.env
+    ? import.meta.env.VITE_API_BASE_URL
+    : '') || (typeof window !== 'undefined' ? window.location.origin : '')
+
+let authClient = null
+
+if (typeof Request !== 'undefined' && apiBaseURL) {
+  authClient = createAuthClient({
+    baseURL: `${apiBaseURL}/api/auth`,
+  })
+}
+
 /**
  * Thrown when the backend rejects a registration because the email is taken.
  * Kept as its own type so the screen can show the "log in instead" prompt
  * rather than a generic failure.
  */
 export class DuplicateEmailError extends Error {
-  constructor(message = 'An account with this email already exists.') {
+  constructor(
+    message = 'An account may already exist for this email. Try signing in or use another work email.',
+  ) {
     super(message)
     this.name = 'DuplicateEmailError'
+  }
+}
+
+/**
+ * Thrown when the backend refuses the email's domain. The backend's list is
+ * the source of truth, so its own message is kept to show on the email field
+ * in case the frontend's copy of the list ever drifts.
+ */
+export class EmailDomainNotAllowedError extends Error {
+  constructor(message = 'This email domain is not allowed to register.') {
+    super(message)
+    this.name = 'EmailDomainNotAllowedError'
   }
 }
 
@@ -18,48 +47,136 @@ export class InvalidCredentialsError extends Error {
 }
 
 /**
- * The backend endpoint does not exist yet, so this resolves against an
- * in-memory store to keep the screen demonstrable. Replace the body with the
- * real request once POST /auth/register is available; what the screen depends
- * on is the thrown error type, not the transport.
+ * Turns a sign-up failure into the error the screen reacts to.
  *
- * Passwords are held in plain text here only because nothing leaves the
- * browser. Hashing is the backend's responsibility and is covered by its own
- * acceptance criterion.
+ * better-auth reports a taken email as USER_ALREADY_EXISTS. The status it
+ * arrives with has varied — 422 today, 409 previously — so the code is the
+ * reliable signal and the statuses are a fallback. Anything else is left as a
+ * generic failure so the screen shows its usual message. A refused email
+ * domain becomes EmailDomainNotAllowedError.
+ *
+ * Exported so the mapping can be tested without standing up an auth client.
  */
-export const accounts = new Map([
-  ['kwame.mensah@amalitech.com', 'Sup3rSecret!'],
-])
+export function signUpError(error) {
+  /*
+   * The deployed backend sends USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL, so this
+   * matches on the prefix rather than the whole string; an exact comparison
+   * silently never fired and left the status checks doing all the work.
+   */
+  const code = String(error?.code ?? '').toUpperCase()
 
-const LATENCY_MS = 600
-
-export function normalise(email) {
-  return email.trim().toLowerCase()
-}
-
-export function pause() {
-  return new Promise((resolve) => setTimeout(resolve, LATENCY_MS))
-}
-
-export async function registerUser({ email, password }) {
-  await pause()
-
-  const key = normalise(email)
-  if (accounts.has(key)) {
-    throw new DuplicateEmailError()
+  // Checked first: the backend's domain list is the source of truth, and its
+  // own message is kept so the email field can show it as-is.
+  if (code === 'EMAIL_DOMAIN_NOT_ALLOWED') {
+    return new EmailDomainNotAllowedError(error.message || undefined)
   }
 
-  accounts.set(key, password)
-  return { email: key }
+  const isDuplicate =
+    code.startsWith('USER_ALREADY_EXISTS') ||
+    error?.status === 422 ||
+    error?.status === 409
+
+  return isDuplicate
+    ? new DuplicateEmailError()
+    : new Error('Registration failed')
+}
+
+export async function registerUser({ name, email, password }) {
+  if (!authClient || !apiBaseURL) {
+    throw new Error('Authentication backend is not configured.')
+  }
+
+  const result = await authClient.signUp.email({ name, email, password })
+
+  if (result.error) {
+    throw signUpError(result.error)
+  }
+
+  return result.data?.user ?? result.data
 }
 
 export async function loginUser({ email, password }) {
-  await pause()
+  if (!authClient || !apiBaseURL) {
+    throw new Error('Authentication backend is not configured.')
+  }
 
-  const key = normalise(email)
-  if (accounts.get(key) !== password) {
+  const result = await authClient.signIn.email({ email, password })
+
+  if (result.error?.status === 401 || result.error?.status === 404) {
     throw new InvalidCredentialsError()
   }
 
-  return { email: key }
+  if (result.error) {
+    throw new Error('Login failed')
+  }
+
+  return result.data?.user ?? result.data
+}
+
+/**
+ * Resolves the currently signed-in user from the session cookie, or `null`
+ * if there is no valid session. Used to rehydrate auth state on page load
+ * (e.g. after a refresh) instead of throwing like registerUser/loginUser do,
+ * since "not logged in" is an expected steady state here.
+ */
+export async function getCurrentUser() {
+  if (!authClient) {
+    return null
+  }
+
+  const { data, error } = await authClient.getSession()
+
+  return error ? null : (data?.user ?? null)
+}
+
+/**
+ * Turns better-auth's change-password error codes into something a person
+ * can act on.
+ */
+export function changePasswordErrorMessage(error) {
+  if (error?.code === 'INVALID_PASSWORD') {
+    return 'Your current password is incorrect.'
+  }
+  if (error?.code === 'PASSWORD_TOO_SHORT') {
+    return 'Your new password must be at least 8 characters.'
+  }
+  return error?.message || 'Could not change your password. Please try again.'
+}
+
+/**
+ * Changes the signed-in user's password. Other sessions are signed out; this
+ * one stays signed in.
+ */
+export async function changePassword({ currentPassword, newPassword }) {
+  if (!authClient) {
+    throw new Error('Authentication backend is not configured.')
+  }
+
+  const { error } = await authClient.changePassword({
+    currentPassword,
+    newPassword,
+    revokeOtherSessions: true,
+  })
+
+  if (error) {
+    throw new Error(changePasswordErrorMessage(error))
+  }
+}
+
+/**
+ * Clears the session cookie server-side so the next getCurrentUser() call
+ * (or sign-in as a different account) doesn't pick the old session back up.
+ * Throws on failure so a caller doesn't clear local state and redirect while
+ * the server-side session is still live.
+ */
+export async function logoutUser() {
+  if (!authClient) {
+    return
+  }
+
+  const { error } = await authClient.signOut()
+
+  if (error) {
+    throw new Error(error.message || 'Logout failed')
+  }
 }

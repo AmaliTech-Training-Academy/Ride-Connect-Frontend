@@ -1,0 +1,135 @@
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  position: relative;
+  display: inline-flex;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.user-menu-trigger[aria-expanded='true'] .user-menu-avatar {
+  outline: 2px solid #246b2b;
+  outline-offset: 2px;
+}
+
+.user-menu-avatar {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1.5px solid #ccd8cd;
+  border-radius: 50%;
+  color: #246b2b;
+  background: #d8efd9;
+  font-size: 12px;
+  font-weight: 700;
+  box-sizing: border-box;
+  object-fit: cover;
+}
+
+.user-menu-avatar-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(20, 45, 24, 0.55);
+  font-size: 14px;
+}
+
+/* Present for the picker, but never seen or tabbed to. */
+.user-menu-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.user-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  /* Bounded so a long address truncates rather than stretching the popover. */
+  max-width: 280px;
+  padding: 6px;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 35, 20, 0.14);
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: #2d3a30;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.user-menu-item i {
+  width: 16px;
+  color: #4d7a52;
+  text-align: center;
+}
+
+.user-menu-item:hover:not(:disabled) {
+  background: #eef5ee;
+}
+
+.user-menu-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.user-menu-item-danger,
+.user-menu-item-danger i {
+  color: #b3261e;
+}
+
+.user-menu-item-danger:hover:not(:disabled) {
+  background: #fdecea;
+}
+
+.user-menu-identity {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid #ededed;
+  margin-bottom: 6px;
+}
+
+.user-menu-identity-name {
+  margin: 0;
+  color: #1f2a22;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.user-menu-identity-email {
+  margin: 2px 0 0;
+  color: #5d6b61;
+  font-size: 12px;
+}
+
+.user-menu-identity-name,
+.user-menu-identity-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,9 +1,10 @@
 module.exports = {
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['@testing-library/jest-dom'],
+  setupFilesAfterEnv: ['@testing-library/jest-dom', '<rootDir>/src/test/setup.js'],
   moduleNameMapper: {
-    '\\.(css|less|scss)$': 'identity-obj-proxy',
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
+  transformIgnorePatterns: ['/node_modules/(?!(some-esm-package)/)'],
   collectCoverage: true,
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
