@@ -3,6 +3,7 @@ import {
   acceptPassengerRequest,
   declinePassengerRequest,
   fetchMyRides,
+  removeAcceptedPassenger,
   fetchRideRequests,
   rerequestRide,
   updateRideStatus,
@@ -184,7 +185,7 @@ function JoinRequestRow({ request, isFull, isPending, onAccept, onDecline }) {
   )
 }
 
-function ConfirmedPassengerRow({ passenger }) {
+function ConfirmedPassengerRow({ passenger, isPending, onRemove }) {
   return (
     <div className="my-rides-person-row">
       <UserAvatar
@@ -196,6 +197,18 @@ function ConfirmedPassengerRow({ passenger }) {
         <strong>{passenger.name}</strong>
       </div>
       <StatusBadge status="accepted" />
+      {onRemove && (
+        <div className="my-rides-person-actions">
+          <button
+            type="button"
+            className="my-rides-decline"
+            disabled={isPending}
+            onClick={(event) => onRemove(event.currentTarget)}
+          >
+            Remove
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -254,11 +267,21 @@ function RideRow({
   onMenu,
   onAccept,
   onDecline,
+  onRemovePassenger,
   onStatusChange,
   onRequestCancel,
   onEdit,
   isBusy,
 }) {
+  /*
+   * The endpoint answers 409 once a ride is cancelled, completed or gone, so
+   * the control is not offered in those states rather than failing on click.
+   */
+  const canRemovePassenger =
+    Boolean(onRemovePassenger) &&
+    !ride.isPast &&
+    ride.status !== 'cancelled' &&
+    ride.status !== 'completed'
   const menuButtonRef = useRef(null)
   const status = getRideStatus(ride)
   return (
@@ -355,6 +378,13 @@ function RideRow({
                 <ConfirmedPassengerRow
                   key={passenger.id}
                   passenger={passenger}
+                  isPending={isBusy}
+                  onRemove={
+                    canRemovePassenger
+                      ? (trigger) =>
+                          onRemovePassenger(ride.id, passenger.id, trigger)
+                      : undefined
+                  }
                 />
               ))}
             </section>
@@ -462,6 +492,33 @@ function JoinedRideRow({ ride, onWithdraw, onRejoin, isBusy, isRejoinBusy }) {
 // Matches the backend rule: 1-500 characters after trimming.
 const DECLINE_REASON_MAX_LENGTH = 500
 
+/*
+ * Declining a request and removing an accepted passenger are the same two-step
+ * flow with a required reason, so they share a dialog and differ only in copy.
+ */
+const REQUEST_DIALOG_COPY = {
+  decline: {
+    confirmTitle: (name) => `Decline ${name}'s request?`,
+    confirmBody:
+      'They will be told their request was turned down, and the seat stays available for someone else.',
+    keepCta: 'Keep request',
+    proceedCta: 'Yes, decline',
+    reasonTitle: 'Why are you declining?',
+    submitCta: 'Decline request',
+    placeholder: 'The car is full, or the route has changed...',
+  },
+  remove: {
+    confirmTitle: (name) => `Remove ${name} from this ride?`,
+    confirmBody:
+      'They have already been accepted, so they will be told the seat is no longer theirs. The seat goes back to the pool.',
+    keepCta: 'Keep passenger',
+    proceedCta: 'Yes, remove',
+    reasonTitle: 'Why are you removing them?',
+    submitCta: 'Remove passenger',
+    placeholder: 'Plans changed, or the route no longer passes their stop...',
+  },
+}
+
 /**
  * Declining runs in two steps: confirm, then give a reason. The reason is
  * optional, so the driver can decline without explaining, but the step exists
@@ -474,10 +531,12 @@ function DeclineRequestDialog({
   request,
   error,
   isPending,
+  variant = 'decline',
   returnFocusTo,
   onClose,
   onConfirm,
 }) {
+  const copy = REQUEST_DIALOG_COPY[variant] ?? REQUEST_DIALOG_COPY.decline
   const [step, setStep] = useState('confirm')
   const [reason, setReason] = useState('')
   const dialogRef = useRef(null)
@@ -544,12 +603,9 @@ function DeclineRequestDialog({
         {step === 'confirm' ? (
           <>
             <h2 id="decline-request-title">
-              Decline {request.name}&apos;s request?
+              {copy.confirmTitle(request.name)}
             </h2>
-            <p>
-              They will be told their request was turned down, and the seat
-              stays available for someone else.
-            </p>
+            <p>{copy.confirmBody}</p>
             {error && (
               <p className="my-rides-modal-error" role="alert">
                 <i
@@ -566,23 +622,21 @@ function DeclineRequestDialog({
                 className="my-rides-ghost-button"
                 onClick={onClose}
               >
-                Keep request
+                {copy.keepCta}
               </button>
               <button
                 type="button"
                 className="my-rides-danger-button"
                 onClick={() => setStep('reason')}
               >
-                Yes, decline
+                {copy.proceedCta}
               </button>
             </div>
           </>
         ) : (
           <>
-            <h2 id="decline-request-title">Why are you declining?</h2>
-            <p>
-              This is optional, and {request.name} will see whatever you write.
-            </p>
+            <h2 id="decline-request-title">{copy.reasonTitle}</h2>
+            <p>{request.name} will see whatever you write.</p>
             <label className="my-rides-reason-label" htmlFor="decline-reason">
               Reason
             </label>
@@ -593,7 +647,7 @@ function DeclineRequestDialog({
               rows={3}
               maxLength={DECLINE_REASON_MAX_LENGTH}
               value={reason}
-              placeholder="The car is full, or the route has changed..."
+              placeholder={copy.placeholder}
               onChange={(event) => setReason(event.target.value)}
             />
             <p className="my-rides-reason-count">
@@ -623,7 +677,7 @@ function DeclineRequestDialog({
                 disabled={isPending || !reason.trim()}
                 onClick={() => onConfirm(reason)}
               >
-                {error ? 'Try again' : 'Decline request'}
+                {error ? 'Try again' : copy.submitCta}
               </button>
             </div>
           </>
@@ -897,6 +951,9 @@ function MyRidesDashboard({
   const [requestToDecline, setRequestToDecline] = useState(null)
   const [declineError, setDeclineError] = useState('')
   const declineTriggerRef = useRef(null)
+  const [passengerToRemove, setPassengerToRemove] = useState(null)
+  const [removeError, setRemoveError] = useState('')
+  const removeTriggerRef = useRef(null)
   const cancelTriggerRef = useRef(null)
   const [rideToRejoin, setRideToRejoin] = useState(null)
   const [rejoinReasonText, setRejoinReasonText] = useState('')
@@ -1111,7 +1168,9 @@ function MyRidesDashboard({
               ),
               confirmedPassengers: [
                 ...item.confirmedPassengers,
-                { ...request, id: `passenger-${request.id}` },
+                // Keeps the real request id: removing this passenger later
+                // addresses the same request.
+                request,
               ],
             }
           }),
@@ -1162,6 +1221,57 @@ function MyRidesDashboard({
         setDeclineError(
           error?.message || 'Failed to decline passenger request.',
         )
+      }
+    })
+  }
+
+  const openRemoveDialog = (rideId, passengerId, trigger) => {
+    const ride = rides.find((item) => item.id === rideId)
+    const passenger = ride?.confirmedPassengers.find(
+      (item) => item.id === passengerId,
+    )
+    if (!passenger) return
+
+    removeTriggerRef.current = trigger ?? null
+    setRemoveError('')
+    setPassengerToRemove({ ...passenger, rideId })
+  }
+
+  const confirmRemovePassenger = (reason) => {
+    if (!passengerToRemove) return undefined
+    const { rideId, id: requestId, name } = passengerToRemove
+
+    return runExclusive(`ride:${rideId}`, async () => {
+      setRemoveError('')
+      try {
+        await removeAcceptedPassenger(rideId, requestId, reason)
+        setRides((currentRides) =>
+          currentRides.map((item) => {
+            if (item.id !== rideId) return item
+            /*
+             * The response carries no seat count, so the freed seat is added
+             * locally; capping at the total keeps a double response from
+             * inventing capacity the car does not have.
+             */
+            const seatsAvailable = Math.min(
+              item.seatsAvailable + 1,
+              item.seatsTotal ?? item.seatsAvailable + 1,
+            )
+            return {
+              ...item,
+              seatsAvailable,
+              status: item.status === 'full' ? 'open' : item.status,
+              confirmedPassengers: item.confirmedPassengers.filter(
+                (passenger) => passenger.id !== requestId,
+              ),
+            }
+          }),
+        )
+        setPassengerToRemove(null)
+        showToast(`${name} has been removed from your ride.`)
+      } catch (error) {
+        // Left open so the typed reason survives a retry.
+        setRemoveError(error?.message || 'Failed to remove this passenger.')
       }
     })
   }
@@ -1455,6 +1565,7 @@ function MyRidesDashboard({
                   }
                   onAccept={acceptRequest}
                   onDecline={openDeclineDialog}
+                  onRemovePassenger={openRemoveDialog}
                   isBusy={isRideBusy(ride.id)}
                   onEdit={() => {
                     setMenuRideId(null)
@@ -1569,6 +1680,22 @@ function MyRidesDashboard({
             setRequestToDecline(null)
           }}
           onConfirm={confirmDecline}
+        />
+        <DeclineRequestModal
+          request={passengerToRemove}
+          variant="remove"
+          error={removeError}
+          isPending={
+            passengerToRemove
+              ? pendingKeys.includes(`ride:${passengerToRemove.rideId}`)
+              : false
+          }
+          returnFocusTo={removeTriggerRef}
+          onClose={() => {
+            setRemoveError('')
+            setPassengerToRemove(null)
+          }}
+          onConfirm={confirmRemovePassenger}
         />
         <CancelRideModal
           ride={rideToCancel}

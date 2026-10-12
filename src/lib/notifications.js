@@ -16,6 +16,7 @@ const PRESENTATION = {
   REQUEST_ACCEPTED: { icon: 'fa-circle-check', tone: 'success' },
   REQUEST_DECLINED: { icon: 'fa-xmark', tone: 'danger' },
   PASSENGER_WITHDREW: { icon: 'fa-user-minus', tone: 'danger' },
+  PASSENGER_REMOVED: { icon: 'fa-user-xmark', tone: 'danger' },
   RIDE_CANCELLED: { icon: 'fa-ban', tone: 'danger' },
   RIDE_UPDATED: { icon: 'fa-pen-to-square', tone: 'info' },
 }
@@ -32,6 +33,7 @@ const FALLBACK_PRESENTATION = { icon: 'fa-bell', tone: 'info' }
 const PASSENGER_EVENTS = new Set([
   'REQUEST_ACCEPTED',
   'REQUEST_DECLINED',
+  'PASSENGER_REMOVED',
   'RIDE_CANCELLED',
   'RIDE_UPDATED',
 ])
@@ -74,6 +76,10 @@ export function composeMessage({
       return `${who} accepted your request${forRoute}.`
     case 'REQUEST_DECLINED':
       return `${who} declined your request${forRoute}.`
+    case 'PASSENGER_REMOVED':
+      // Distinct from a decline: this person had a seat and lost it, so the
+      // wording says so rather than talking about a request.
+      return `${who} removed you from the ride${hasRoute ? ` from ${route}` : ''}.`
     case 'PASSENGER_WITHDREW':
       return `${who} withdrew${onRoute}.`
     case 'RIDE_CANCELLED':

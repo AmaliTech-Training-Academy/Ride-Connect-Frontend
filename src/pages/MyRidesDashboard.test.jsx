@@ -7,6 +7,7 @@ import {
   declinePassengerRequest,
   fetchMyRides,
   fetchRideRequests,
+  removeAcceptedPassenger,
   rerequestRide,
   updateRideStatus,
   withdrawRideRequest,
@@ -19,6 +20,7 @@ jest.mock('../services/rides', () => ({
   updateRideStatus: jest.fn(),
   acceptPassengerRequest: jest.fn(),
   declinePassengerRequest: jest.fn(),
+  removeAcceptedPassenger: jest.fn(),
   rerequestRide: jest.fn(),
   withdrawRideRequest: jest.fn(),
   RideStatusError: class RideStatusError extends Error {
@@ -67,6 +69,10 @@ describe('MyRidesDashboard - Ride Status Management', () => {
     fetchRideRequests.mockResolvedValue([])
     acceptPassengerRequest.mockResolvedValue({ success: true })
     declinePassengerRequest.mockResolvedValue({ success: true })
+    removeAcceptedPassenger.mockResolvedValue({
+      id: 'passenger-1',
+      status: 'DECLINED',
+    })
     withdrawRideRequest.mockResolvedValue({ status: 'WITHDRAWN' })
   })
 
@@ -493,6 +499,42 @@ describe('MyRidesDashboard - Ride Status Management', () => {
       expect(
         await screen.findByText('Your request has been sent again.'),
       ).toBeInTheDocument()
+    })
+
+    it('lets a passenger removed after acceptance ask to join again', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      // What the driver's removal leaves behind: the request goes back to
+      // DECLINED with the driver's reason, the seat is free, and the
+      // re-request allowance is untouched.
+      payload.data.joined = [
+        joinedRide({
+          requestStatus: 'DECLINED',
+          rejectionReason: 'Plans changed, sorry.',
+          rerequestCount: 0,
+          status: 'OPEN',
+          availableSeats: 3,
+        }),
+      ]
+      fetchMyRides.mockResolvedValue(payload)
+      rerequestRide.mockResolvedValue({ id: 'request-21', status: 'PENDING' })
+      await renderDashboard()
+
+      await user.click(screen.getByRole('tab', { name: /Rides I.ve joined/ }))
+
+      expect(screen.getByText(/Plans changed, sorry\./)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Request again' }))
+      await user.type(
+        await screen.findByLabelText('Reason for rejoining'),
+        'I can make the earlier pickup.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Send request' }))
+
+      expect(rerequestRide).toHaveBeenCalledWith(
+        'ride-10',
+        'request-10',
+        'I can make the earlier pickup.',
+      )
     })
 
     it('does not offer another request once the decline is final', async () => {
@@ -1747,6 +1789,129 @@ describe('MyRidesDashboard - Ride Status Management', () => {
 
       expect(
         screen.queryByRole('button', { name: 'Cancel ride' }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('removing an accepted passenger', () => {
+    async function removeThroughDialog(
+      user,
+      { index = 0, reason = 'Plans changed, sorry.' } = {},
+    ) {
+      await user.click(screen.getAllByRole('button', { name: 'Remove' })[index])
+      await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+      await user.type(screen.getByLabelText(/Reason/), reason)
+      await user.click(screen.getByRole('button', { name: /Remove passenger/ }))
+    }
+
+    it('sends the confirmed passenger id and the trimmed reason', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await removeThroughDialog(user)
+
+      // `passenger-1` is confirmedPassengers[].id, not passengerId.
+      expect(removeAcceptedPassenger).toHaveBeenCalledWith(
+        'driving-1',
+        'passenger-1',
+        'Plans changed, sorry.',
+      )
+    })
+
+    it('needs a reason before it will submit', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      await user.click(screen.getAllByRole('button', { name: 'Remove' })[0])
+      await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+
+      expect(
+        screen.getByRole('button', { name: /Remove passenger/ }),
+      ).toBeDisabled()
+    })
+
+    it('drops the passenger and frees their seat', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      expect(screen.getByText('Abena Owusu')).toBeInTheDocument()
+
+      await removeThroughDialog(user)
+
+      expect(
+        await screen.findByText('Abena Owusu has been removed from your ride.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Abena Owusu')).not.toBeInTheDocument()
+      // driving-1 starts with 2 of 4 seats free.
+      expect(await screen.findByText(/3 of 4 seats/)).toBeInTheDocument()
+    })
+
+    it('reopens a ride that was full', async () => {
+      const user = userEvent.setup()
+      const payload = buildMyRidesResponse()
+      const ride = payload.data.driving[0]
+      ride.availableSeats = 0
+      ride.status = 'FULL'
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      await removeThroughDialog(user)
+
+      await screen.findByText('Abena Owusu has been removed from your ride.')
+      expect(screen.queryByText('Full')).not.toBeInTheDocument()
+    })
+
+    it('keeps the dialog open and explains a refusal', async () => {
+      const user = userEvent.setup()
+      removeAcceptedPassenger.mockRejectedValue(
+        Object.assign(new Error('This ride has already left.'), {
+          status: 409,
+        }),
+      )
+      await renderDashboard()
+
+      await removeThroughDialog(user)
+
+      expect(
+        await screen.findByText('This ride has already left.'),
+      ).toBeInTheDocument()
+      // The typed reason survives, so the driver can retry without retyping.
+      expect(screen.getByLabelText(/Reason/)).toHaveValue(
+        'Plans changed, sorry.',
+      )
+      expect(screen.getByText('Abena Owusu')).toBeInTheDocument()
+    })
+
+    it('removes someone accepted in this session by their real request id', async () => {
+      const user = userEvent.setup()
+      await renderDashboard()
+
+      // Accept adds the person to the confirmed list optimistically; the id it
+      // stores has to be the request id the remove endpoint expects.
+      await user.click(screen.getAllByRole('button', { name: 'Accept' })[0])
+      await screen.findByText('Nana Yeboah has been added to your ride.')
+
+      const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
+      await user.click(removeButtons[removeButtons.length - 1])
+      await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+      await user.type(screen.getByLabelText(/Reason/), 'Double booked.')
+      await user.click(screen.getByRole('button', { name: /Remove passenger/ }))
+
+      expect(removeAcceptedPassenger).toHaveBeenCalledWith(
+        'driving-1',
+        'request-1',
+        'Double booked.',
+      )
+    })
+
+    it('does not offer removal on a cancelled ride', async () => {
+      const payload = buildMyRidesResponse()
+      payload.data.driving[0].status = 'CANCELLED'
+      fetchMyRides.mockResolvedValue(payload)
+      await renderDashboard()
+
+      expect(
+        screen.queryByRole('button', { name: 'Remove' }),
       ).not.toBeInTheDocument()
     })
   })

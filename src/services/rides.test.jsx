@@ -13,6 +13,7 @@ import {
   updateRideStatus,
   acceptPassengerRequest,
   declinePassengerRequest,
+  removeAcceptedPassenger,
   withdrawRideRequest,
   rerequestRide,
   fetchRideRequests,
@@ -674,6 +675,104 @@ describe('rides service', () => {
       await expect(
         declinePassengerRequest('ride-123', 'request-1'),
       ).rejects.toThrow('Request not found')
+    })
+  })
+
+  describe('removeAcceptedPassenger', () => {
+    it('patches the remove endpoint with the trimmed reason', async () => {
+      const mockData = {
+        id: 'request-1',
+        rideId: 'ride-123',
+        passengerId: 'user-9',
+        status: 'DECLINED',
+      }
+
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: mockData }),
+      })
+
+      const result = await removeAcceptedPassenger(
+        'ride-123',
+        'request-1',
+        '  Plans changed  ',
+      )
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/rides/ride-123/requests/request-1/remove',
+        ),
+        expect.objectContaining({
+          method: 'PATCH',
+          credentials: 'include',
+          body: JSON.stringify({ reason: 'Plans changed' }),
+        }),
+      )
+      expect(result).toEqual(mockData)
+    })
+
+    it('escapes ids so they cannot alter the path', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: {} }),
+      })
+
+      await removeAcceptedPassenger('ride/1', 'req 2', 'why')
+
+      expect(globalThis.fetch.mock.calls[0][0]).toContain(
+        '/api/rides/ride%2F1/requests/req%202/remove',
+      )
+    })
+
+    it('surfaces the field error from a 400 rather than the generic message', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          success: false,
+          message: 'Validation failed',
+          data: { fields: { reason: ['A reason is required.'] } },
+        }),
+      })
+
+      await expect(
+        removeAcceptedPassenger('ride-123', 'request-1', ''),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'A reason is required.',
+      })
+    })
+
+    it('passes a 409 through, since it explains why removal is refused', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          success: false,
+          message: 'This ride has already left.',
+        }),
+      })
+
+      await expect(
+        removeAcceptedPassenger('ride-123', 'request-1', 'why'),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'This ride has already left.',
+      })
+    })
+
+    it('falls back to a readable message when the body carries none', async () => {
+      globalThis.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        json: async () => null,
+      })
+
+      await expect(
+        removeAcceptedPassenger('ride-123', 'request-1', 'why'),
+      ).rejects.toThrow('Failed to remove this passenger (403)')
     })
   })
 })

@@ -218,6 +218,44 @@ export async function acceptPassengerRequest(rideId, requestId) {
 }
 
 /**
+ * Removes a passenger the driver has already accepted. The backend frees the
+ * seat, reopens a ride that was full because of it, and tells the passenger
+ * why; the request itself goes back to DECLINED.
+ *
+ * @param {string} rideId - UUID of the ride
+ * @param {string} requestId - `confirmedPassengers[].id`, never `passengerId`
+ * @param {string} reason - Required, 1-500 characters after trimming
+ * @returns {Promise<any>}
+ */
+export async function removeAcceptedPassenger(rideId, requestId, reason = '') {
+  const trimmedReason = String(reason ?? '').trim()
+
+  const response = await apiFetch(
+    `/api/rides/${encodeURIComponent(rideId)}/requests/${encodeURIComponent(requestId)}/remove`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ reason: trimmedReason }),
+    },
+  )
+
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    // A 400 names the offending field, which reads better beside the input;
+    // a 409 (already removed, ride cancelled or departed) carries its own
+    // message worth showing verbatim.
+    const fieldMessage = body?.data?.fields?.reason?.[0]
+    const message =
+      fieldMessage ||
+      body?.message ||
+      `Failed to remove this passenger (${response.status})`
+    throw new RideStatusError(message, response.status)
+  }
+
+  return body?.data ?? body
+}
+
+/**
  * Declines a passenger's join request for a ride.
  *
  * @param {string} rideId - UUID of the ride
