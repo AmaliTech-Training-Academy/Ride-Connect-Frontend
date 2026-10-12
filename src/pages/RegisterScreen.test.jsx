@@ -1,0 +1,642 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, jest } from '@jest/globals'
+import RegisterScreen from './RegisterScreen'
+import {
+  DuplicateEmailError,
+  EmailDomainNotAllowedError,
+} from '../services/auth'
+
+const VALID = {
+  name: 'Kwame Mensah',
+  email: 'kwame.mensah@amalitech.com',
+  password: 'Sup3rSecret!',
+}
+
+function setup(props = {}) {
+  const register =
+    props.register ?? jest.fn().mockResolvedValue({ email: VALID.email })
+  const utils = render(
+    <RegisterScreen register={register} redirectDelay={0} {...props} />,
+  )
+  // delay: null types without waiting a tick between keystrokes, which keeps
+  // these form-heavy tests fast under full-suite load.
+  return { ...utils, register, user: userEvent.setup({ delay: null }) }
+}
+
+async function fillField(user, label, value) {
+  const field = screen.getByLabelText(label)
+  await user.clear(field)
+  // user.type rejects an empty string, and clearing already leaves it empty.
+  if (value) {
+    await user.type(field, value)
+  }
+}
+
+async function fillForm(user, overrides = {}) {
+  const values = { ...VALID, confirmPassword: VALID.password, ...overrides }
+
+  await fillField(user, /full name/i, values.name)
+  await fillField(user, /work email/i, values.email)
+  await fillField(user, 'Password', values.password)
+  await fillField(user, /confirm password/i, values.confirmPassword)
+}
+
+function submit(user) {
+  return user.click(screen.getByRole('button', { name: /create account/i }))
+}
+
+describe('RegisterScreen', () => {
+  describe('AC1 - a new user can register with name, work email and a password of at least 8 characters', () => {
+    it('renders the three required fields plus confirmation', () => {
+      setup()
+
+      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/work email/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+      expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
+    })
+
+    it('submits the trimmed name, email and password when the form is valid', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { name: '  Kwame Mensah  ' })
+      await submit(user)
+
+      await waitFor(() => expect(register).toHaveBeenCalledTimes(1))
+      expect(register).toHaveBeenCalledWith({
+        name: 'Kwame Mensah',
+        email: VALID.email,
+        password: VALID.password,
+      })
+    })
+
+    it('does not call the API when a field is invalid', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { name: '' })
+      await submit(user)
+
+      expect(
+        await screen.findByText('Please enter your full name'),
+      ).toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('rejects a password shorter than 8 characters', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { password: 'Sh0rt!', confirmPassword: 'Sh0rt!' })
+      await submit(user)
+
+      expect(
+        await screen.findByText('Password must be at least 8 characters'),
+      ).toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('registers with an @amalitechtraining.org email', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { email: 'ama.owusu@amalitechtraining.org' })
+      await submit(user)
+
+      await waitFor(() =>
+        expect(register).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'ama.owusu@amalitechtraining.org' }),
+        ),
+      )
+    })
+
+    it('names both allowed domains on the email field and in the footer', () => {
+      setup()
+
+      expect(screen.getByLabelText(/work email/i)).toHaveAccessibleDescription(
+        'Must be your @amalitech.com or @amalitechtraining.org email',
+      )
+      expect(
+        screen.getByText('@amalitech.com or @amalitechtraining.org', {
+          selector: '.auth-footnote strong',
+        }),
+      ).toBeInTheDocument()
+    })
+
+    it("shows the backend's domain refusal on the email field until it changes", async () => {
+      const register = jest
+        .fn()
+        .mockRejectedValue(
+          new EmailDomainNotAllowedError(
+            'Registration is restricted to @amalitech.com email addresses.',
+          ),
+        )
+      const { user } = setup({ register })
+
+      // Passes the frontend check, but the backend's list is the real one.
+      await fillForm(user, { email: 'ama@amalitechtraining.org' })
+      await submit(user)
+
+      const message =
+        'Registration is restricted to @amalitech.com email addresses.'
+      expect(await screen.findByText(message)).toBeInTheDocument()
+      expect(screen.getByLabelText(/work email/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+      expect(
+        screen.queryByText('Something went wrong. Please try again.'),
+      ).not.toBeInTheDocument()
+
+      await fillField(user, /work email/i, 'ama@amalitech.com')
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
+    })
+
+    it('warns about an unknown domain but still lets the backend decide', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { email: 'kwame.mensah@gmail.com' })
+      expect(
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
+      ).toBeInTheDocument()
+      await submit(user)
+
+      // A stale frontend list must never block an address the backend allows.
+      await waitFor(() =>
+        expect(register).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'kwame.mensah@gmail.com' }),
+        ),
+      )
+    })
+
+    it('blocks an address that is not an email at all', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { email: 'kwame.mensah' })
+      await submit(user)
+
+      expect(
+        screen.getByText('Please enter a valid email address'),
+      ).toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('rejects a confirmation that does not match', async () => {
+      const { register, user } = setup()
+
+      await fillForm(user, { confirmPassword: 'Different1!' })
+      await submit(user)
+
+      expect(
+        await screen.findByText("Passwords don't match"),
+      ).toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('flags a mismatched confirmation while typing, before submitting', async () => {
+      const { register, user } = setup()
+
+      await fillField(user, 'Password', VALID.password)
+      await fillField(user, /confirm password/i, 'Sup3r')
+
+      expect(screen.getByText("Passwords don't match")).toBeInTheDocument()
+      expect(screen.getByLabelText(/confirm password/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+
+      await user.type(screen.getByLabelText(/confirm password/i), 'Secret!')
+      expect(
+        screen.queryByText("Passwords don't match"),
+      ).not.toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('shows each field error while typing, before submitting', async () => {
+      const { register, user } = setup()
+
+      await fillField(user, /work email/i, 'kwame@gmail.com')
+      await fillField(user, 'Password', 'short')
+
+      expect(
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Password must be at least 8 characters'),
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText(/work email/i)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+      // Fields the user has not reached yet stay quiet.
+      expect(
+        screen.queryByText('Please enter your full name'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('Please confirm your password'),
+      ).not.toBeInTheDocument()
+      expect(register).not.toHaveBeenCalled()
+    })
+
+    it('clears a field error as soon as it is fixed', async () => {
+      const { user } = setup()
+
+      await fillField(user, /work email/i, 'kwame@gmail.com')
+      expect(
+        screen.getByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
+      ).toBeInTheDocument()
+
+      await fillField(user, /work email/i, VALID.email)
+      expect(
+        screen.queryByText(
+          'Please use your @amalitech.com or @amalitechtraining.org work email',
+        ),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Must be your @amalitech.com or @amalitechtraining.org email',
+        ),
+      ).toBeVisible()
+    })
+
+    it('asks for a name again when it is typed and then cleared', async () => {
+      const { user } = setup()
+
+      await user.type(screen.getByLabelText(/full name/i), 'K')
+      await user.clear(screen.getByLabelText(/full name/i))
+
+      expect(
+        screen.getByText('Please enter your full name'),
+      ).toBeInTheDocument()
+    })
+
+    it('rechecks the confirmation when the first password is edited', async () => {
+      const { user } = setup()
+
+      await fillField(user, 'Password', VALID.password)
+      await fillField(user, /confirm password/i, VALID.password)
+      expect(
+        screen.queryByText("Passwords don't match"),
+      ).not.toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Password'), '2')
+      expect(screen.getByText("Passwords don't match")).toBeInTheDocument()
+    })
+
+    it('shows every validation error at once', async () => {
+      const { user } = setup()
+
+      await submit(user)
+
+      expect(
+        await screen.findByText('Please enter your full name'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('Please enter your work email'),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Please enter a password')).toBeInTheDocument()
+      expect(
+        screen.getByText('Please confirm your password'),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('AC2 - registering with an already-used email returns a clear error', () => {
+    it('shows the duplicate account message when the API reports a conflict', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('states the problem without offering an action button', async () => {
+      // The tab above the form is the way to log in; the message only tells
+      // you what happened, even when a login handler is available.
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register, onLoginClick: jest.fn() })
+
+      await fillForm(user)
+      await submit(user)
+
+      const message = await screen.findByText(/account may already exist/i)
+      expect(message.querySelector('button')).toBeNull()
+    })
+
+    it('puts the message on the email field, not in a page-level banner', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      const email = screen.getByLabelText(/work email/i)
+      await waitFor(() => expect(email).toHaveAttribute('aria-invalid', 'true'))
+      // The field points at the message, so a screen reader reads them together.
+      expect(email).toHaveAttribute('aria-describedby', 'email-taken')
+      expect(document.getElementById('email-taken')).toHaveTextContent(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+    })
+
+    it('does not fall back to the generic message for a duplicate', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+      expect(
+        screen.queryByText('Something went wrong. Please try again.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('retires the message as soon as the email is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+
+      const email = screen.getByLabelText(/work email/i)
+      await user.clear(email)
+      await user.type(email, 'someone.else@amalitech.com')
+
+      // A different address should not keep wearing the old answer.
+      expect(
+        screen.queryByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).not.toBeInTheDocument()
+      expect(email).toHaveAttribute('aria-invalid', 'false')
+    })
+
+    it('does not clear it when another field is edited', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      await screen.findByText(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+
+      await user.type(screen.getByLabelText(/full name/i), 'x')
+
+      // The email is unchanged, so the answer still stands.
+      expect(
+        screen.getByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('announces the duplicate error to assistive technology', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(
+        'An account may already exist for this email. Try signing in or use another work email.',
+      )
+    })
+
+    it('clears the duplicate error when the form is resubmitted', async () => {
+      const register = jest
+        .fn()
+        .mockRejectedValueOnce(new DuplicateEmailError())
+        .mockResolvedValueOnce({ email: 'new@amalitech.com' })
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+      expect(
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).toBeInTheDocument()
+
+      // Only the email needs changing; retyping the whole form is slow enough
+      // to hit the 5s timeout when the full suite runs in parallel.
+      await fillField(user, /work email/i, 'new@amalitech.com')
+      await submit(user)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText(
+            'An account may already exist for this email. Try signing in or use another work email.',
+          ),
+        ).not.toBeInTheDocument(),
+      )
+    })
+
+    it('distinguishes an unexpected failure from a duplicate', async () => {
+      const register = jest.fn().mockRejectedValue(new Error('network down'))
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(
+        await screen.findByText('Something went wrong. Please try again.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('AC3 - a registered user is taken on to the ride listing', () => {
+    it('confirms the account was created', async () => {
+      const { user } = setup()
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(await screen.findByText('Account created!')).toBeInTheDocument()
+      expect(screen.getByText('Taking you to Post a Ride…')).toBeInTheDocument()
+    })
+
+    it('hands off to the caller so it can show the ride listing', async () => {
+      const onRegistered = jest.fn()
+      const { user } = setup({ onRegistered })
+
+      await fillForm(user)
+      await submit(user)
+
+      await waitFor(() => expect(onRegistered).toHaveBeenCalledTimes(1))
+    })
+
+    it('does not hand off while registration is still pending', async () => {
+      const onRegistered = jest.fn()
+      let resolveRegister
+      const register = jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveRegister = resolve
+          }),
+      )
+      const { user } = setup({ register, onRegistered })
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(onRegistered).not.toHaveBeenCalled()
+      resolveRegister({ email: VALID.email })
+      await waitFor(() => expect(onRegistered).toHaveBeenCalled())
+    })
+  })
+
+  describe('form behaviour', () => {
+    it('disables the submit button while the request is in flight', async () => {
+      let resolveRegister
+      const register = jest.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveRegister = resolve
+          }),
+      )
+      const { user } = setup({ register })
+
+      await fillForm(user)
+      await submit(user)
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: /creating account/i }),
+        ).toBeDisabled(),
+      )
+      resolveRegister({ email: VALID.email })
+    })
+
+    it('toggles password visibility', async () => {
+      const { user } = setup()
+
+      const password = screen.getByLabelText('Password')
+      expect(password).toHaveAttribute('type', 'password')
+
+      await user.click(screen.getByRole('button', { name: /show password/i }))
+      expect(password).toHaveAttribute('type', 'text')
+
+      await user.click(screen.getByRole('button', { name: /hide password/i }))
+      expect(password).toHaveAttribute('type', 'password')
+    })
+
+    it('toggles confirmation visibility', async () => {
+      const { user } = setup()
+
+      const confirmation = screen.getByLabelText(/confirm password/i)
+      expect(confirmation).toHaveAttribute('type', 'password')
+
+      await user.click(
+        screen.getByRole('button', { name: /show confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'text')
+
+      await user.click(
+        screen.getByRole('button', { name: /hide confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'password')
+    })
+
+    it('toggles each password field independently', async () => {
+      const { user } = setup()
+
+      const password = screen.getByLabelText('Password')
+      const confirmation = screen.getByLabelText(/confirm password/i)
+
+      await user.click(screen.getByRole('button', { name: /show password/i }))
+
+      expect(password).toHaveAttribute('type', 'text')
+      // Revealing one field must not reveal the other.
+      expect(confirmation).toHaveAttribute('type', 'password')
+
+      await user.click(
+        screen.getByRole('button', { name: /show confirmation/i }),
+      )
+      expect(confirmation).toHaveAttribute('type', 'text')
+      expect(password).toHaveAttribute('type', 'text')
+    })
+
+    it('lets the user switch to the login screen', async () => {
+      const onLoginClick = jest.fn()
+      const { user } = setup({ onLoginClick })
+
+      await user.click(screen.getByRole('button', { name: /sign in/i }))
+      expect(onLoginClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('hides the sign in tab when there is nowhere to go', () => {
+      setup({ onLoginClick: undefined })
+
+      expect(
+        screen.queryByRole('button', { name: /sign in/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('hides the log in instead link on a duplicate when there is nowhere to go', async () => {
+      const register = jest.fn().mockRejectedValue(new DuplicateEmailError())
+      const { user } = setup({ register, onLoginClick: undefined })
+
+      await fillForm(user)
+      await submit(user)
+
+      expect(
+        await screen.findByText(
+          'An account may already exist for this email. Try signing in or use another work email.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /log in instead/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('marks invalid fields for assistive technology', async () => {
+      const { user } = setup()
+
+      await submit(user)
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/full name/i)).toHaveAttribute(
+          'aria-invalid',
+          'true',
+        ),
+      )
+      expect(screen.getByLabelText(/full name/i)).toHaveAccessibleDescription(
+        'Please enter your full name',
+      )
+    })
+
+    it('describes the email and password rules before any error', () => {
+      setup()
+
+      expect(screen.getByLabelText(/work email/i)).toHaveAccessibleDescription(
+        'Must be your @amalitech.com or @amalitechtraining.org email',
+      )
+      expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+        'At least 8 characters',
+      )
+    })
+  })
+})

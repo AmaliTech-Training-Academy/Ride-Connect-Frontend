@@ -1,0 +1,63 @@
+{
+  "name": "ride-connect-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "better-auth": "^1.7.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,md,json}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@babel/core": "^8.0.5",
+    "@babel/preset-env": "^8.0.5",
+    "@babel/preset-react": "^8.0.1",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@eslint/js": "^10.0.1",
+    "@jest/globals": "^30.5.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "babel-jest": "^30.5.1",
+    "eslint": "^10.9.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "husky": "^9.1.7",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.5.1",
+    "jest-environment-jsdom": "^30.5.1",
+    "jsdom": "^30.0.1",
+    "lint-staged": "^17.5.0",
+    "prettier": "^3.9.6",
+    "vite": "^8.2.2"
+  }
+}
