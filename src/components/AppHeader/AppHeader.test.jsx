@@ -1,0 +1,162 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import AppHeader from './AppHeader'
+import { uploadAvatar } from '../../services/avatar'
+import { changePassword } from '../../services/auth'
+
+jest.mock('../../services/avatar', () => ({
+  uploadAvatar: jest.fn(),
+}))
+jest.mock('../../services/auth', () => ({
+  changePassword: jest.fn(),
+}))
+
+function CurrentPath() {
+  return <p data-testid="path">{useLocation().pathname}</p>
+}
+
+function renderHeader(path = '/find-a-ride', props = {}) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AppHeader userInitials="AO" onLogout={jest.fn()} {...props} />
+      <Routes>
+        <Route path="*" element={<CurrentPath />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('AppHeader', () => {
+  beforeEach(() => {
+    uploadAvatar.mockReset()
+  })
+
+  it.each([
+    ['/find-a-ride', 'Find a Ride'],
+    ['/my-rides', 'My Rides'],
+  ])('marks the tab for %s as the current page', (path, label) => {
+    renderHeader(path)
+
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+
+  it('shows the signed-in name and address in the account menu', async () => {
+    const user = userEvent.setup()
+    renderHeader('/find-a-ride', {
+      userName: 'Kwame Mensah',
+      userEmail: 'kwame@amalitech.com',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+
+    expect(screen.getByText('Kwame Mensah')).toBeInTheDocument()
+    expect(screen.getByText('kwame@amalitech.com')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['Find a Ride', '/find-a-ride'],
+    ['My Rides', '/my-rides'],
+    ['Offer a Ride', '/offer-a-ride'],
+  ])('navigates to %s', async (label, path) => {
+    const user = userEvent.setup()
+    renderHeader('/some-other-page')
+
+    await user.click(screen.getByRole('button', { name: label }))
+
+    expect(screen.getByTestId('path')).toHaveTextContent(path)
+  })
+
+  it('goes home from the brand', async () => {
+    const user = userEvent.setup()
+    renderHeader('/my-rides')
+
+    await user.click(screen.getByRole('button', { name: /RideConnect/ }))
+
+    expect(screen.getByTestId('path')).toHaveTextContent('/find-a-ride')
+  })
+
+  it('shows the viewer initials and logs out from the account menu', async () => {
+    const user = userEvent.setup()
+    const onLogout = jest.fn()
+    renderHeader('/find-a-ride', { onLogout })
+
+    expect(screen.getByText('AO')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: /logout/i }))
+
+    expect(onLogout).toHaveBeenCalled()
+  })
+
+  it('uploads a new picture and passes it up to the app', async () => {
+    const user = userEvent.setup()
+    const onUserUpdated = jest.fn()
+    const image = 'https://bucket.s3.eu-west-1.amazonaws.com/avatars/u1/me.png'
+    uploadAvatar.mockResolvedValue(image)
+    renderHeader('/find-a-ride', { onUserUpdated })
+    const file = new File(['x'], 'me.png', { type: 'image/png' })
+
+    await user.upload(screen.getByLabelText('Choose a profile picture'), file)
+
+    expect(uploadAvatar).toHaveBeenCalledWith(file)
+    expect(onUserUpdated).toHaveBeenCalledWith({ image })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Profile picture updated.',
+    )
+  })
+
+  it('reports a failed upload and keeps the old picture', async () => {
+    const user = userEvent.setup()
+    const onUserUpdated = jest.fn()
+    uploadAvatar.mockRejectedValue(
+      new Error('Please choose an image under 5 MB.'),
+    )
+    renderHeader('/find-a-ride', { onUserUpdated })
+
+    await user.upload(
+      screen.getByLabelText('Choose a profile picture'),
+      new File(['x'], 'huge.png', { type: 'image/png' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Please choose an image under 5 MB.',
+    )
+    expect(onUserUpdated).not.toHaveBeenCalled()
+  })
+
+  it('opens the change-password panel from the account menu', async () => {
+    const user = userEvent.setup()
+    renderHeader()
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Change password' }))
+
+    expect(
+      screen.getByRole('dialog', { name: 'Change password' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('confirms a changed password once the panel closes', async () => {
+    const user = userEvent.setup()
+    changePassword.mockResolvedValue(undefined)
+    renderHeader()
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Change password' }))
+    await user.type(screen.getByLabelText('Current password'), 'OldPass123')
+    await user.type(screen.getByLabelText('New password'), 'NewPass456')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPass456')
+    await user.click(screen.getByRole('button', { name: 'Update password' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Your password has been updated.',
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})

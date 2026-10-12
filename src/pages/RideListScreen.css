@@ -1,0 +1,51 @@
+.ride-list {
+  width: min(720px, 100%);
+  padding: 48px 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.ride-list-header {
+  margin-bottom: 24px;
+}
+
+.ride-list h1 {
+  margin: 0 0 6px;
+  color: #1a1a2e;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.ride-list-user {
+  margin: 0;
+  color: #757575;
+  font-size: 14px;
+}
+
+.ride-list-empty {
+  margin: 0 0 28px;
+  padding: 16px;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  color: #424242;
+  font-size: 14px;
+}
+
+.ride-list-logout {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: #1b5e20;
+  font:
+    600 15px 'Poppins',
+    sans-serif;
+  cursor: pointer;
+}
+
+.ride-list-logout:hover {
+  background: #134817;
+}
