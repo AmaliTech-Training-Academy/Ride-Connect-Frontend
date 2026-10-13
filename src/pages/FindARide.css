@@ -674,8 +674,20 @@
   }
   /* Stacked cards overhanging would read as a mistake, so they sit inside. */
   .find-ride-stats {
-    margin-top: 26px;
+    gap: 10px;
+    margin-top: 20px;
     margin-bottom: 0;
+  }
+  /*
+   * Compact here: three full-size cards filled most of a phone screen, so the
+   * number and its label sit on one line instead of stacking.
+   */
+  .find-ride-stat-card {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 12px 16px;
+    border-radius: 12px;
   }
   .find-ride-stats {
     grid-template-columns: 1fr;

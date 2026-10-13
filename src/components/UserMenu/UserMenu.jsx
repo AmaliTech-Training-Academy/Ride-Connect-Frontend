@@ -7,6 +7,7 @@ function UserMenu({
   imageUrl,
   name,
   email,
+  label = '',
   isUploadingImage = false,
   onChangePicture,
   onChangePassword,
@@ -68,6 +69,8 @@ function UserMenu({
             <i className="fa-solid fa-spinner fa-spin" />
           </span>
         )}
+        {/* aria-label already names the control, so the text is decorative. */}
+        {label && <span aria-hidden="true">{label}</span>}
       </button>
 
       {/* Outside the popover: the menu closes on click, but the picker still

@@ -213,39 +213,25 @@
   }
 }
 
+/*
+ * Navigation and the offer button move to the bottom bar at this width, so the
+ * header keeps to one row: brand on the left, avatar on the right. It used to
+ * wrap to three rows and stand 172px tall, which pushed the hero text beneath
+ * it.
+ */
 @media (max-width: 680px) {
   .site-header {
-    flex-wrap: wrap;
-    gap: 0;
-    padding: 14px 16px 0;
+    gap: 12px;
+    padding: 10px 14px;
   }
   .site-header-brand {
-    margin-bottom: 13px;
+    font-size: 16px;
   }
   .site-header-actions {
     gap: 10px;
-    margin-bottom: 10px;
-  }
-  .site-header-profile {
-    gap: 25px; /* the mobile 10px gap, plus 15px extra */
-  }
-  .site-header .site-header-offer {
-    padding: 8px 10px;
-    font-size: 0;
-  }
-  .site-header .site-header-offer i {
-    font-size: 14px;
-  }
-  .site-header-nav {
-    order: 3;
-    width: 100%;
-    margin-bottom: 10px;
-  }
-  .site-header-nav-link {
-    flex: 1;
   }
   .site-header-toast {
-    top: 140px;
+    top: 76px;
     right: 14px;
     left: 14px;
     max-width: none;

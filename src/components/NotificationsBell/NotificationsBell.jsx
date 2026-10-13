@@ -53,7 +53,7 @@ function NotificationRow({ notification, onSelect }) {
  * Lives in both the My Rides and Find a Ride headers, so it owns its own
  * fetching rather than having each screen pass the list down.
  */
-function NotificationsBell({ className = '', onOpenRide }) {
+function NotificationsBell({ className = '', label = '', onOpenRide }) {
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -175,6 +175,8 @@ function NotificationsBell({ className = '', onOpenRide }) {
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
+        {/* aria-label already names the control, so the text is decorative. */}
+        {label && <span aria-hidden="true">{label}</span>}
       </button>
 
       {isOpen && (

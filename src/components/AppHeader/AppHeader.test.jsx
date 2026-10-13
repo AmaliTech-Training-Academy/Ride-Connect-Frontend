@@ -1,6 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import AppHeader from './AppHeader'
 import { uploadAvatar } from '../../services/avatar'
@@ -158,5 +165,70 @@ describe('AppHeader', () => {
       'Your password has been updated.',
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  describe('on a phone', () => {
+    /** jsdom has no matchMedia, so the phone breakpoint is stubbed as matched. */
+    function pretendPhone() {
+      globalThis.matchMedia = jest.fn(() => ({
+        matches: true,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }))
+    }
+
+    afterEach(() => {
+      delete globalThis.matchMedia
+    })
+
+    it('moves the destinations into a bottom bar', () => {
+      pretendPhone()
+      renderHeader('/find-a-ride')
+
+      const bar = screen.getByRole('navigation', { name: 'Main navigation' })
+      // Read by accessible name: the avatar contributes its initials to the
+      // account tab's text, which says nothing about what the tab is.
+      expect(
+        within(bar)
+          .getAllByRole('button')
+          .map(
+            (button) => button.getAttribute('aria-label') ?? button.textContent,
+          ),
+      ).toEqual(['Find', 'My Rides', 'Offer', 'Account menu'])
+    })
+
+    it('keeps the header to the brand and the notification bell', () => {
+      pretendPhone()
+      renderHeader('/find-a-ride')
+
+      // The wrapped three-row header was what made the hero unreadable.
+      expect(
+        screen.queryByRole('button', { name: 'Offer a Ride' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /Notifications/ }),
+      ).toBeInTheDocument()
+    })
+
+    it('mounts one account menu, in the bar rather than the header', () => {
+      pretendPhone()
+      renderHeader('/find-a-ride')
+
+      const triggers = screen.getAllByRole('button', { name: 'Account menu' })
+      expect(triggers).toHaveLength(1)
+      expect(triggers[0].closest('.bottom-nav')).not.toBeNull()
+    })
+
+    it('leaves the desktop header alone above the breakpoint', () => {
+      renderHeader('/find-a-ride')
+
+      expect(
+        screen.getByRole('button', { name: 'Offer a Ride' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Find a Ride' }),
+      ).toBeInTheDocument()
+      expect(document.querySelector('.bottom-nav')).toBeNull()
+    })
   })
 })
