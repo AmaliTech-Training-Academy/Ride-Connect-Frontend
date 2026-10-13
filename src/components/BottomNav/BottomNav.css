@@ -1,0 +1,105 @@
+/*
+ * The bar exists only on phones. It is rendered conditionally rather than
+ * hidden with CSS, so there is no second notification bell mounted and
+ * fetching behind a `display: none`.
+ */
+.bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #e3ebe4;
+  background: #fff;
+  box-shadow: 0 -6px 20px rgba(15, 40, 18, 0.08);
+}
+
+.bottom-nav-item {
+  position: relative; /* anchors the bell's unread badge */
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px; /* a comfortable touch target */
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 10px;
+  color: #5d6b61;
+  background: none;
+  font:
+    600 11px 'Poppins',
+    sans-serif;
+  cursor: pointer;
+}
+
+.bottom-nav-item i {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.bottom-nav-item.active,
+.bottom-nav-item[aria-expanded='true'] {
+  color: #1b5e20;
+}
+
+.bottom-nav-item:active {
+  background: #eef5ee;
+}
+
+/*
+ * The account control is dropped in whole, so its wrapper is dissolved and the
+ * trigger itself becomes the tab.
+ */
+.bottom-nav .user-menu {
+  display: contents;
+}
+
+.bottom-nav .user-menu-trigger {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  color: #5d6b61;
+  font:
+    600 11px 'Poppins',
+    sans-serif;
+}
+
+.bottom-nav .user-menu-avatar {
+  width: 22px;
+  height: 22px;
+  border-width: 1px;
+  font-size: 8px;
+}
+
+.bottom-nav .user-menu-trigger[aria-expanded='true'] {
+  color: #1b5e20;
+}
+
+/* Opening downwards would put the menu off the bottom of the screen. */
+.bottom-nav .user-menu-popover {
+  top: auto;
+  right: 8px;
+  bottom: calc(100% + 8px);
+}
+
+/*
+ * Nothing should end up underneath the bar. body carries the same background
+ * as the pages, so the reserved strip is invisible.
+ */
+@media (max-width: 680px) {
+  body:has(.bottom-nav) {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}

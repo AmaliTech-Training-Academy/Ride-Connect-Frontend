@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import NotificationsBell from '../NotificationsBell/NotificationsBell'
+import BottomNav from '../BottomNav/BottomNav'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import UserMenu from '../UserMenu/UserMenu'
 import ChangePasswordPanel from '../ChangePasswordPanel/ChangePasswordPanel'
 import { uploadAvatar } from '../../services/avatar'
@@ -21,6 +23,7 @@ function AppHeader({
 }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const isMobile = useIsMobile()
   const [isPasswordPanelOpen, setPasswordPanelOpen] = useState(false)
   const [isUploadingImage, setUploadingImage] = useState(false)
   const [toast, setToast] = useState(null)
@@ -31,6 +34,9 @@ function AppHeader({
     const timer = setTimeout(() => setToast(null), 3500)
     return () => clearTimeout(timer)
   }, [toast])
+
+  const openRideFromNotification = (rideId, audience) =>
+    navigate(`/my-rides?manage=${rideId}&tab=${audience}`)
 
   const handleChangePicture = async (file) => {
     setUploadingImage(true)
@@ -53,6 +59,24 @@ function AppHeader({
     setPasswordPanelOpen(true)
   }
 
+  /*
+   * Built once and placed in whichever bar is on screen. Two copies would mean
+   * two popovers and two file inputs competing for the same upload.
+   */
+  const accountMenu = (
+    <UserMenu
+      initials={userInitials || '?'}
+      imageUrl={userImage}
+      name={userName}
+      email={userEmail}
+      label={isMobile ? 'Profile' : ''}
+      isUploadingImage={isUploadingImage}
+      onChangePicture={handleChangePicture}
+      onChangePassword={openPasswordPanel}
+      onLogout={onLogout}
+    />
+  )
+
   return (
     <>
       {/* Every signed-in screen carries a photo hero, so the header always
@@ -69,54 +93,53 @@ function AppHeader({
           <span>RideConnect</span>
         </button>
 
-        <nav className="site-header-nav" aria-label="Main navigation">
-          {NAV_ITEMS.map(({ label, path }) => {
-            const isActive = pathname.startsWith(path)
-            return (
-              <button
-                key={path}
-                type="button"
-                className={`site-header-nav-link ${isActive ? 'active' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={() => navigate(path)}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </nav>
+        {/*
+          On a phone these destinations live in the bottom bar. Rendering them
+          only once keeps a single tab marked as the current page.
+        */}
+        {!isMobile && (
+          <nav className="site-header-nav" aria-label="Main navigation">
+            {NAV_ITEMS.map(({ label, path }) => {
+              const isActive = pathname.startsWith(path)
+              return (
+                <button
+                  key={path}
+                  type="button"
+                  className={`site-header-nav-link ${isActive ? 'active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => navigate(path)}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </nav>
+        )}
 
         <div className="site-header-actions">
-          <button
-            type="button"
-            className="site-header-offer"
-            aria-current={
-              pathname.startsWith('/offer-a-ride') ? 'page' : undefined
-            }
-            onClick={() => navigate('/offer-a-ride')}
-          >
-            <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
-          </button>
+          {!isMobile && (
+            <button
+              type="button"
+              className="site-header-offer"
+              aria-current={
+                pathname.startsWith('/offer-a-ride') ? 'page' : undefined
+              }
+              onClick={() => navigate('/offer-a-ride')}
+            >
+              <i className="fa-solid fa-plus" aria-hidden="true" /> Offer a Ride
+            </button>
+          )}
           <div className="site-header-profile">
             <NotificationsBell
               className="site-header-icon-button"
-              onOpenRide={(rideId, audience) =>
-                navigate(`/my-rides?manage=${rideId}&tab=${audience}`)
-              }
+              onOpenRide={openRideFromNotification}
             />
-            <UserMenu
-              initials={userInitials || '?'}
-              imageUrl={userImage}
-              name={userName}
-              email={userEmail}
-              isUploadingImage={isUploadingImage}
-              onChangePicture={handleChangePicture}
-              onChangePassword={openPasswordPanel}
-              onLogout={onLogout}
-            />
+            {!isMobile && accountMenu}
           </div>
         </div>
       </header>
+
+      {isMobile && <BottomNav profile={accountMenu} />}
 
       {toast && (
         <div
